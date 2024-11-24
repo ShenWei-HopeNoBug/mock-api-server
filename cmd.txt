@@ -1,1 +1,2 @@
-mitmdump -s main.py
+ # 启动抓包服务
+mitmdump -s request_catch.py

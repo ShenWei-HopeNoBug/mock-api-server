@@ -11,8 +11,6 @@ node_modules
 dist
 dist-ssr
 *.local
-/static
-/output.xlsx
 
 # Editor directories and files
 .vscode/*
@@ -25,3 +23,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# User directories and files
+/static
+/output.xlsx
+/api_dict.json

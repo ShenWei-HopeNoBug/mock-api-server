@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from mitmproxy import http
 import re
-import hashlib
 import pandas as pd
+from utils import create_md5, format_dict_to_json_string
 
 
 # 处理请求抓包工具类
@@ -12,7 +12,7 @@ class RequestRecorder:
 
   def save_response(self, record):
     secret_key = r'{}{}'.format(record['Method'], record['Params'])
-    md5_key = hashlib.md5(secret_key.encode('utf-8')).hexdigest()
+    md5_key = create_md5(secret_key)
     search_key = r'{}{}'.format(record['Url'], record['Method'])
     # 创建新 url 的答案映射 dict
     if search_key not in self.response_map:
@@ -51,7 +51,7 @@ class RequestRecorder:
       "Type": "PACKAGE_CATCH",
       "Url": url,
       "Method": method,
-      "Params": params,
+      "Params": format_dict_to_json_string(params),
       "Response": response,
     }
 
