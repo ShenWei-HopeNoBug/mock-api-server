@@ -7,7 +7,6 @@ import time
 import os
 from utils import create_md5, remove_url_domain, format_json_string, format_dict_to_json_string
 import json
-import sys
 
 
 class MockServer:
@@ -21,7 +20,7 @@ class MockServer:
     response_col = data['Response']
     assets_list = []
     for response in response_col:
-      assets_exg = re.compile(r'"(https?://[-/a-zA-Z0-9_.]*\.(?:png|jpg|jpeg|gif|avif|webp))"', re.IGNORECASE)
+      assets_exg = re.compile(r'(https?://[-/a-zA-Z0-9_.]*\.(?:png|jpg|jpeg|gif|avif|webp))', re.IGNORECASE)
       assets = assets_exg.findall(response)
       assets_list.extend(assets)
 
@@ -65,6 +64,9 @@ class MockServer:
       if request_key not in api_dict:
         api_dict[request_key] = {}
 
+      '''
+      @todo 这个地方需要把静态资源链接全部替换成本地 mock 的静态资源
+      '''
       api_dict[request_key][response_key] = json.loads(response)
 
     # 写入生成的 api 映射数据
@@ -125,9 +127,14 @@ class MockServer:
         format_dict_to_json_string(params),
       )
 
+      '''
+      @todo 这里需要处理下没命中 mock 数据的情况，直接返回最后一条 mock 数据
+      '''
+
       # 命中 mock 数据直接返回
       if response_key in api_dict[request_key]:
-        return api_dict[request_key][response_key]
+        response = api_dict[request_key][response_key]
+        return response
 
     # 静态资源目录
     @app.route('/static/<path:path>', methods=['GET'])
@@ -146,7 +153,7 @@ if __name__ == '__main__':
 
   # 检查和下载静态资源
   print('>' * 20, '开始检查和下载静态资源...')
-  mock_server.check_static()
+  # mock_server.check_static()
 
   print('>' * 20, '本地 mock 服务启动...')
   # 启本地 mock 服务

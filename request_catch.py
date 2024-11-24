@@ -2,7 +2,7 @@
 from mitmproxy import http
 import re
 import pandas as pd
-from utils import create_md5, format_dict_to_json_string
+from utils import create_md5, format_dict
 
 
 # 处理请求抓包工具类
@@ -47,11 +47,14 @@ class RequestRecorder:
     # 响应内容
     response = str(flow.response.content, encoding="utf-8")
 
+    '''
+    @todo 这里 GET 请求保存的 json 数据引号是单引导，解析会有问题，需要处理下
+    '''
     record = {
       "Type": "PACKAGE_CATCH",
       "Url": url,
       "Method": method,
-      "Params": format_dict_to_json_string(params),
+      "Params": format_dict(params),
       "Response": response,
     }
 
