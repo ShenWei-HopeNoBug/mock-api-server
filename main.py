@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import re
 import pandas as pd
-from flask import Flask, request
 import requests
 import time
 import os
 from utils import create_md5, remove_url_domain, format_json_string, format_dict_to_json_string
 import json
+from flask import Flask, request
+from flask_cors import CORS
 
 
 class MockServer:
@@ -130,6 +131,8 @@ class MockServer:
     api_dict = self.get_server_api_dict()
 
     app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
+    # 配置跨域
+    CORS(app, resources={r"/static/*": {"origins": "*"}})
 
     # 常规接口
     @app.route('/api/<path:path>', methods=['GET', 'POST'])
@@ -157,14 +160,15 @@ class MockServer:
         format_dict_to_json_string(params),
       )
 
-      '''
-      @todo 这里需要处理下没命中 mock 数据的情况，直接返回最后一条 mock 数据
-      '''
-
       # 命中 mock 数据直接返回
       if response_key in api_dict[request_key]:
         response = api_dict[request_key][response_key]
         return response
+      else:
+        # 没命中 mock 数据，直接返回最后一条数据
+        print('mock 数据命中失败：\n - {} {} {}'.format(method, route, params))
+        last_response_key = list(api_dict[request_key].keys())[-1]
+        return api_dict[request_key][last_response_key]
 
     # 静态资源目录
     @app.route('/static/<path:path>', methods=['GET'])
