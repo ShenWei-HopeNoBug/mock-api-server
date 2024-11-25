@@ -13,41 +13,70 @@ class MockServer:
   def __init__(self):
     self.api_dict_path = './api_dict.json'
     self.api_data_path = './output.xlsx'
+    self.static_host = 'http://127.0.0.1:5000'
+    self.static_url_path = '/static'
+    self.static_match_excepts = ['.png', '.jpg', '.jpeg', '.gif', '.avif', '.webp', '.npy']
+
+    pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.static_match_excepts))
+    # 静态资源正则匹配配置
+    self.static_match_config = {
+      # 匹配的正则实例
+      "compare": re.compile(pattern, flags=re.IGNORECASE),
+      # 静态资源要将 domain 替换的的基础 url 路径
+      "domain": self.static_host,
+      "static_url_path": self.static_url_path,
+    }
 
   # 检查和下载静态资源
   def check_static(self):
+    print('>' * 20, '开始检查和下载静态资源...')
+
     data = pd.read_excel(self.api_data_path, sheet_name=0, engine='openpyxl')
     response_col = data['Response']
     assets_list = []
+    # 提取静态资源链接
     for response in response_col:
-      assets_exg = re.compile(r'(https?://[-/a-zA-Z0-9_.]*\.(?:png|jpg|jpeg|gif|avif|webp))', re.IGNORECASE)
-      assets = assets_exg.findall(response)
+      assets_reg = self.static_match_config['compare']
+      assets = assets_reg.findall(response)
       assets_list.extend(assets)
 
+    # 去重
     assets_list = list(set(assets_list))
+
+    root = '.{}'.format(self.static_url_path)
     assets_length = len(assets_list)
     for i, assets in enumerate(assets_list):
       file_name = assets.split('/')[-1]
-      root = './static'
+
       # 拼接图片存放地址和名字
-      img_path = '{}/{}'.format(root, file_name)
+      assets_path = '{}/{}'.format(root, file_name)
 
       # 校验下载的文件是否已经存在
-      if os.path.exists(img_path):
+      if os.path.exists(assets_path):
         continue
 
       print('{}/{} 正在下载：{}'.format(i + 1, assets_length, assets))
-      img_data = requests.get(url=assets).content
+      # 下载静态资源
+      assets_data = requests.get(url=assets, timeout=30).content
 
       # 将图片写入指定位置
-      with open(img_path, 'wb') as fl:
-        fl.write(img_data)
+      with open(assets_path, 'wb') as fl:
+        fl.write(assets_data)
 
       time.sleep(1)
 
   # 创建并保存 api_dict
   def create_api_dict(self):
     data = pd.read_excel(self.api_data_path, sheet_name=0, engine='openpyxl')
+    assets_reg = self.static_match_config['compare']
+    assets_base_url = '{}{}'.format(self.static_host, self.static_url_path)
+
+    # 静态资源文本替换规则
+    def assets_replace_method(match):
+      assets_url = match[0]
+      file_name = assets_url.split('/')[-1]
+
+      return '{}/{}'.format(assets_base_url, file_name)
 
     api_dict = {}
     # 总行数
@@ -58,20 +87,19 @@ class MockServer:
       url = row_data.get('Url')
 
       request_key = create_md5(remove_url_domain(url))
+      # 响应数据查询键名
       response_key = self._get_response_dict_key(method, format_json_string(params))
 
       # 创建 api 映射表
       if request_key not in api_dict:
         api_dict[request_key] = {}
 
-      '''
-      @todo 这个地方需要把静态资源链接全部替换成本地 mock 的静态资源
-      '''
+      response = assets_reg.sub(assets_replace_method, response)
       api_dict[request_key][response_key] = json.loads(response)
 
-    # 写入生成的 api 映射数据
-    with open(self.api_dict_path, 'w', encoding='utf-8') as fl:
-      fl.write(json.dumps(api_dict))
+      # 写入生成的 api 映射数据
+      with open(self.api_dict_path, 'w', encoding='utf-8') as fl:
+        fl.write(json.dumps(api_dict))
 
     return api_dict
 
@@ -97,9 +125,11 @@ class MockServer:
 
   # 启本地 mock 服务
   def start_server(self):
+    print('>' * 20, '本地 mock 服务启动...')
+
     api_dict = self.get_server_api_dict()
 
-    app = Flask(__name__, static_folder='static', static_url_path='/static')
+    app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
 
     # 常规接口
     @app.route('/api/<path:path>', methods=['GET', 'POST'])
@@ -152,9 +182,7 @@ if __name__ == '__main__':
   mock_server = MockServer()
 
   # 检查和下载静态资源
-  print('>' * 20, '开始检查和下载静态资源...')
-  # mock_server.check_static()
+  mock_server.check_static()
 
-  print('>' * 20, '本地 mock 服务启动...')
   # 启本地 mock 服务
   mock_server.start_server()

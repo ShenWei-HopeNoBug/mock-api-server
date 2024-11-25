@@ -26,12 +26,12 @@ class RequestRecorder:
     url = flow.request.url
 
     # 需要排除的请求
-    exg_except = re.compile(r'\.(png|jpg|jpeg|gif|avif|webp|js|css)')
-    if exg_except.search(url):
+    except_reg = re.compile(r'\.(png|jpg|jpeg|gif|avif|webp|js|css)')
+    if except_reg.search(url):
       return
     # 需要包含的请求
-    exg_include = re.compile(r'dream.aimiai.com')
-    if not exg_include.search(url):
+    include_reg = re.compile(r'dream.aimiai.com')
+    if not include_reg.search(url):
       return
 
     method = flow.request.method
