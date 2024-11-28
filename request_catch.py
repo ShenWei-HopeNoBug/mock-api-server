@@ -2,7 +2,7 @@
 from mitmproxy import http
 import re
 import pandas as pd
-from utils import create_md5, format_dict
+from utils import create_md5, format_dict_to_json_string
 
 
 # 处理请求抓包工具类
@@ -26,35 +26,34 @@ class RequestRecorder:
     url = flow.request.url
 
     # 需要排除的请求
-    except_reg = re.compile(r'\.(png|jpg|jpeg|gif|avif|webp|js|css)')
+    except_reg = re.compile(r'\.(png|jpg|jpeg|gif|avif|webp|js|css|ico|ttf|html|xml)')
     if except_reg.search(url):
       return
     # 需要包含的请求
-    include_reg = re.compile(r'dream.aimiai.com')
+    include_reg = re.compile(r'dream.aimiai.com/dream-plus')
     if not include_reg.search(url):
       return
 
     method = flow.request.method
-    params = {}
+
+    # 请求参数，统一用 json string
+    params = format_dict_to_json_string({})
     if method == 'POST':
       if 'application/x-www-form-urlencoded' in flow.request.headers.get('content-type'):
         params = flow.request.form
       elif 'application/json' in flow.request.headers.get('content-type'):
-        params = flow.request.text
+        params = flow.request.get_text()
     elif method == 'GET':
-      params = dict(flow.request.query or {})
+      params = format_dict_to_json_string(dict(flow.request.query.copy()))
 
-    # 响应内容
-    response = str(flow.response.content, encoding="utf-8")
+    # 响应内容，统一用 json string
+    response = flow.response.get_text()
 
-    '''
-    @todo 这里 GET 请求保存的 json 数据引号是单引导，解析会有问题，需要处理下
-    '''
     record = {
       "Type": "PACKAGE_CATCH",
       "Url": url,
       "Method": method,
-      "Params": format_dict(params),
+      "Params": params,
       "Response": response,
     }
 
@@ -69,6 +68,7 @@ class RequestRecorder:
 
     for response_data in self.response_map.values():
       for record in response_data.values():
+        # 将数据存入对应列
         for key, value in record.items():
           if key in data:
             data[key].append(value)

@@ -4,7 +4,12 @@ import pandas as pd
 import requests
 import time
 import os
-from utils import create_md5, remove_url_domain, format_json_string, format_dict_to_json_string
+from utils import (
+  create_md5,
+  remove_url_domain,
+  format_json_string,
+  format_dict_to_json_string,
+)
 import json
 from flask import Flask, request
 from flask_cors import CORS
@@ -146,19 +151,16 @@ class MockServer:
 
       method = request.method
 
-      params = {}
+      params = format_dict_to_json_string({})
       if method == 'POST':
         if 'application/x-www-form-urlencoded' in request.headers.get('content-type'):
           params = request.form
         elif 'application/json' in request.headers.get('content-type'):
-          params = request.get_json()
+          params = format_json_string(request.get_data(as_text=True))
       elif method == 'GET':
-        params = dict(request.args or {})
+        params = format_dict_to_json_string(dict(request.args or {}))
 
-      response_key = self._get_response_dict_key(
-        method,
-        format_dict_to_json_string(params),
-      )
+      response_key = self._get_response_dict_key(method, params)
 
       # 命中 mock 数据直接返回
       if response_key in api_dict[request_key]:

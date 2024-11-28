@@ -1,9 +1,7 @@
+# -*- coding: utf-8 -*-
 import hashlib
 from urllib.parse import urlparse
 import json
-
-from conda.common.serialize import json_load
-
 
 # 获取字符串的 md5
 def create_md5(string = ''):
