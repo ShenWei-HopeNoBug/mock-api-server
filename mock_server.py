@@ -138,10 +138,10 @@ class MockServer:
         return self.create_api_dict()
 
   # 启本地 mock 服务
-  def start_server(self):
+  def start_server(self, read_catch=False):
     print('>' * 20, '本地 mock 服务启动...')
 
-    api_dict = self.get_server_api_dict()
+    api_dict = self.get_server_api_dict(read_catch)
 
     app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
     # 配置跨域

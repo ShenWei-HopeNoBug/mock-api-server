@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import (
-  QMainWindow,
   QMessageBox,
   QWidget,
 )
