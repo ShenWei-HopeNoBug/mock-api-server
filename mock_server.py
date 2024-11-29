@@ -17,6 +17,7 @@ from flask import Flask, request
 from flask_cors import CORS
 import threading
 
+
 class MockServer:
   def __init__(self):
     self.api_dict_path = './api_dict.json'
@@ -144,11 +145,9 @@ class MockServer:
 
     def callback():
       print('>' * 20, '本地 mock 服务启动...')
-
       api_dict = self.get_server_api_dict(read_catch)
 
       app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
-      self.app = app
       # 配置跨域
       CORS(app, resources={r"/static/*": {"origins": "*"}})
 
@@ -197,20 +196,25 @@ class MockServer:
 
   # 停止本地 mock 服务
   def stop_server(self):
-    if self.app:
-      connections = psutil.net_connections()
-      for conn in connections:
-        if conn.status == 'LISTEN':
-          laddr = conn.laddr
-          port = laddr.port
-          ip = laddr.ip
-          if port == 5000 and ip == '0.0.0.0':
-            print(conn, conn.pid)
-            proc = psutil.Process(conn.pid)
-            print(proc)
-            proc.terminate()
+    connections = psutil.net_connections()
+    success = False
+    for conn in connections:
+      if not conn.status == 'LISTEN':
+        continue
 
-      self.app = None
+      laddr = conn.laddr
+      port = laddr.port
+      ip = laddr.ip
+      if port == 5000 and ip == '0.0.0.0':
+        # 杀掉本地服务进程
+        proc = psutil.Process(conn.pid)
+        proc.terminate()
+        success = True
+        print('关闭 mock server 成功!')
+    if not success:
+      print('未找到 mock server 进程！')
+
+    return success
 
   # 获取响应数据映射表键名
   @staticmethod

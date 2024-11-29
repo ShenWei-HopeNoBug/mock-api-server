@@ -4,7 +4,20 @@ from PyQt5.QtCore import pyqtSignal, QThread, QObject
 from PyQt5.QtWidgets import QMessageBox, QWidget
 from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
-import multiprocessing
+from multiprocessing import Queue, Process
+
+mock_server_queue = Queue()
+
+
+def server_process_start(queue):
+  mock_server = MockServer()
+  queue.put(mock_server)
+
+  # 检查和下载静态资源
+  # mock_server.check_static()
+
+  # 启本地 mock 服务
+  mock_server.start_server()
 
 
 # app 主窗口
@@ -15,7 +28,7 @@ class MainWindow(QWidget, Ui_MainWindow):
     super(MainWindow, self).__init__(parent=parent)
     self.mock_server = None
     self.server_running = False
-    self.server_thread = None
+    self.server_process = None
 
     self.init_ui()
     self.add_events()
@@ -44,36 +57,25 @@ class MainWindow(QWidget, Ui_MainWindow):
     if self.server_running:
       return
 
-    def server_thread_start():
-      mock_server = MockServer()
-      self.mock_server = mock_server
-
-      # 检查和下载静态资源
-      # mock_server.check_static()
-
-      # 启本地 mock 服务
-      mock_server.start_server()
-      self.server_running_signal.emit(True)
-
-    server_thread = QThread(self)
-    self.server_thread = server_thread
-    server_thread.started.connect(server_thread_start)
-    server_thread.start()
+    self.server_process = Process(
+      target=server_process_start,
+      args=(mock_server_queue,),
+      name='mock_server',
+    )
+    self.server_process.start()
+    self.server_running_signal.emit(True)
 
   def stop_server(self):
     if not self.server_running:
       return
 
-    def server_thread_finished():
-      if self.mock_server:
-        self.mock_server.stop_server()
-        self.mock_server = None
-        self.server_running_signal.emit(False)
-
-    if self.server_thread:
-      self.server_thread.finished.connect(server_thread_finished)
-      self.server_thread.quit()
-      self.server_thread = None
+    mock_server = mock_server_queue.get()
+    if mock_server:
+      success = mock_server.stop_server()
+      self.server_running_signal.emit(not success)
+    else:
+      self.server_running_signal.emit(False)
+    self.server_process = None
 
   def closeEvent(self, event: QCloseEvent):
     reply = QMessageBox.question(
@@ -85,6 +87,7 @@ class MainWindow(QWidget, Ui_MainWindow):
     )
 
     if reply == QMessageBox.Yes:
+      self.stop_server()
       event.accept()
     else:
       event.ignore()
