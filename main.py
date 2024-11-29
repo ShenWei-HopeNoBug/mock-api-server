@@ -99,7 +99,7 @@ class MockServer:
 
       request_key = create_md5(remove_url_domain(url))
       # 响应数据查询键名
-      response_key = self.get_response_dict_key(
+      response_key = self.__get_response_dict_key(
         method,
         JsonFormat.format_json_string(params),
       )
@@ -168,7 +168,7 @@ class MockServer:
       elif method == 'GET':
         params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
 
-      response_key = self.get_response_dict_key(method, params)
+      response_key = self.__get_response_dict_key(method, params)
 
       # 命中 mock 数据直接返回
       if response_key in api_dict[request_key]:
@@ -189,7 +189,7 @@ class MockServer:
 
   # 获取响应数据映射表键名
   @staticmethod
-  def get_response_dict_key(method, params):
+  def __get_response_dict_key(method, params):
     return create_md5('{}{}'.format(method, params))
 
 

@@ -15,44 +15,9 @@ class RequestRecorder:
     # 抓包缓存数据 dict
     self.response_catch_dict = {}
 
-  # 检查请求是否需要被抓取保存
-  @staticmethod
-  def check_response(request, response):
-    # 请求链接
-    url = request.url
-
-    # 需要排除的请求
-    except_reg = re.compile(r'\.(png|jpg|jpeg|gif|avif|webp|js|css|ico|ttf|html|xml)')
-    if except_reg.search(url):
-      return False
-
-    # 需要包含的请求
-    include_reg = re.compile(r'dream.aimiai.com/dream-plus')
-    if not include_reg.search(url):
-      return False
-
-    response_content_type = response.headers.get('Content-Type') or ''
-    # 忽略 json 以外的响应内容
-    if 'application/json' not in response_content_type:
-      return False
-
-    return True
-
-  # 保存抓包数据到缓存
-  def save_response(self, record):
-    secret_key = r'{}{}'.format(record['Method'], record['Params'])
-    md5_key = create_md5(secret_key)
-    search_key = r'{}{}'.format(record['Url'], record['Method'])
-    # 创建新 url 的答案映射 dict
-    if search_key not in self.response_catch_dict:
-      self.response_catch_dict[search_key] = {}
-
-    # 添加新的请求 response 内容
-    self.response_catch_dict[search_key][md5_key] = record
-
   def response(self, flow: http.HTTPFlow):
     # 请求检查
-    if not self.check_response(flow.request, flow.response):
+    if not self.__check_response(flow.request, flow.response):
       return
 
     # 请求链接
@@ -98,7 +63,7 @@ class RequestRecorder:
     }
 
     # 保存请求映射
-    self.save_response(record)
+    self.__save_response(record)
 
   def done(self):
     fieldnames = ["Type", "Url", "Method", "Params", "Response"]
@@ -118,6 +83,41 @@ class RequestRecorder:
     # 将DataFrame写入Excel文件，每行为一个数据
     df.to_excel(self.save_path, index=False, engine='openpyxl')
     self.response_catch_dict = {}
+
+  # 检查请求是否需要被抓取保存
+  @staticmethod
+  def __check_response(request, response):
+    # 请求链接
+    url = request.url
+
+    # 需要排除的请求
+    except_reg = re.compile(r'\.(png|jpg|jpeg|gif|avif|webp|js|css|ico|ttf|html|xml)')
+    if except_reg.search(url):
+      return False
+
+    # 需要包含的请求
+    include_reg = re.compile(r'dream.aimiai.com/dream-plus')
+    if not include_reg.search(url):
+      return False
+
+    response_content_type = response.headers.get('Content-Type') or ''
+    # 忽略 json 以外的响应内容
+    if 'application/json' not in response_content_type:
+      return False
+
+    return True
+
+  # 保存抓包数据到缓存
+  def __save_response(self, record):
+    secret_key = r'{}{}'.format(record['Method'], record['Params'])
+    md5_key = create_md5(secret_key)
+    search_key = r'{}{}'.format(record['Url'], record['Method'])
+    # 创建新 url 的答案映射 dict
+    if search_key not in self.response_catch_dict:
+      self.response_catch_dict[search_key] = {}
+
+    # 添加新的请求 response 内容
+    self.response_catch_dict[search_key][md5_key] = record
 
 
 addons = [
