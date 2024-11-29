@@ -5,11 +5,12 @@ import requests
 import time
 import os
 from utils import (
+  JsonFormat,
   create_md5,
   remove_url_domain,
-  format_json_string,
-  format_dict_to_json_string,
+  check_and_create_dir,
 )
+
 import json
 from flask import Flask, request
 from flask_cors import CORS
@@ -49,13 +50,17 @@ class MockServer:
     # 去重
     assets_list = list(set(assets_list))
 
-    root = '.{}'.format(self.static_url_path)
+    # 静态资源目录
+    assets_dir = '.{}'.format(self.static_url_path)
+    # 创建静态资源文件夹
+    check_and_create_dir(assets_dir)
+
     assets_length = len(assets_list)
     for i, assets in enumerate(assets_list):
       file_name = assets.split('/')[-1]
 
       # 拼接图片存放地址和名字
-      assets_path = '{}/{}'.format(root, file_name)
+      assets_path = '{}/{}'.format(assets_dir, file_name)
 
       # 校验下载的文件是否已经存在
       if os.path.exists(assets_path):
@@ -94,7 +99,10 @@ class MockServer:
 
       request_key = create_md5(remove_url_domain(url))
       # 响应数据查询键名
-      response_key = self._get_response_dict_key(method, format_json_string(params))
+      response_key = self.get_response_dict_key(
+        method,
+        JsonFormat.format_json_string(params),
+      )
 
       # 创建 api 映射表
       if request_key not in api_dict:
@@ -151,16 +159,16 @@ class MockServer:
 
       method = request.method
 
-      params = format_dict_to_json_string({})
+      params = JsonFormat.format_dict_to_json_string({})
       if method == 'POST':
         if 'application/x-www-form-urlencoded' in request.headers.get('content-type'):
           params = request.form
         elif 'application/json' in request.headers.get('content-type'):
-          params = format_json_string(request.get_data(as_text=True))
+          params = JsonFormat.format_json_string(request.get_data(as_text=True))
       elif method == 'GET':
-        params = format_dict_to_json_string(dict(request.args or {}))
+        params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
 
-      response_key = self._get_response_dict_key(method, params)
+      response_key = self.get_response_dict_key(method, params)
 
       # 命中 mock 数据直接返回
       if response_key in api_dict[request_key]:
@@ -180,7 +188,8 @@ class MockServer:
     app.run()
 
   # 获取响应数据映射表键名
-  def _get_response_dict_key(self, method, params):
+  @staticmethod
+  def get_response_dict_key(method, params):
     return create_md5('{}{}'.format(method, params))
 
 

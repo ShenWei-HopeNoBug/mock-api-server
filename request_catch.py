@@ -2,7 +2,7 @@
 from mitmproxy import http
 import re
 import pandas as pd
-from utils import create_md5, format_dict_to_json_string
+from utils import create_md5, JsonFormat
 
 
 # 处理请求抓包工具类
@@ -37,14 +37,14 @@ class RequestRecorder:
     method = flow.request.method
 
     # 请求参数，统一用 json string
-    params = format_dict_to_json_string({})
+    params = JsonFormat.format_dict_to_json_string({})
     if method == 'POST':
       if 'application/x-www-form-urlencoded' in flow.request.headers.get('content-type'):
         params = flow.request.form
       elif 'application/json' in flow.request.headers.get('content-type'):
         params = flow.request.get_text()
     elif method == 'GET':
-      params = format_dict_to_json_string(dict(flow.request.query.copy()))
+      params = JsonFormat.format_dict_to_json_string(dict(flow.request.query.copy()))
 
     # 响应内容，统一用 json string
     response = flow.response.get_text()
