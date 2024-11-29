@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import re
+import psutil
 import pandas as pd
 import requests
 import time
@@ -14,7 +15,7 @@ from utils import (
 import json
 from flask import Flask, request
 from flask_cors import CORS
-
+import threading
 
 class MockServer:
   def __init__(self):
@@ -23,6 +24,7 @@ class MockServer:
     self.static_host = 'http://127.0.0.1:5000'
     self.static_url_path = '/static'
     self.static_match_excepts = ['.png', '.jpg', '.jpeg', '.gif', '.avif', '.webp', '.npy']
+    self.app = None
 
     pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.static_match_excepts))
     # 静态资源正则匹配配置
@@ -137,55 +139,78 @@ class MockServer:
         print('@@get_server_api_dict error', e)
         return self.create_api_dict()
 
-  # 启本地 mock 服务
+  # 启动本地 mock 服务
   def start_server(self, read_catch=False):
-    print('>' * 20, '本地 mock 服务启动...')
 
-    api_dict = self.get_server_api_dict(read_catch)
+    def callback():
+      print('>' * 20, '本地 mock 服务启动...')
 
-    app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
-    # 配置跨域
-    CORS(app, resources={r"/static/*": {"origins": "*"}})
+      api_dict = self.get_server_api_dict(read_catch)
 
-    # 常规接口
-    @app.route('/api/<path:path>', methods=['GET', 'POST'])
-    def request_api(path):
-      route = '/' + path
-      request_key = create_md5(route)
+      app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
+      self.app = app
+      # 配置跨域
+      CORS(app, resources={r"/static/*": {"origins": "*"}})
 
-      # 请求路径 mock 数据中不存在
-      if request_key not in api_dict:
-        return
+      # 常规接口
+      @app.route('/api/<path:path>', methods=['GET', 'POST'])
+      def request_api(path):
+        route = '/' + path
+        request_key = create_md5(route)
 
-      method = request.method
+        # 请求路径 mock 数据中不存在
+        if request_key not in api_dict:
+          return
 
-      params = JsonFormat.format_dict_to_json_string({})
-      if method == 'POST':
-        if 'application/x-www-form-urlencoded' in request.headers.get('content-type'):
-          params = request.form
-        elif 'application/json' in request.headers.get('content-type'):
-          params = JsonFormat.format_json_string(request.get_data(as_text=True))
-      elif method == 'GET':
-        params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
+        method = request.method
 
-      response_key = self.__get_response_dict_key(method, params)
+        params = JsonFormat.format_dict_to_json_string({})
+        if method == 'POST':
+          if 'application/x-www-form-urlencoded' in request.headers.get('content-type'):
+            params = request.form
+          elif 'application/json' in request.headers.get('content-type'):
+            params = JsonFormat.format_json_string(request.get_data(as_text=True))
+        elif method == 'GET':
+          params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
 
-      # 命中 mock 数据直接返回
-      if response_key in api_dict[request_key]:
-        response = api_dict[request_key][response_key]
-        return response
-      else:
-        # 没命中 mock 数据，直接返回最后一条数据
-        print('mock 数据命中失败：\n - {} {} {}'.format(method, route, params))
-        last_response_key = list(api_dict[request_key].keys())[-1]
-        return api_dict[request_key][last_response_key]
+        response_key = self.__get_response_dict_key(method, params)
 
-    # 静态资源目录
-    @app.route('/static/<path:path>', methods=['GET'])
-    def send_static(path):
-      return app.send_static_file(path)
+        # 命中 mock 数据直接返回
+        if response_key in api_dict[request_key]:
+          response = api_dict[request_key][response_key]
+          return response
+        else:
+          # 没命中 mock 数据，直接返回最后一条数据
+          print('mock 数据命中失败：\n - {} {} {}'.format(method, route, params))
+          last_response_key = list(api_dict[request_key].keys())[-1]
+          return api_dict[request_key][last_response_key]
 
-    app.run()
+      # 静态资源目录
+      @app.route('/static/<path:path>', methods=['GET'])
+      def send_static(path):
+        return app.send_static_file(path)
+
+      app.run(host='0.0.0.0', port=5000, threaded=True)
+
+    thread = threading.Thread(target=callback)
+    thread.start()
+
+  # 停止本地 mock 服务
+  def stop_server(self):
+    if self.app:
+      connections = psutil.net_connections()
+      for conn in connections:
+        if conn.status == 'LISTEN':
+          laddr = conn.laddr
+          port = laddr.port
+          ip = laddr.ip
+          if port == 5000 and ip == '0.0.0.0':
+            print(conn, conn.pid)
+            proc = psutil.Process(conn.pid)
+            print(proc)
+            proc.terminate()
+
+      self.app = None
 
   # 获取响应数据映射表键名
   @staticmethod

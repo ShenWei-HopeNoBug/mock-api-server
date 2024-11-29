@@ -16,9 +16,19 @@ class Ui_MainWindow(object):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(400, 300)
         MainWindow.setWindowTitle("")
+        self.horizontalLayoutWidget = QtWidgets.QWidget(MainWindow)
+        self.horizontalLayoutWidget.setGeometry(QtCore.QRect(220, 220, 160, 31))
+        self.horizontalLayoutWidget.setObjectName("horizontalLayoutWidget")
+        self.horizontalLayout = QtWidgets.QHBoxLayout(self.horizontalLayoutWidget)
+        self.horizontalLayout.setContentsMargins(0, 0, 0, 0)
+        self.horizontalLayout.setObjectName("horizontalLayout")
+        self.serverButton = QtWidgets.QPushButton(self.horizontalLayoutWidget)
+        self.serverButton.setObjectName("serverButton")
+        self.horizontalLayout.addWidget(self.serverButton)
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
-        pass
+        _translate = QtCore.QCoreApplication.translate
+        self.serverButton.setText(_translate("MainWindow", "启动服务"))
