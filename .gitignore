@@ -25,6 +25,7 @@ dist-ssr
 *.sw?
 
 # User directories and files
+/test
 /static
 /output.xlsx
 /api_dict.json
