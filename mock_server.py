@@ -17,6 +17,7 @@ from utils import (
 import json
 from flask import Flask, request
 from flask_cors import CORS
+import global_var
 
 
 class MockServer:
@@ -60,6 +61,10 @@ class MockServer:
 
     assets_length = len(assets_list)
     for i, assets in enumerate(assets_list):
+      # 程序已经全局退出，停止下载处理
+      if global_var.global_exit:
+        return
+
       file_name = assets.split('/')[-1]
 
       # 拼接图片存放地址和名字

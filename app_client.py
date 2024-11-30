@@ -8,6 +8,7 @@ from mock_server import MockServer
 from multiprocessing import Process
 from decorate import create_thread
 import time
+import global_var
 
 mock_server = MockServer()
 
@@ -105,7 +106,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return
 
     self.downloading_signal.emit(True)
-    mock_server.check_static(self.compress_image)
+    mock_server.check_static(compress=self.compress_image)
     self.downloading_signal.emit(False)
     time.sleep(0.5)
 
@@ -140,6 +141,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     if reply == QMessageBox.Yes:
       self.stop_server()
+      # 设置退出程序的全局变量
+      global_var.global_exit = True
       event.accept()
     else:
       event.ignore()
