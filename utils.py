@@ -50,7 +50,7 @@ def create_thread(func):
   return wrapper
 
 
-# 找到监听指定 address 的进程列表
+# 找到监听指定 ip 和 端口号的进程列表
 def find_connection_process(ip='0.0.0.0', port=5000):
   process_list = []
   connections = psutil.net_connections()
@@ -59,9 +59,8 @@ def find_connection_process(ip='0.0.0.0', port=5000):
       continue
 
     laddr = conn.laddr
-    port = laddr.port
-    ip = laddr.ip
-    if port == 5000 and ip == '0.0.0.0':
+    # 匹配指定 ip 和 端口号的进程
+    if port == laddr.port and ip == laddr.ip:
       # 杀掉本地服务进程
       proc = psutil.Process(conn.pid)
       process_list.append(proc)
