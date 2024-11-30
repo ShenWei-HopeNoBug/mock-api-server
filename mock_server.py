@@ -4,12 +4,12 @@ import pandas as pd
 import requests
 import time
 import os
+from decorate import create_thread
 from utils import (
   JsonFormat,
   create_md5,
   remove_url_domain,
   check_and_create_dir,
-  create_thread,
   find_connection_process,
 )
 

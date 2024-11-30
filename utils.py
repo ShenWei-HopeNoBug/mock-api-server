@@ -3,8 +3,9 @@ import os
 import hashlib
 from urllib.parse import urlparse
 import json
-import threading
 import psutil
+from PIL import Image
+from decorate import error_catch
 
 
 # 获取字符串的 md5
@@ -41,16 +42,8 @@ class JsonFormat:
     return json.dumps(dict_data, ensure_ascii=False)
 
 
-# 线程装饰器
-def create_thread(func):
-  def wrapper(*args, **kwargs):
-    thread = threading.Thread(target=func, args=args, kwargs=kwargs)
-    thread.start()
-
-  return wrapper
-
-
-# 找到监听指定 ip 和 端口号的进程列表
+# 找到监听指定 ip 和 端口号网络服务的进程列表
+@error_catch(error_msg='查找服务进程失败', error_return=[])
 def find_connection_process(ip='0.0.0.0', port=5000):
   process_list = []
   connections = psutil.net_connections()
@@ -66,3 +59,12 @@ def find_connection_process(ip='0.0.0.0', port=5000):
       process_list.append(proc)
 
   return process_list
+
+
+# 压缩图片
+@error_catch(error_msg='压缩图片时出错', error_return=False)
+def compress_image(input_path, output_path, quality=80):
+  # 打开输入图片
+  with Image.open(input_path) as img:
+    img.save(output_path, quality=quality)
+  return True

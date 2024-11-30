@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QMessageBox, QMainWindow
 from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
 from multiprocessing import Process
-from utils import create_thread
+from decorate import create_thread
 import time
 
 mock_server = MockServer()
@@ -88,7 +88,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 下载静态资源
   @create_thread
   def static_download(self):
-    print(self.downloading)
     # 服务没初始化或正在下载中，跳过
     if not mock_server or self.downloading:
       return
