@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import re
 import hashlib
 from urllib.parse import urlparse
 import json
@@ -64,7 +65,24 @@ def find_connection_process(ip='0.0.0.0', port=5000):
 # 压缩图片
 @error_catch(error_msg='压缩图片时出错', error_return=False)
 def compress_image(input_path, output_path, quality=80):
-  # 打开输入图片
+  img_excepts = ['.png', '.jpg', '.jpeg']
+  img_pattern = r'({})$'.format('|'.join(img_excepts))
+  img_compare = re.compile(img_pattern, flags=re.IGNORECASE)
+
+  if len(img_compare.findall(input_path)) == 0:
+    print('待压缩图片文件格式不支持：{}'.format(input_path))
+    return False
+
+  if not os.path.isfile(input_path):
+    print('待压缩图片不存在：{}'.format(input_path))
+    return False
+
   with Image.open(input_path) as img:
-    img.save(output_path, quality=quality)
+    # png 压缩
+    if input_path.lower().endswith('.png'):
+      img = img.quantize(colors=256)
+      img.save(output_path)
+    else:
+      # jpg 压缩
+      img.save(output_path, quality=quality)
   return True
