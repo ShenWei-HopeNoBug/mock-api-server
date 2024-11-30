@@ -38,7 +38,7 @@ class MockServer:
 
   # 检查和下载静态资源
   def check_static(self):
-    print('>' * 20, '开始检查和下载静态资源...')
+    print('>' * 10, '开始检查和下载静态资源...')
 
     data = pd.read_excel(self.api_data_path, sheet_name=0, engine='openpyxl')
     response_col = data['Response']
@@ -77,6 +77,8 @@ class MockServer:
         fl.write(assets_data)
 
       time.sleep(1)
+
+    print('下载静态资源完毕！')
 
   # 创建并保存 api_dict
   def create_api_dict(self):
@@ -142,7 +144,7 @@ class MockServer:
   # 启动本地 mock 服务
   @create_thread
   def start_server(self, read_cache=False):
-    print('>' * 20, '本地 mock 服务启动...')
+    print('>' * 10, '本地 mock 服务启动...')
     api_dict = self.get_server_api_dict(read_cache)
 
     app = Flask(__name__, static_folder='static', static_url_path='/static', root_path='./')

@@ -66,4 +66,4 @@ class Ui_MainWindow(object):
         _translate = QtCore.QCoreApplication.translate
         self.cacheCheckBox.setText(_translate("MainWindow", "缓存模式启动"))
         self.serverButton.setText(_translate("MainWindow", "启动服务"))
-        self.staticDownloadButton.setText(_translate("MainWindow", "下载静态资源"))
+        self.staticDownloadButton.setText(_translate("MainWindow", "静态资源下载"))

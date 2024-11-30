@@ -103,7 +103,7 @@
        <cursorShape>PointingHandCursor</cursorShape>
       </property>
       <property name="text">
-       <string>下载静态资源</string>
+       <string>静态资源下载</string>
       </property>
      </widget>
     </item>
