@@ -3,6 +3,7 @@ import os
 import hashlib
 from urllib.parse import urlparse
 import json
+import threading
 
 
 # 获取字符串的 md5
@@ -37,3 +38,11 @@ class JsonFormat:
   @staticmethod
   def format_dict_to_json_string(dict_data):
     return json.dumps(dict_data, ensure_ascii=False)
+
+
+def create_thread(func):
+  def wrapper(*args, **kwargs):
+    thread = threading.Thread(target=func, args=args, kwargs=kwargs)
+    thread.start()
+
+  return wrapper

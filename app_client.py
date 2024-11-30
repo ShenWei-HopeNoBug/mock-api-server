@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QCloseEvent
-from PyQt5.QtCore import pyqtSignal, QThread
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QMessageBox, QWidget
 
 from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
-from multiprocessing import Queue, Process
+from multiprocessing import Process
 import time
 
 mock_server = MockServer()
@@ -29,17 +29,20 @@ class MainWindow(QWidget, Ui_MainWindow):
 
     self.init_ui()
     self.add_events()
-    self.init_server()
 
   def server_running_change(self, value):
     if self.server_running != value:
       self.server_running = value
-      button_text = '停止服务' if value else '启动服务'
+      if value:
+        button_text = '停止服务'
+      else:
+        button_text = '启动服务'
       self.serverButton.setText(button_text)
 
   # 初始化窗口 UI
   def init_ui(self):
     self.setupUi(self)
+    self.setFixedSize(self.width(), self.height())
     self.setWindowTitle('mock server v0.0.1-bata')
 
   def add_events(self):

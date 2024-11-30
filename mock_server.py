@@ -10,12 +10,12 @@ from utils import (
   create_md5,
   remove_url_domain,
   check_and_create_dir,
+  create_thread,
 )
 
 import json
 from flask import Flask, request
 from flask_cors import CORS
-import threading
 
 
 class MockServer:
@@ -140,57 +140,54 @@ class MockServer:
         return self.create_api_dict()
 
   # 启动本地 mock 服务
+  @create_thread
   def start_server(self, read_cache=False):
-    def callback():
-      print('>' * 20, '本地 mock 服务启动...')
-      api_dict = self.get_server_api_dict(read_cache)
+    print('>' * 20, '本地 mock 服务启动...')
+    api_dict = self.get_server_api_dict(read_cache)
 
-      app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
-      # 配置跨域
-      CORS(app, resources={r"/static/*": {"origins": "*"}})
+    app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
+    # 配置跨域
+    CORS(app, resources={r"/static/*": {"origins": "*"}})
 
-      # 常规接口
-      @app.route('/api/<path:path>', methods=['GET', 'POST'])
-      def request_api(path):
-        route = '/' + path
-        request_key = create_md5(route)
+    # 常规接口
+    @app.route('/api/<path:path>', methods=['GET', 'POST'])
+    def request_api(path):
+      route = '/' + path
+      request_key = create_md5(route)
 
-        # 请求路径 mock 数据中不存在
-        if request_key not in api_dict:
-          return
+      # 请求路径 mock 数据中不存在
+      if request_key not in api_dict:
+        return
 
-        method = request.method
+      method = request.method
 
-        params = JsonFormat.format_dict_to_json_string({})
-        if method == 'POST':
-          if 'application/x-www-form-urlencoded' in request.headers.get('content-type'):
-            params = request.form
-          elif 'application/json' in request.headers.get('content-type'):
-            params = JsonFormat.format_json_string(request.get_data(as_text=True))
-        elif method == 'GET':
-          params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
+      params = JsonFormat.format_dict_to_json_string({})
+      if method == 'POST':
+        if 'application/x-www-form-urlencoded' in request.headers.get('content-type'):
+          params = request.form
+        elif 'application/json' in request.headers.get('content-type'):
+          params = JsonFormat.format_json_string(request.get_data(as_text=True))
+      elif method == 'GET':
+        params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
 
-        response_key = self.__get_response_dict_key(method, params)
+      response_key = self.__get_response_dict_key(method, params)
 
-        # 命中 mock 数据直接返回
-        if response_key in api_dict[request_key]:
-          response = api_dict[request_key][response_key]
-          return response
-        else:
-          # 没命中 mock 数据，直接返回最后一条数据
-          print('mock 数据命中失败：\n - {} {} {}'.format(method, route, params))
-          last_response_key = list(api_dict[request_key].keys())[-1]
-          return api_dict[request_key][last_response_key]
+      # 命中 mock 数据直接返回
+      if response_key in api_dict[request_key]:
+        response = api_dict[request_key][response_key]
+        return response
+      else:
+        # 没命中 mock 数据，直接返回最后一条数据
+        print('mock 数据命中失败：\n - {} {} {}'.format(method, route, params))
+        last_response_key = list(api_dict[request_key].keys())[-1]
+        return api_dict[request_key][last_response_key]
 
-      # 静态资源目录
-      @app.route('/static/<path:path>', methods=['GET'])
-      def send_static(path):
-        return app.send_static_file(path)
+    # 静态资源目录
+    @app.route('/static/<path:path>', methods=['GET'])
+    def send_static(path):
+      return app.send_static_file(path)
 
-      app.run(host='0.0.0.0', port=5000, threaded=True)
-
-    thread = threading.Thread(target=callback)
-    thread.start()
+    app.run(host='0.0.0.0', port=5000, threaded=True)
 
   # 停止本地 mock 服务
   def stop_server(self):
