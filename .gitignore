@@ -29,3 +29,5 @@ dist-ssr
 /static
 /output.xlsx
 /api_dict.json
+/build
+main.spec

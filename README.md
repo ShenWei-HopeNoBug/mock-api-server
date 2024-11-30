@@ -6,3 +6,6 @@ pipreqs ./
 
 ### 命令行启动抓包服务
 mitmdump -s request_catch.py
+
+### 打包命令
+pyinstaller -F -w main.py

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QMessageBox, QWidget
+from PyQt5.QtWidgets import QMessageBox, QMainWindow
 
 from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
@@ -18,11 +18,11 @@ def server_process_start(cache=False):
 
 
 # app 主窗口
-class MainWindow(QWidget, Ui_MainWindow):
+class MainWindow(QMainWindow, Ui_MainWindow):
   server_running_signal = pyqtSignal(bool)
 
-  def __init__(self, parent=None):
-    super(MainWindow, self).__init__(parent=parent)
+  def __init__(self):
+    super().__init__()
     self.server_running = False
     self.cache = False
     self.server_process = None

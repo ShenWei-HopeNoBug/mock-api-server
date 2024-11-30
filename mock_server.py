@@ -14,7 +14,7 @@ from utils import (
 )
 
 import json
-from flask import Flask, request
+from flask import Flask, request, send_file
 from flask_cors import CORS
 
 
@@ -145,7 +145,7 @@ class MockServer:
     print('>' * 20, '本地 mock 服务启动...')
     api_dict = self.get_server_api_dict(read_cache)
 
-    app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
+    app = Flask(__name__, static_folder='static', static_url_path='/static', root_path='./')
     # 配置跨域
     CORS(app, resources={r"/static/*": {"origins": "*"}})
 
@@ -181,11 +181,6 @@ class MockServer:
         print('mock 数据命中失败：\n - {} {} {}'.format(method, route, params))
         last_response_key = list(api_dict[request_key].keys())[-1]
         return api_dict[request_key][last_response_key]
-
-    # 静态资源目录
-    @app.route('/static/<path:path>', methods=['GET'])
-    def send_static(path):
-      return app.send_static_file(path)
 
     app.run(host='0.0.0.0', port=5000, threaded=True)
 

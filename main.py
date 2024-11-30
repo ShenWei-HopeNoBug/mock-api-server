@@ -2,6 +2,7 @@
 from app_client import MainWindow
 from PyQt5.QtWidgets import QApplication, QMessageBox
 import sys
+import multiprocessing
 
 
 def exception_handler(exception_type, value, traceback):
@@ -12,12 +13,18 @@ def exception_handler(exception_type, value, traceback):
 
 
 if __name__ == '__main__':
+  # 防止窗口开进程新打开个 GUI 窗口
+  multiprocessing.freeze_support()
   app = QApplication(sys.argv)
+  # 全局异常捕获
   sys.excepthook = exception_handler
+  # app 主窗口
   main_window = MainWindow()
+
   # 引入QSS样式文件
   # with open('./qt_style/index.qss', 'r', encoding='utf-8') as fl:
   #   styleSheet = fl.read()
   #   main_window.setStyleSheet(styleSheet)
+
   main_window.show()
   sys.exit(app.exec_())
