@@ -83,10 +83,8 @@ class MainWindow(QWidget, Ui_MainWindow):
       return
 
     if mock_server:
-      success = mock_server.stop_server()
-      self.server_running_signal.emit(not success)
-    else:
-      self.server_running_signal.emit(False)
+      mock_server.stop_server()
+    self.server_running_signal.emit(False)
     self.server_process = None
 
   def closeEvent(self, event: QCloseEvent):

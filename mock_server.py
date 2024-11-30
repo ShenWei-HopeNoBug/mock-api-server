@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import re
-import psutil
 import pandas as pd
 import requests
 import time
@@ -11,6 +10,7 @@ from utils import (
   remove_url_domain,
   check_and_create_dir,
   create_thread,
+  find_connection_process,
 )
 
 import json
@@ -191,25 +191,13 @@ class MockServer:
 
   # 停止本地 mock 服务
   def stop_server(self):
-    connections = psutil.net_connections()
-    success = False
-    for conn in connections:
-      if not conn.status == 'LISTEN':
-        continue
-
-      laddr = conn.laddr
-      port = laddr.port
-      ip = laddr.ip
-      if port == 5000 and ip == '0.0.0.0':
-        # 杀掉本地服务进程
-        proc = psutil.Process(conn.pid)
-        proc.terminate()
-        success = True
-        print('关闭 mock server 成功!')
-    if not success:
+    process_list = find_connection_process(ip='0.0.0.0', port=5000)
+    if len(process_list) == 0:
       print('未找到 mock server 进程！')
 
-    return success
+    for proc in process_list:
+      proc.terminate()
+      print('关闭 mock server 成功!', proc)
 
   # 获取响应数据映射表键名
   @staticmethod

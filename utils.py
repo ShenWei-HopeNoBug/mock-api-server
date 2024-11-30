@@ -4,6 +4,7 @@ import hashlib
 from urllib.parse import urlparse
 import json
 import threading
+import psutil
 
 
 # 获取字符串的 md5
@@ -40,9 +41,29 @@ class JsonFormat:
     return json.dumps(dict_data, ensure_ascii=False)
 
 
+# 线程装饰器
 def create_thread(func):
   def wrapper(*args, **kwargs):
     thread = threading.Thread(target=func, args=args, kwargs=kwargs)
     thread.start()
 
   return wrapper
+
+
+# 找到监听指定 address 的进程列表
+def find_connection_process(ip='0.0.0.0', port=5000):
+  process_list = []
+  connections = psutil.net_connections()
+  for conn in connections:
+    if not conn.status == 'LISTEN':
+      continue
+
+    laddr = conn.laddr
+    port = laddr.port
+    ip = laddr.ip
+    if port == 5000 and ip == '0.0.0.0':
+      # 杀掉本地服务进程
+      proc = psutil.Process(conn.pid)
+      process_list.append(proc)
+
+  return process_list
