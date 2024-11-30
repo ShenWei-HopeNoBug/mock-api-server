@@ -51,6 +51,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.compressCheckBox.setChecked(self.compress_image)
     self.compressCheckBox.clicked.connect(self.compress_image_button_click)
     self.staticDownloadButton.clicked.connect(self.static_download_button_click)
+    self.cacheCheckBox.setChecked(self.cache)
     self.cacheCheckBox.clicked.connect(self.cache_checkbox_clicked)
     self.serverButton.clicked.connect(self.server_button_click)
 
@@ -61,9 +62,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.server_running = value
     if value:
       button_text = '停止服务'
+      disabled = True
     else:
       button_text = '启动服务'
+      disabled = False
     self.serverButton.setText(button_text)
+    self.cacheCheckBox.setDisabled(disabled)
 
   def downloading_change(self, value):
     if self.downloading == value:
@@ -77,6 +81,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       disabled = False
       button_text = '静态资源下载'
     self.staticDownloadButton.setText(button_text)
+    self.compressCheckBox.setDisabled(disabled)
     self.staticDownloadButton.setDisabled(disabled)
 
   def compress_image_button_click(self):
