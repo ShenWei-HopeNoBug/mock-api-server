@@ -25,7 +25,6 @@ class MockServer:
     self.static_host = 'http://127.0.0.1:5000'
     self.static_url_path = '/static'
     self.static_match_excepts = ['.png', '.jpg', '.jpeg', '.gif', '.avif', '.webp', '.npy']
-    self.app = None
 
     pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.static_match_excepts))
     # 静态资源正则匹配配置
@@ -121,9 +120,9 @@ class MockServer:
     return api_dict
 
   # 获取本地服务 api 数据字典
-  def get_server_api_dict(self, read_catch=False):
+  def get_server_api_dict(self, read_cache=False):
     # 不读取缓存文件，重新生成一份 api_dict
-    if not read_catch:
+    if not read_cache:
       return self.create_api_dict()
 
     # 本地不存在已经生成的 api 映射表，当场生成一份
@@ -141,11 +140,10 @@ class MockServer:
         return self.create_api_dict()
 
   # 启动本地 mock 服务
-  def start_server(self, read_catch=False):
-
+  def start_server(self, read_cache=False):
     def callback():
       print('>' * 20, '本地 mock 服务启动...')
-      api_dict = self.get_server_api_dict(read_catch)
+      api_dict = self.get_server_api_dict(read_cache)
 
       app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path)
       # 配置跨域
