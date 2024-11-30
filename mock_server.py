@@ -38,7 +38,7 @@ class MockServer:
     }
 
   # 检查和下载静态资源
-  def check_static(self):
+  def check_static(self, compress=True):
     print('>' * 10, '开始检查和下载静态资源...')
 
     data = pd.read_excel(self.api_data_path, sheet_name=0, engine='openpyxl')
@@ -82,11 +82,12 @@ class MockServer:
         fl.write(assets_data)
 
       # 压缩下载图片
-      compress_image(
-        input_path=assets_path,
-        output_path=assets_path,
-        quality=80
-      )
+      if compress:
+        compress_image(
+          input_path=assets_path,
+          output_path=assets_path,
+          quality=80
+        )
 
       time.sleep(0.8)
 

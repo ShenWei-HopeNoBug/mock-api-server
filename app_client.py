@@ -25,6 +25,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   def __init__(self):
     super().__init__()
+    # 下载静态资源是否压缩图片
+    self.compress_image = True
     # 是否正在下载静态资源
     self.downloading = False
     # 服务是否正在运行
@@ -46,6 +48,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.server_running_signal.connect(self.server_running_change)
     self.downloading_signal.connect(self.downloading_change)
     # 按钮事件绑定
+    self.compressCheckBox.setChecked(self.compress_image)
+    self.compressCheckBox.clicked.connect(self.compress_image_button_click)
     self.staticDownloadButton.clicked.connect(self.static_download_button_click)
     self.cacheCheckBox.clicked.connect(self.cache_checkbox_clicked)
     self.serverButton.clicked.connect(self.server_button_click)
@@ -75,6 +79,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticDownloadButton.setText(button_text)
     self.staticDownloadButton.setDisabled(disabled)
 
+  def compress_image_button_click(self):
+    self.compress_image = not self.compress_image
+
   def static_download_button_click(self):
     self.static_download()
 
@@ -93,7 +100,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return
 
     self.downloading_signal.emit(True)
-    mock_server.check_static()
+    mock_server.check_static(self.compress_image)
     self.downloading_signal.emit(False)
     time.sleep(0.5)
 

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>522</width>
+    <width>553</width>
     <height>305</height>
    </rect>
   </property>
@@ -16,9 +16,9 @@
   <widget class="QWidget" name="horizontalLayoutWidget">
    <property name="geometry">
     <rect>
-     <x>80</x>
+     <x>40</x>
      <y>170</y>
-     <width>361</width>
+     <width>461</width>
      <height>61</height>
     </rect>
    </property>
@@ -76,16 +76,38 @@
     </item>
    </layout>
   </widget>
-  <widget class="QWidget" name="verticalLayoutWidget">
+  <widget class="QWidget" name="horizontalLayoutWidget_2">
    <property name="geometry">
     <rect>
-     <x>80</x>
-     <y>80</y>
-     <width>361</width>
-     <height>51</height>
+     <x>40</x>
+     <y>50</y>
+     <width>461</width>
+     <height>80</height>
     </rect>
    </property>
-   <layout class="QVBoxLayout" name="verticalLayout">
+   <layout class="QHBoxLayout" name="horizontalLayout_2">
+    <item>
+     <widget class="QCheckBox" name="compressCheckBox">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>40</height>
+       </size>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="cursor">
+       <cursorShape>PointingHandCursor</cursorShape>
+      </property>
+      <property name="text">
+       <string>下载图片静态资
+源自动压缩图片</string>
+      </property>
+     </widget>
+    </item>
     <item>
      <widget class="QPushButton" name="staticDownloadButton">
       <property name="minimumSize">
