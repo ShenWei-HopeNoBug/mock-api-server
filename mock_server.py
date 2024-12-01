@@ -23,7 +23,8 @@ import global_var
 class MockServer:
   def __init__(self):
     self.api_dict_path = './api_dict.json'
-    self.api_data_path = './output.xlsx'
+    # self.api_data_path = './output.xlsx'
+    self.api_data_path = './output.json'
     self.static_host = 'http://127.0.0.1:5000'
     self.static_url_path = '/static'
     self.static_match_excepts = ['.png', '.jpg', '.jpeg', '.gif', '.avif', '.webp', '.npy']
@@ -42,7 +43,7 @@ class MockServer:
   def check_static(self, compress=True):
     print('>' * 10, '开始检查和下载静态资源...')
 
-    data = pd.read_excel(self.api_data_path, sheet_name=0, engine='openpyxl')
+    data = pd.read_json(self.api_data_path)
     response_col = data['Response']
     assets_list = []
     # 提取静态资源链接
@@ -100,7 +101,7 @@ class MockServer:
 
   # 创建并保存 api_dict
   def create_api_dict(self):
-    data = pd.read_excel(self.api_data_path, sheet_name=0, engine='openpyxl')
+    data = pd.read_json(self.api_data_path)
     assets_reg = self.static_match_config['compare']
     assets_base_url = '{}{}'.format(self.static_host, self.static_url_path)
 

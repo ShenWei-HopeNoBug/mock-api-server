@@ -27,7 +27,7 @@ dist-ssr
 # User directories and files
 /test
 /static
-/output.xlsx
+/output.*
 /api_dict.json
 /build
 main.spec

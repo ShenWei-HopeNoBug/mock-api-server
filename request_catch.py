@@ -9,8 +9,7 @@ from utils import create_md5, JsonFormat
 class RequestRecorder:
   def __init__(self):
     # 抓包数据保存路径
-    self.save_path = './output.xlsx'
-    # self.save_path = './test/output.xlsx'
+    self.save_path = './output.json'
 
     # 抓包缓存数据 dict
     self.response_catch_dict = {}
@@ -81,7 +80,7 @@ class RequestRecorder:
     df = pd.DataFrame(data)
 
     # 将DataFrame写入Excel文件，每行为一个数据
-    df.to_excel(self.save_path, index=False, engine='openpyxl')
+    df.to_json(self.save_path)
     self.response_catch_dict = {}
 
   # 检查请求是否需要被抓取保存
