@@ -12,6 +12,7 @@ from utils import (
   check_and_create_dir,
   find_connection_process,
   compress_image,
+  get_ip_address,
 )
 
 import json
@@ -22,10 +23,11 @@ import global_var
 
 class MockServer:
   def __init__(self):
+    self.ip_address = get_ip_address()
+    self.port=5000
     self.api_dict_path = './api_dict.json'
-    # self.api_data_path = './output.xlsx'
     self.api_data_path = './output.json'
-    self.static_host = 'http://127.0.0.1:5000'
+    self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
     self.static_url_path = '/static'
     self.static_match_excepts = ['.png', '.jpg', '.jpeg', '.gif', '.avif', '.webp', '.npy']
 
@@ -204,11 +206,11 @@ class MockServer:
         last_response_key = list(api_dict[request_key].keys())[-1]
         return api_dict[request_key][last_response_key]
 
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   # 停止本地 mock 服务
   def stop_server(self):
-    process_list = find_connection_process(ip='0.0.0.0', port=5000)
+    process_list = find_connection_process(ip='0.0.0.0', port=self.port)
     if len(process_list) == 0:
       print('未找到 mock server 进程！')
 

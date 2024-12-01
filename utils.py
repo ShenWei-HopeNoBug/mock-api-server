@@ -7,6 +7,16 @@ import json
 import psutil
 from PIL import Image
 from decorate import error_catch
+import socket
+
+
+# 获取本机 ip 地址
+def get_ip_address():
+  # 获取主机名
+  hostname = socket.gethostname()
+  # 获取IP地址
+  ip_address = socket.gethostbyname(hostname)
+  return ip_address
 
 
 # 获取字符串的 md5
