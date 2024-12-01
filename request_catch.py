@@ -7,12 +7,29 @@ from utils import create_md5, JsonFormat
 
 # 处理请求抓包工具类
 class RequestRecorder:
-  def __init__(self):
+  def __init__(self, use_history=True):
     # 抓包数据保存路径
     self.save_path = './output.json'
 
     # 抓包缓存数据 dict
     self.response_catch_dict = {}
+
+    # 以历史数据为基础继续抓包
+    if use_history:
+      self.init_response_catch_dict()
+
+  # 读取本地保存数据初始化抓包缓存 dict
+  def init_response_catch_dict(self):
+    data = pd.read_json(self.save_path)
+    fieldnames = ["Type", "Url", "Method", "Params", "Response"]
+
+    self.response_catch_dict = {}
+    # 行遍历
+    for row_index, row_data in data.iterrows():
+      record = {}
+      for key in fieldnames:
+        record[key] = row_data.get(key)
+      self.__save_response(record)
 
   def response(self, flow: http.HTTPFlow):
     # 请求检查

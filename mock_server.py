@@ -113,7 +113,7 @@ class MockServer:
       return '{}/{}'.format(assets_base_url, file_name)
 
     api_dict = {}
-    # 总行数
+    # 行遍历
     for row_index, row_data in data.iterrows():
       response = row_data.get('Response')
       method = row_data.get('Method')
@@ -183,10 +183,11 @@ class MockServer:
       method = request.method
 
       params = JsonFormat.format_dict_to_json_string({})
+      request_content_type = request.headers.get('content-type') or ''
       if method == 'POST':
-        if 'application/x-www-form-urlencoded' in request.headers.get('content-type'):
+        if 'application/x-www-form-urlencoded' in request_content_type:
           params = request.form
-        elif 'application/json' in request.headers.get('content-type'):
+        elif 'application/json' in request_content_type:
           params = JsonFormat.format_json_string(request.get_data(as_text=True))
       elif method == 'GET':
         params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
