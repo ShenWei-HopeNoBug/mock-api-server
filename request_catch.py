@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from mitmproxy import http
+from mitmproxy.tools.main import mitmdump
 import re
 import pandas as pd
-from utils import create_md5, JsonFormat
+from utils import create_md5, JsonFormat, find_connection_process
 
 
 # 处理请求抓包工具类
@@ -10,6 +11,7 @@ class RequestRecorder:
   def __init__(self, use_history=True):
     # 抓包数据保存路径
     self.save_path = './output.json'
+    # self.save_path = './test/output.json'
 
     # 抓包缓存数据 dict
     self.response_catch_dict = {}
@@ -31,6 +33,7 @@ class RequestRecorder:
         record[key] = row_data.get(key)
       self.__save_response(record)
 
+  # 接口返回
   def response(self, flow: http.HTTPFlow):
     # 请求检查
     if not self.__check_response(flow.request, flow.response):
@@ -81,6 +84,7 @@ class RequestRecorder:
     # 保存请求映射
     self.__save_response(record)
 
+  # 抓包结束
   def done(self):
     fieldnames = ["Type", "Url", "Method", "Params", "Response"]
     data = {}
@@ -136,6 +140,32 @@ class RequestRecorder:
     self.response_catch_dict[search_key][md5_key] = record
 
 
+class MitmdumpServer:
+  def __init__(self):
+    self.port = 8080
+
+  # 启动抓包服务
+  def start_server(self, port=8080):
+    print('>' * 10, '抓包服务启动...', port)
+    self.port = port
+    mitmdump(['-s', __file__, '-p {}'.format(self.port)])
+
+  # 关闭抓包服务
+  def stop_server(self):
+    process_list = find_connection_process(ip='0.0.0.0', port=self.port)
+    if len(process_list) == 0:
+      print('未找到 mitmdump server 进程！')
+
+    for proc in process_list:
+      proc.terminate()
+      print('关闭 mitmdump server 成功!', proc)
+
+
 addons = [
-  RequestRecorder()
+  # RequestRecorder()
+  RequestRecorder(use_history=False)
 ]
+
+if __name__ == '__main__':
+  mitmdump_server = MitmdumpServer()
+  mitmdump_server.start_server(port=8080)
