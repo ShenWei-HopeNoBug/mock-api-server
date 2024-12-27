@@ -65,11 +65,26 @@ def find_connection_process(ip='0.0.0.0', port=5000):
     laddr = conn.laddr
     # 匹配指定 ip 和 端口号的进程
     if port == laddr.port and ip == laddr.ip:
-      # 杀掉本地服务进程
+      # 本地服务进程
       proc = psutil.Process(conn.pid)
       process_list.append(proc)
 
   return process_list
+
+
+# 检测本地指定 ip 和 端口号网络服务是否已经被占用
+def check_local_connection(ip='0.0.0.0', port=5000):
+  connections = psutil.net_connections()
+  for conn in connections:
+    if not conn.status == 'LISTEN':
+      continue
+
+    laddr = conn.laddr
+    # 匹配指定 ip 和 端口号的进程
+    if port == laddr.port and ip == laddr.ip:
+      return True
+
+  return False
 
 
 # 压缩图片

@@ -5,6 +5,10 @@ import re
 import pandas as pd
 from utils import create_md5, JsonFormat, find_connection_process
 
+# 请求的 base_url
+request_base_url = r'dream.aimiai.com/dream-plus'
+# request_base_url = r'avatar-test.aicubes.cn/dream-plus'
+
 
 # 处理请求抓包工具类
 class RequestRecorder:
@@ -35,27 +39,13 @@ class RequestRecorder:
 
   # 接口返回
   def response(self, flow: http.HTTPFlow):
+    url = flow.request.url
     # 请求检查
     if not self.__check_response(flow.request, flow.response):
+      print('不满足抓取条件：{}'.format(url))
       return
 
     # 请求链接
-    url = flow.request.url
-
-    # 需要排除的请求
-    except_reg = re.compile(r'\.(png|jpg|jpeg|gif|avif|webp|js|css|ico|ttf|html|xml)')
-    if except_reg.search(url):
-      return
-    # 需要包含的请求
-    include_reg = re.compile(r'dream.aimiai.com/dream-plus')
-    if not include_reg.search(url):
-      return
-
-    response_content_type = flow.response.headers.get('Content-Type') or ''
-    # 忽略 json 以外的响应内容
-    if 'application/json' not in response_content_type:
-      return
-
     method = flow.request.method
 
     # 请求参数，统一用 json string
@@ -86,6 +76,7 @@ class RequestRecorder:
 
   # 抓包结束
   def done(self):
+    print('mitmproxy done!')
     fieldnames = ["Type", "Url", "Method", "Params", "Response"]
     data = {}
     for name in fieldnames:
@@ -116,7 +107,7 @@ class RequestRecorder:
       return False
 
     # 需要包含的请求
-    include_reg = re.compile(r'dream.aimiai.com/dream-plus')
+    include_reg = re.compile(request_base_url)
     if not include_reg.search(url):
       return False
 
@@ -162,7 +153,7 @@ class MitmdumpServer:
 
 
 addons = [
-  # RequestRecorder()
+  # RequestRecorder(use_history=True)
   RequestRecorder(use_history=False)
 ]
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QMessageBox, QMainWindow
+from PyQt5.QtWidgets import QMessageBox, QMainWindow, QFileDialog
 
 from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
@@ -10,21 +10,25 @@ from decorate import create_thread
 import time
 import global_var
 from request_catch import MitmdumpServer
+from utils import check_local_connection
 
 # 抓包服务实例
 mitmdump_server = MitmdumpServer()
 # mock 服务实例
 mock_server = MockServer()
 
+
 def mitmdump_server_process_start(port=8080):
   if mitmdump_server:
     # 启动本地抓包服务
     mitmdump_server.start_server(port)
 
+
 def server_process_start(cache=False):
   if mock_server:
     # 启动本地 mock 服务
     mock_server.start_server(cache)
+
 
 # app 主窗口
 class MainWindow(QMainWindow, Ui_MainWindow):
@@ -45,8 +49,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.compress_image = True
     # 是否正在下载静态资源
     self.downloading = False
+    # 服务工作目录
+    self.server_work_dir = './server'
     # 服务是否正在运行
     self.server_running = False
+    # 服务端口号
+    self.server_port = 5000
     # 是否以缓存模式启动服务
     self.cache = False
 
@@ -67,10 +75,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     '''
     按钮事件绑定
     '''
+
     def catch_server_port_change(value):
       self.catch_server_port = value
 
+    def server_port_change(value):
+      self.server_port = value
+
+    # 端口号输入绑定
+    self.catchServerPortSpinBox.setValue(self.catch_server_port)
     self.catchServerPortSpinBox.valueChanged.connect(catch_server_port_change)
+    self.serverPortSpinBox.setValue(self.server_port)
+    self.serverPortSpinBox.valueChanged.connect(server_port_change)
     # 抓包服务按钮
     self.catchServerButton.clicked.connect(self.catch_server_button_click)
     # 压缩静态资源按钮
@@ -82,6 +98,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.cacheCheckBox.clicked.connect(self.cache_checkbox_click)
     # mock 服务按钮
     self.serverButton.clicked.connect(self.server_button_click)
+
+    # 选择文件夹
+    def select_directory():
+      directory = QFileDialog.getExistingDirectory(self, '选择工作目录', r'./')
+      if directory:
+        self.server_work_dir = directory
+        self.serverWorkDirLineEdit.setText(self.server_work_dir)
+
+    # 选择服务的工作目录
+    self.serverWorkDirLineEdit.setText(self.server_work_dir)
+    self.severWorkDirBrowsePushButton.clicked.connect(select_directory)
 
   def server_running_change(self, value):
     if self.server_running == value:
@@ -147,6 +174,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if self.catch_server_running:
       return
 
+    # 网络监听端口检查
+    if check_local_connection('0.0.0.0', self.catch_server_port):
+      QMessageBox.critical(
+        self,
+        '端口检查',
+        '{} 端口已被占用，启动抓包服务失败！'.format(self.catch_server_port),
+      )
+      return
+
     print('start_catch_server', mitmdump_server)
     server_process = Process(
       target=mitmdump_server_process_start,
@@ -179,6 +215,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 启动mock服务
   def start_server(self):
     if self.server_running:
+      return
+
+    # 网络监听端口检查
+    if check_local_connection('0.0.0.0', self.server_port):
+      QMessageBox.critical(
+        self,
+        '端口检查',
+        '{} 端口已被占用，启动 mock 服务失败！'.format(self.server_port),
+      )
       return
 
     server_process = Process(
