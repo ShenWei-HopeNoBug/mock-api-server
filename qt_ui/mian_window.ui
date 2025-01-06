@@ -214,6 +214,9 @@
     </item>
     <item>
      <widget class="QLineEdit" name="serverWorkDirLineEdit">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
       <property name="minimumSize">
        <size>
         <width>0</width>

@@ -27,6 +27,7 @@ dist-ssr
 # User directories and files
 /test
 /static
+/server
 /output.*
 /api_dict.json
 /build

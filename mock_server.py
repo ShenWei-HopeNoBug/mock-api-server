@@ -20,16 +20,25 @@ from flask import Flask, request
 from flask_cors import CORS
 import global_var
 
+# 默认工作目录
+mock_server_work_dir = '.'
+
 
 class MockServer:
   def __init__(self):
-    self.ip_address = get_ip_address()
-    self.port=5000
+    # 工作目录相关配置
+    self.work_dir = '.'
     self.api_dict_path = './api_dict.json'
     self.api_data_path = './output.json'
-    self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
     self.static_url_path = '/static'
+    # ip 相关配置
+    self.ip_address = get_ip_address()
+    self.port = 5000
+    # 静态资源相关配置
+    self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
     self.static_match_excepts = ['.png', '.jpg', '.jpeg', '.gif', '.avif', '.webp', '.npy']
+    # 初始化工作目录
+    self.update_work_dir(mock_server_work_dir)
 
     pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.static_match_excepts))
     # 静态资源正则匹配配置
@@ -40,6 +49,12 @@ class MockServer:
       "domain": self.static_host,
       "static_url_path": self.static_url_path,
     }
+
+  # 更新工作目录
+  def update_work_dir(self, work_dir='.'):
+    self.work_dir = work_dir
+    self.api_dict_path = '{}/api_dict.json'.format(work_dir)
+    self.api_data_path = '{}/output.json'.format(work_dir)
 
   # 检查和下载静态资源
   def check_static(self, compress=True):
@@ -57,8 +72,8 @@ class MockServer:
     # 去重
     assets_list = list(set(assets_list))
 
-    # 静态资源目录
-    assets_dir = '.{}'.format(self.static_url_path)
+    # 静态资源目录(生效目录为配置工作目录字符的MD5子目录)
+    assets_dir = '.{}/{}'.format(self.static_url_path, create_md5(self.work_dir))
     # 创建静态资源文件夹
     check_and_create_dir(assets_dir)
 
@@ -105,7 +120,12 @@ class MockServer:
   def create_api_dict(self):
     data = pd.read_json(self.api_data_path)
     assets_reg = self.static_match_config['compare']
-    assets_base_url = '{}{}'.format(self.static_host, self.static_url_path)
+    # 静态资源 base_url(生效目录为配置工作目录字符的MD5子目录)
+    assets_base_url = '{}{}/{}'.format(
+      self.static_host,
+      self.static_url_path,
+      create_md5(self.work_dir),
+    )
 
     # 静态资源文本替换规则
     def assets_replace_method(match):
@@ -168,9 +188,9 @@ class MockServer:
     print('>' * 10, '本地 mock 服务启动...')
     api_dict = self.get_server_api_dict(read_cache)
 
-    app = Flask(__name__, static_folder='static', static_url_path='/static', root_path='./')
-    # 配置跨域
-    CORS(app, resources={r"/static/*": {"origins": "*"}})
+    app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path, root_path=self.work_dir)
+    # 配置跨域(这个配置低版本的Flask加不加都一样)
+    CORS(app, resources={r"/static/*".format(self.ip_address): {"origins": "*"}})
 
     # 常规接口
     @app.route('/api/<path:path>', methods=['GET', 'POST'])

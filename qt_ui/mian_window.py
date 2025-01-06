@@ -103,6 +103,7 @@ class Ui_MainWindow(object):
         self.label_2.setObjectName("label_2")
         self.horizontalLayout_5.addWidget(self.label_2)
         self.serverWorkDirLineEdit = QtWidgets.QLineEdit(self.horizontalLayoutWidget_5)
+        self.serverWorkDirLineEdit.setEnabled(False)
         self.serverWorkDirLineEdit.setMinimumSize(QtCore.QSize(0, 40))
         font = QtGui.QFont()
         font.setPointSize(12)
