@@ -184,8 +184,9 @@ class MockServer:
 
   # 启动本地 mock 服务
   @create_thread
-  def start_server(self, read_cache=False):
+  def start_server(self, read_cache=False, port=5000):
     print('>' * 10, '本地 mock 服务启动...')
+    self.port = port
     api_dict = self.get_server_api_dict(read_cache)
 
     app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path, root_path=self.work_dir)
@@ -232,11 +233,11 @@ class MockServer:
   def stop_server(self):
     process_list = find_connection_process(ip='0.0.0.0', port=self.port)
     if len(process_list) == 0:
-      print('未找到 mock server 进程！')
+      print('未找到 mock server 进程！port={}'.format(self.port))
 
     for proc in process_list:
       proc.terminate()
-      print('关闭 mock server 成功!', proc)
+      print('关闭 mock server 成功! port={}'.format(self.port), proc)
 
   # 获取响应数据映射表键名
   @staticmethod

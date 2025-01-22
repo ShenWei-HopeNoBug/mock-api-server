@@ -24,10 +24,10 @@ def mitmdump_server_process_start(port=8080):
     mitmdump_server.start_server(port)
 
 
-def server_process_start(cache=False):
+def server_process_start(cache=False, port=5000):
   if mock_server:
     # 启动本地 mock 服务
-    mock_server.start_server(cache)
+    mock_server.start_server(cache, port)
 
 
 # app 主窗口
@@ -78,9 +78,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def catch_server_port_change(value):
       self.catch_server_port = value
+      # 更新 mitmdump_server 实例的端口号
+      mitmdump_server.port = value
 
     def server_port_change(value):
       self.server_port = value
+      # 更新 mock_server 实例的端口号
+      mock_server.port = value
 
     # 端口号输入绑定
     self.catchServerPortSpinBox.setValue(self.catch_server_port)
@@ -228,7 +232,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     server_process = Process(
       target=server_process_start,
-      args=(self.cache,),
+      args=(self.cache, self.server_port),
       name='mock_server',
     )
     server_process.start()
