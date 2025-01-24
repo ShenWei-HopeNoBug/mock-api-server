@@ -4,18 +4,26 @@ from mitmproxy.tools.main import mitmdump
 import re
 import pandas as pd
 from utils import create_md5, JsonFormat, find_connection_process
+import global_var
 
 # 请求的 base_url
 request_base_url = r'dream.aimiai.com/dream-plus'
 # request_base_url = r'avatar-test.aicubes.cn/dream-plus'
 
 
+# 默认工作目录
+request_recorder_work_dir = '.'
+
+
 # 处理请求抓包工具类
 class RequestRecorder:
-  def __init__(self, use_history=True):
+  def __init__(self, use_history=True, work_dir=request_recorder_work_dir):
+    # 抓包服务 master 实例
+    self.mitmproxy_master = None
+    # 抓包结束标记
+    self.mitmproxy_stop_signal = False
     # 抓包数据保存路径
-    self.save_path = './output.json'
-    # self.save_path = './test/output.json'
+    self.save_path = '{}/output.json'.format(work_dir)
 
     # 抓包缓存数据 dict
     self.response_catch_dict = {}
@@ -37,8 +45,26 @@ class RequestRecorder:
         record[key] = row_data.get(key)
       self.__save_response(record)
 
+  # 接口请求
+  def request(self, flow: http.HTTPFlow):
+    # 抓包结束，跳出
+    if self.mitmproxy_stop_signal:
+      return
+
+    mitmproxy_stop_signal = global_var.get_global_var(key='mitmproxy_stop_signal')
+    self.mitmproxy_stop_signal = mitmproxy_stop_signal
+    # 收到结束抓包的信号，尝试关闭抓包服务
+    if self.mitmproxy_master and mitmproxy_stop_signal:
+      print('正在关闭 mitmproxy 服务...', flow.request.url)
+      self.mitmproxy_master.shutdown()
+      return
+
   # 接口返回
   def response(self, flow: http.HTTPFlow):
+    # 抓包结束，跳出
+    if self.mitmproxy_stop_signal:
+      return
+
     url = flow.request.url
     # 请求检查
     if not self.__check_response(flow.request, flow.response):
@@ -159,4 +185,5 @@ addons = [
 
 if __name__ == '__main__':
   mitmdump_server = MitmdumpServer()
+  # mitmdump_server.stop_server()
   mitmdump_server.start_server(port=8080)

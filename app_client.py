@@ -9,25 +9,24 @@ from multiprocessing import Process
 from decorate import create_thread
 import time
 import global_var
-from request_catch import MitmdumpServer
 from utils import check_local_connection
+from asyncio_mitmproxy_server import start_mitmproxy
+import requests
 
-# 抓包服务实例
-mitmdump_server = MitmdumpServer()
 # mock 服务实例
 mock_server = MockServer()
 
 
+# mitmdump 服务进程启动
 def mitmdump_server_process_start(port=8080):
-  if mitmdump_server:
-    # 启动本地抓包服务
-    mitmdump_server.start_server(port)
+  start_mitmproxy(host='0.0.0.0', port=port)
 
 
+# mock 服务进程启动
 def server_process_start(cache=False, port=5000):
   if mock_server:
     # 启动本地 mock 服务
-    mock_server.start_server(cache, port)
+    mock_server.start_server(cache=cache, port=port)
 
 
 # app 主窗口
@@ -78,8 +77,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def catch_server_port_change(value):
       self.catch_server_port = value
-      # 更新 mitmdump_server 实例的端口号
-      mitmdump_server.port = value
 
     def server_port_change(value):
       self.server_port = value
@@ -175,6 +172,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 启动抓包服务
   def start_catch_server(self):
+    mitmproxy_stop_signal = global_var.get_global_var(key='mitmproxy_stop_signal')
+    # 抓包服务还在停止中，跳过
+    if mitmproxy_stop_signal:
+      return
+
     if self.catch_server_running:
       return
 
@@ -187,7 +189,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       )
       return
 
-    print('start_catch_server', mitmdump_server)
     server_process = Process(
       target=mitmdump_server_process_start,
       args=(self.catch_server_port,),
@@ -198,10 +199,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 停止抓包服务
   def stop_catch_server(self):
+    mitmproxy_stop_signal = global_var.get_global_var(key='mitmproxy_stop_signal')
+    # 抓包服务还在停止中，跳过
+    if mitmproxy_stop_signal:
+      return
+
     if not self.catch_server_running:
       return
-    print('stop_catch_server', mitmdump_server)
-    mitmdump_server.stop_server()
+    # 设置全局 mitmproxy 服务停止信号
+    global_var.update_global_var(key='mitmproxy_stop_signal', value=True)
+    # 向 mitmproxy 抓包服务发送一个本地请求，触发 addons 脚本内关闭服务事件
+    requests.get('http://127.0.0.1:{}/index.html'.format(self.catch_server_port))
     self.catch_server_running_signal.emit(False)
 
   # 下载静态资源
@@ -262,7 +270,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.stop_catch_server()
       self.stop_server()
       # 设置退出程序的全局变量
-      global_var.global_exit = True
+      global_var.update_global_var(key='client_exit', value=True)
       event.accept()
     else:
       event.ignore()

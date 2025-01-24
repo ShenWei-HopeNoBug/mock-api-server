@@ -3,6 +3,7 @@ from app_client import MainWindow
 from PyQt5.QtWidgets import QApplication, QMessageBox
 import sys
 import multiprocessing
+import global_var
 
 
 def exception_handler(exception_type, value, traceback):
@@ -13,6 +14,8 @@ def exception_handler(exception_type, value, traceback):
 
 
 if __name__ == '__main__':
+  # 初始化全局变量
+  global_var.init()
   # 防止窗口开进程新打开个 GUI 窗口
   multiprocessing.freeze_support()
   app = QApplication(sys.argv)

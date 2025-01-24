@@ -79,8 +79,9 @@ class MockServer:
 
     assets_length = len(assets_list)
     for i, assets in enumerate(assets_list):
+      client_exit = global_var.get_global_var(key='client_exit')
       # 程序已经全局退出，停止下载处理
-      if global_var.global_exit:
+      if client_exit:
         return
 
       file_name = assets.split('/')[-1]
