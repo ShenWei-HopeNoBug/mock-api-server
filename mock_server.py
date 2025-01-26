@@ -45,6 +45,11 @@ class MockServer:
       "static_url_path": self.static_url_path,
     }
 
+    # 抓包数据文件不存在，创建一个
+    if not os.path.exists(self.api_data_path):
+      with open(self.api_data_path, 'w') as fl:
+        fl.write('{}')
+
   # 检查和下载静态资源
   def check_static(self, compress=True):
     print('>' * 10, '开始检查和下载静态资源...')
@@ -61,8 +66,8 @@ class MockServer:
     # 去重
     assets_list = list(set(assets_list))
 
-    # 静态资源目录(生效目录为配置工作目录字符的MD5子目录)
-    assets_dir = '.{}/{}'.format(self.static_url_path, create_md5(self.work_dir))
+    # 静态资源目录
+    assets_dir = '{}/{}'.format(self.work_dir, self.static_url_path)
     # 创建静态资源文件夹
     check_and_create_dir(assets_dir)
 
@@ -113,12 +118,8 @@ class MockServer:
   def create_api_dict(self):
     data = pd.read_json(self.api_data_path)
     assets_reg = self.static_match_config['compare']
-    # 静态资源 base_url(生效目录为配置工作目录字符的MD5子目录)
-    assets_base_url = '{}{}/{}'.format(
-      self.static_host,
-      self.static_url_path,
-      create_md5(self.work_dir),
-    )
+    # 静态资源 base_url
+    assets_base_url = '{}{}'.format(self.static_host, self.static_url_path)
 
     # 静态资源文本替换规则
     def assets_replace_method(match):
@@ -149,9 +150,9 @@ class MockServer:
       response = assets_reg.sub(assets_replace_method, response)
       api_dict[request_key][response_key] = json.loads(response)
 
-      # 写入生成的 api 映射数据
-      with open(self.api_dict_path, 'w', encoding='utf-8') as fl:
-        fl.write(json.dumps(api_dict))
+    # 写入生成的 api 映射数据
+    with open(self.api_dict_path, 'w', encoding='utf-8') as fl:
+      fl.write(json.dumps(api_dict))
 
     return api_dict
 

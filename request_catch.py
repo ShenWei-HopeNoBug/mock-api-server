@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 from mitmproxy import http
 from mitmproxy.tools.main import mitmdump
 import re
@@ -27,6 +28,11 @@ class RequestRecorder:
 
     # 抓包缓存数据 dict
     self.response_catch_dict = {}
+
+    # 抓包数据文件不存在，创建一个
+    if not os.path.exists(self.save_path):
+      with open(self.save_path, 'w') as fl:
+        fl.write('{}')
 
     # 以历史数据为基础继续抓包
     if use_history:
