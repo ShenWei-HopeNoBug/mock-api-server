@@ -28,6 +28,8 @@ def server_process_start(read_cache=False, port=5000):
 class MainWindow(QMainWindow, Ui_MainWindow):
   # 抓包服务运行信号
   catch_server_running_signal = pyqtSignal(bool)
+  # 是否追加抓包信号
+  use_history_signal = pyqtSignal(bool)
   # 下载静态资源信号
   downloading_signal = pyqtSignal(bool)
   # mock 服务运行信号
@@ -42,6 +44,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.catch_server_port = 8080
     # 抓包服务是否启动
     self.catch_server_running = False
+    # 是否以追加模式抓包
+    self.use_history = True
     # 下载静态资源是否压缩图片
     self.compress_image = True
     # 是否正在下载静态资源
@@ -76,6 +80,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def catch_server_port_change(value):
       self.catch_server_port = value
 
+    def use_history_checkbox_click():
+      self.use_history = not self.use_history
+
+    def cache_checkbox_click():
+      self.cache = not self.cache
+
+    def compress_image_button_click():
+      self.compress_image = not self.compress_image
+
+    def static_download_button_click():
+      self.static_download()
+
     def server_port_change(value):
       self.server_port = value
       # 更新 mock_server 实例的端口号
@@ -88,13 +104,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverPortSpinBox.valueChanged.connect(server_port_change)
     # 抓包服务按钮
     self.catchServerButton.clicked.connect(self.catch_server_button_click)
+    # 抓包是否采用追加模式
+    self.useHistoryCheckBox.setChecked(self.use_history)
+    self.useHistoryCheckBox.clicked.connect(use_history_checkbox_click)
     # 压缩静态资源按钮
     self.compressCheckBox.setChecked(self.compress_image)
-    self.compressCheckBox.clicked.connect(self.compress_image_button_click)
-    self.staticDownloadButton.clicked.connect(self.static_download_button_click)
+    self.compressCheckBox.clicked.connect(compress_image_button_click)
+    self.staticDownloadButton.clicked.connect(static_download_button_click)
     # 缓存模式启动按钮
     self.cacheCheckBox.setChecked(self.cache)
-    self.cacheCheckBox.clicked.connect(self.cache_checkbox_click)
+    self.cacheCheckBox.clicked.connect(cache_checkbox_click)
     # mock 服务按钮
     self.serverButton.clicked.connect(self.server_button_click)
 
@@ -109,6 +128,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverWorkDirLineEdit.setText(self.server_work_dir)
     self.severWorkDirBrowsePushButton.clicked.connect(select_directory)
 
+  # mock 服务启动状态变化
   def server_running_change(self, value):
     if self.server_running == value:
       return
@@ -122,6 +142,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       disabled = False
     self.serverButton.setText(button_text)
     self.cacheCheckBox.setDisabled(disabled)
+    self.serverPortSpinBox.setDisabled(disabled)
+    self.cacheCheckBox.setDisabled(disabled)
+    # mock 服务启动时禁止启动抓包服务
+    self.catchServerButton.setDisabled(disabled)
 
   def downloading_change(self, value):
     if self.downloading == value:
@@ -138,6 +162,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.compressCheckBox.setDisabled(disabled)
     self.staticDownloadButton.setDisabled(disabled)
 
+  # 抓包服务启动状态变化
   def catch_server_running_change(self, value):
     if self.catch_server_running == value:
       return
@@ -150,15 +175,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       disabled = False
     self.catchServerButton.setText(button_text)
     self.catchServerPortSpinBox.setDisabled(disabled)
-
-  def compress_image_button_click(self):
-    self.compress_image = not self.compress_image
-
-  def static_download_button_click(self):
-    self.static_download()
-
-  def cache_checkbox_click(self):
-    self.cache = not self.cache
+    self.useHistoryCheckBox.setDisabled(disabled)
+    # 抓包服务启动时禁止启动 mock 服务
+    self.serverButton.setDisabled(disabled)
 
   def server_button_click(self):
     self.stop_server() if self.server_running else self.start_server()
@@ -192,7 +211,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       "host": "0.0.0.0",
       "port": self.catch_server_port,
       "work_dir": self.server_work_dir,
-      "use_history": False,
+      "use_history": self.use_history,
     }
 
     server_process = Process(
