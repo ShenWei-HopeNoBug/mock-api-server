@@ -33,9 +33,17 @@ class MockServer:
     self.port = port
     # 静态资源相关配置
     self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
-    self.static_match_excepts = ['.png', '.jpg', '.jpeg', '.gif', '.avif', '.webp', '.npy']
+    self.include_files = []
 
-    pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.static_match_excepts))
+    # 工作目录文件检查
+    self.check_work_dir_files()
+
+    mitmproxy_config_file = '{}/mitmproxy_config.json'.format(self.work_dir)
+    with open(mitmproxy_config_file, 'r', encoding='utf-8') as fl:
+      mitmproxy_config = json.loads(fl.read())
+      self.include_files = mitmproxy_config.get('include_files', [])
+
+    pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.include_files))
     # 静态资源正则匹配配置
     self.static_match_config = {
       # 匹配的正则实例
@@ -44,9 +52,6 @@ class MockServer:
       "domain": self.static_host,
       "static_url_path": self.static_url_path,
     }
-
-    # 工作目录文件检查
-    self.check_work_dir_files()
 
   # 检查工作目录文件完整性
   def check_work_dir_files(self):

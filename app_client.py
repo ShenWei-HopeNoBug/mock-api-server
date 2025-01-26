@@ -3,6 +3,8 @@ from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QMessageBox, QMainWindow, QFileDialog
 
+import os
+import json
 import time
 import requests
 import global_var
@@ -10,7 +12,7 @@ from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
 from multiprocessing import Process
 from decorate import create_thread, error_catch
-from utils import check_local_connection
+from utils import check_local_connection, check_and_create_dir
 from asyncio_mitmproxy_server import start_mitmproxy
 
 
@@ -62,6 +64,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     self.init_ui()
     self.add_events()
+
+    # 检查工作目录文件完整性
+    self.check_work_dir_files()
 
   # 初始化窗口 UI
   def init_ui(self):
@@ -122,6 +127,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       if directory:
         self.server_work_dir = directory
         self.serverWorkDirLineEdit.setText(self.server_work_dir)
+        # 更换工作目录后，检查目录文件
+        self.check_work_dir_files()
 
     # 选择服务的工作目录
     self.serverWorkDirLineEdit.setText(self.server_work_dir)
@@ -189,6 +196,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.stop_catch_server() if self.catch_server_running else self.start_catch_server()
     time.sleep(0.5)
 
+  # 检查工作目录文件完整性
+  def check_work_dir_files(self):
+    check_and_create_dir(self.server_work_dir)
+
+    mitmproxy_config_file = '{}/mitmproxy_config.json'.format(self.server_work_dir)
+    if not os.path.exists(mitmproxy_config_file):
+      # 生成默认抓包配置文件
+      with open(mitmproxy_config_file, 'w', encoding='utf-8') as fl:
+        fl.write(json.dumps(global_var.mitmproxy_config))
   # 启动抓包服务
   def start_catch_server(self):
     mitmproxy_stop_signal = global_var.get_global_var(key='mitmproxy_stop_signal')

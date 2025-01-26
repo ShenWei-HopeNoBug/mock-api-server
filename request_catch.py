@@ -6,15 +6,14 @@ import re
 import pandas as pd
 from utils import create_md5, JsonFormat, find_connection_process
 import global_var
-
-# 请求的 base_url
-request_base_url = r'dream.aimiai.com/dream-plus'
-# request_base_url = r'avatar-test.aicubes.cn/dream-plus'
+import json
 
 
 # 处理请求抓包工具类
 class RequestRecorder:
   def __init__(self, use_history=True, work_dir='.'):
+    # 工作目录
+    self.work_dir = work_dir
     # 抓包服务 master 实例
     self.mitmproxy_master = None
     # 抓包结束标记
@@ -23,9 +22,17 @@ class RequestRecorder:
     self.save_path = '{}/output.json'.format(work_dir)
     # 抓包缓存数据 dict
     self.response_catch_dict = {}
+    # 抓包包含的 base_url
+    self.include_path = ''
 
     # 检查工作目录文件完整性
     self.check_work_dir_files()
+
+    mitmproxy_config_file = '{}/mitmproxy_config.json'.format(self.work_dir)
+    with open(mitmproxy_config_file, 'r', encoding='utf-8') as fl:
+      mitmproxy_config = json.loads(fl.read())
+      self.include_path = mitmproxy_config.get('include_path', '')
+
     # 以历史数据为基础继续抓包
     if use_history:
       self.init_response_catch_dict()
@@ -49,6 +56,12 @@ class RequestRecorder:
     if not os.path.exists(self.save_path):
       with open(self.save_path, 'w') as fl:
         fl.write('{}')
+
+    mitmproxy_config_file = '{}/mitmproxy_config.json'.format(self.work_dir)
+    if not os.path.exists(mitmproxy_config_file):
+      # 生成默认抓包配置文件
+      with open(mitmproxy_config_file, 'w', encoding='utf-8') as fl:
+        fl.write(json.dumps(global_var.mitmproxy_config))
 
   # 接口请求
   def request(self, flow: http.HTTPFlow):
@@ -127,8 +140,7 @@ class RequestRecorder:
     self.response_catch_dict = {}
 
   # 检查请求是否需要被抓取保存
-  @staticmethod
-  def __check_response(request, response):
+  def __check_response(self, request, response):
     # 请求链接
     url = request.url
 
@@ -138,7 +150,7 @@ class RequestRecorder:
       return False
 
     # 需要包含的请求
-    include_reg = re.compile(request_base_url)
+    include_reg = re.compile(self.include_path)
     if not include_reg.search(url):
       return False
 

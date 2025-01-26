@@ -4,6 +4,11 @@ import json
 
 # 版本号
 version = 'v0.0.2'
+# mitmproxy 抓包默认配置
+mitmproxy_config = {
+  "include_path": "dream.aimiai.com/dream-plus",
+  "include_files": [".png", ".jpg", ".jpeg", ".gif", ".avif", ".webp", ".npy"],
+}
 # 默认全局变量文件地址
 global_file_path = './global_var.json'
 
