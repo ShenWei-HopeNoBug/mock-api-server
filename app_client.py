@@ -17,7 +17,7 @@ from asyncio_mitmproxy_server import start_mitmproxy
 # mock 服务进程启动
 def server_process_start(server_config: dict):
   print('server_config', server_config)
-  read_cache = server_config.get('server_config', True)
+  read_cache = server_config.get('read_cache', False)
   port = server_config.get('port', 5000)
   work_dir = server_config.get('work_dir', '.')
   server = MockServer(work_dir=work_dir, port=port)

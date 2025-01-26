@@ -166,7 +166,7 @@ class MockServer:
     if not os.path.exists(self.api_dict_path):
       return self.create_api_dict()
 
-    # 写入生成的 api 映射数据
+    # 读取生成的 api 映射数据
     with open(self.api_dict_path, 'r', encoding='utf-8') as fl:
       data = fl.read()
       try:
