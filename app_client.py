@@ -70,7 +70,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def init_ui(self):
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
-    self.setWindowTitle('mock server v0.0.2')
+    self.setWindowTitle('mock server {}'.format(global_var.version))
 
   def add_events(self):
     # 监听信号变化

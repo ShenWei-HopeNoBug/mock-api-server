@@ -2,6 +2,9 @@
 from decorate import error_catch
 import json
 
+# 版本号
+version = 'v0.0.2'
+# 默认全局变量文件地址
 global_file_path = './global_var.json'
 
 
@@ -31,5 +34,5 @@ def update_global_var(file=global_file_path, key='', value=None):
     global_dict = json.loads(data)
     global_dict[key] = value
 
-  with open(file, 'w', encoding='utf-8') as fl:
+  with open(global_file_path, 'w', encoding='utf-8') as fl:
     fl.write(json.dumps(global_dict))
