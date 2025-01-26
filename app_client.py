@@ -3,18 +3,15 @@ from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QMessageBox, QMainWindow, QFileDialog
 
+import time
+import requests
+import global_var
 from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
 from multiprocessing import Process
 from decorate import create_thread, error_catch
-import time
-import global_var
 from utils import check_local_connection
 from asyncio_mitmproxy_server import start_mitmproxy
-import requests
-
-# mock 服务实例
-mock_server = MockServer()
 
 
 # mock 服务进程启动
@@ -164,6 +161,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticDownloadButton.setText(button_text)
     self.compressCheckBox.setDisabled(disabled)
     self.staticDownloadButton.setDisabled(disabled)
+    self.severWorkDirBrowsePushButton.setDisabled(disabled)
 
   # 抓包服务启动状态变化
   def catch_server_running_change(self, value):
@@ -244,12 +242,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 下载静态资源
   @create_thread
   def static_download(self):
-    # 服务没初始化或正在下载中，跳过
-    if not mock_server or self.downloading:
+    # 正在下载中，跳过
+    if self.downloading:
       return
 
+    server = MockServer(work_dir=self.server_work_dir, port=self.server_port)
     self.downloading_signal.emit(True)
-    mock_server.check_static(compress=self.compress_image)
+    server.check_static(compress=self.compress_image)
     self.downloading_signal.emit(False)
     time.sleep(0.5)
 
@@ -309,6 +308,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.stop_server()
       # 设置退出程序的全局变量
       global_var.update_global_var(key='client_exit', value=True)
+      time.sleep(0.2)
       event.accept()
     else:
       event.ignore()

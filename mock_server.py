@@ -84,25 +84,28 @@ class MockServer:
 
       print('{}/{} 正在下载：{}'.format(i + 1, assets_length, assets))
       # 下载静态资源
-      response = requests.get(assets, timeout=30)
-      if response.status_code != 200:
-        print('下载失败：{}'.format(assets))
-        continue
-      assets_data = response.content
+      try:
+        response = requests.get(assets, timeout=30)
+        if response.status_code != 200:
+          print('下载失败：{}'.format(assets))
+          continue
+        assets_data = response.content
 
-      # 将图片写入指定位置
-      with open(assets_path, 'wb') as fl:
-        fl.write(assets_data)
+        # 将图片写入指定位置
+        with open(assets_path, 'wb') as fl:
+          fl.write(assets_data)
 
-      # 压缩下载图片
-      if compress:
-        compress_image(
-          input_path=assets_path,
-          output_path=assets_path,
-          quality=80
-        )
+        # 压缩下载图片
+        if compress:
+          compress_image(
+            input_path=assets_path,
+            output_path=assets_path,
+            quality=80
+          )
 
-      time.sleep(0.8)
+        time.sleep(0.8)
+      except Exception as e:
+        print('下载静态资源出错！', e)
 
     print('下载静态资源完毕！')
 
