@@ -12,28 +12,20 @@ request_base_url = r'dream.aimiai.com/dream-plus'
 # request_base_url = r'avatar-test.aicubes.cn/dream-plus'
 
 
-# 默认工作目录
-request_recorder_work_dir = '.'
-
-
 # 处理请求抓包工具类
 class RequestRecorder:
-  def __init__(self, use_history=True, work_dir=request_recorder_work_dir):
+  def __init__(self, use_history=True, work_dir='.'):
     # 抓包服务 master 实例
     self.mitmproxy_master = None
     # 抓包结束标记
     self.mitmproxy_stop_signal = False
     # 抓包数据保存路径
     self.save_path = '{}/output.json'.format(work_dir)
-
     # 抓包缓存数据 dict
     self.response_catch_dict = {}
 
-    # 抓包数据文件不存在，创建一个
-    if not os.path.exists(self.save_path):
-      with open(self.save_path, 'w') as fl:
-        fl.write('{}')
-
+    # 检查工作目录文件完整性
+    self.check_work_dir_files()
     # 以历史数据为基础继续抓包
     if use_history:
       self.init_response_catch_dict()
@@ -50,6 +42,13 @@ class RequestRecorder:
       for key in fieldnames:
         record[key] = row_data.get(key)
       self.__save_response(record)
+
+  # 检查工作目录文件
+  def check_work_dir_files(self):
+    # 抓包数据文件不存在，创建一个
+    if not os.path.exists(self.save_path):
+      with open(self.save_path, 'w') as fl:
+        fl.write('{}')
 
   # 接口请求
   def request(self, flow: http.HTTPFlow):

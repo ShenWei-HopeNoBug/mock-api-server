@@ -45,10 +45,19 @@ class MockServer:
       "static_url_path": self.static_url_path,
     }
 
+    # 工作目录文件检查
+    self.check_work_dir_files()
+
+  # 检查工作目录文件完整性
+  def check_work_dir_files(self):
     # 抓包数据文件不存在，创建一个
     if not os.path.exists(self.api_data_path):
       with open(self.api_data_path, 'w') as fl:
         fl.write('{}')
+
+    # 静态资源目录
+    assets_dir = '{}/{}'.format(self.work_dir, self.static_url_path)
+    check_and_create_dir(assets_dir)
 
   # 检查和下载静态资源
   def check_static(self, compress=True):

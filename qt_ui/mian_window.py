@@ -174,6 +174,7 @@ class Ui_MainWindow(object):
         font = QtGui.QFont()
         font.setPointSize(12)
         self.useHistoryCheckBox.setFont(font)
+        self.useHistoryCheckBox.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.useHistoryCheckBox.setObjectName("useHistoryCheckBox")
         self.horizontalLayout_6.addWidget(self.useHistoryCheckBox)
         self.catchServerButton = QtWidgets.QPushButton(self.horizontalLayoutWidget_6)
