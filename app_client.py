@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QMessageBox, QMainWindow, QFileDialog
 from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
 from multiprocessing import Process
-from decorate import create_thread
+from decorate import create_thread, error_catch
 import time
 import global_var
 from utils import check_local_connection
@@ -18,10 +18,14 @@ mock_server = MockServer()
 
 
 # mock 服务进程启动
-def server_process_start(read_cache=False, port=5000):
-  if mock_server:
-    # 启动本地 mock 服务
-    mock_server.start_server(read_cache=read_cache, port=port)
+def server_process_start(server_config: dict):
+  print('server_config', server_config)
+  read_cache = server_config.get('server_config', True)
+  port = server_config.get('port', 5000)
+  work_dir = server_config.get('work_dir', '.')
+  server = MockServer(work_dir=work_dir, port=port)
+  # 启动本地 mock 服务
+  server.start_server(read_cache=read_cache)
 
 
 # app 主窗口
@@ -94,8 +98,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def server_port_change(value):
       self.server_port = value
-      # 更新 mock_server 实例的端口号
-      mock_server.port = value
 
     # 端口号输入绑定
     self.catchServerPortSpinBox.setValue(self.catch_server_port)
@@ -144,6 +146,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.cacheCheckBox.setDisabled(disabled)
     self.serverPortSpinBox.setDisabled(disabled)
     self.cacheCheckBox.setDisabled(disabled)
+    self.severWorkDirBrowsePushButton.setDisabled(disabled)
     # mock 服务启动时禁止启动抓包服务
     self.catchServerButton.setDisabled(disabled)
 
@@ -176,6 +179,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.catchServerButton.setText(button_text)
     self.catchServerPortSpinBox.setDisabled(disabled)
     self.useHistoryCheckBox.setDisabled(disabled)
+    self.severWorkDirBrowsePushButton.setDisabled(disabled)
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
 
@@ -263,9 +267,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       )
       return
 
+    server_config = {
+      "work_dir": self.server_work_dir,
+      "port": self.server_port,
+      "read_cache": self.cache,
+    }
     server_process = Process(
       target=server_process_start,
-      args=(self.cache, self.server_port),
+      args=(server_config,),
       name='mock_server',
     )
     server_process.start()
@@ -276,8 +285,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if not self.server_running:
       return
 
-    if mock_server:
-      mock_server.stop_server()
+    @error_catch(print_error_msg=False)
+    def shutdown():
+      '''这个请求发送到 mock 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了'''
+      requests.get('http://127.0.0.1:{}/system/shutdown'.format(self.server_port))
+
+    shutdown()
     self.server_running_signal.emit(False)
 
   # 重写弹窗关闭事件

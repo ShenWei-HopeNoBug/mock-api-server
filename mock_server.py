@@ -20,25 +20,20 @@ from flask import Flask, request
 from flask_cors import CORS
 import global_var
 
-# 默认工作目录
-mock_server_work_dir = '.'
-
 
 class MockServer:
-  def __init__(self):
+  def __init__(self, work_dir='.', port=5000):
     # 工作目录相关配置
-    self.work_dir = '.'
-    self.api_dict_path = './api_dict.json'
-    self.api_data_path = './output.json'
+    self.work_dir = work_dir
+    self.api_dict_path = '{}/api_dict.json'.format(work_dir)
+    self.api_data_path = '{}/output.json'.format(work_dir)
     self.static_url_path = '/static'
     # ip 相关配置
     self.ip_address = get_ip_address()
-    self.port = 5000
+    self.port = port
     # 静态资源相关配置
     self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
     self.static_match_excepts = ['.png', '.jpg', '.jpeg', '.gif', '.avif', '.webp', '.npy']
-    # 初始化工作目录
-    self.update_work_dir(mock_server_work_dir)
 
     pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.static_match_excepts))
     # 静态资源正则匹配配置
@@ -49,12 +44,6 @@ class MockServer:
       "domain": self.static_host,
       "static_url_path": self.static_url_path,
     }
-
-  # 更新工作目录
-  def update_work_dir(self, work_dir='.'):
-    self.work_dir = work_dir
-    self.api_dict_path = '{}/api_dict.json'.format(work_dir)
-    self.api_data_path = '{}/output.json'.format(work_dir)
 
   # 检查和下载静态资源
   def check_static(self, compress=True):
@@ -185,14 +174,18 @@ class MockServer:
 
   # 启动本地 mock 服务
   @create_thread
-  def start_server(self, read_cache=False, port=5000):
+  def start_server(self, read_cache=False):
     print('>' * 10, '本地 mock 服务启动...')
-    self.port = port
     api_dict = self.get_server_api_dict(read_cache)
 
     app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path, root_path=self.work_dir)
     # 配置跨域(这个配置低版本的Flask加不加都一样)
     CORS(app, resources={r"/static/*".format(self.ip_address): {"origins": "*"}})
+
+    @app.route('/system/shutdown', methods=['GET'])
+    def server_shutdown():
+      print('mock 服务收到 shutdown 指令！正在关闭服务...')
+      self.stop_server()
 
     # 常规接口
     @app.route('/api/<path:path>', methods=['GET', 'POST'])
@@ -237,8 +230,8 @@ class MockServer:
       print('未找到 mock server 进程！port={}'.format(self.port))
 
     for proc in process_list:
+      print('正在关闭 mock server 进程! port={}'.format(self.port), proc)
       proc.terminate()
-      print('关闭 mock server 成功! port={}'.format(self.port), proc)
 
   # 获取响应数据映射表键名
   @staticmethod
