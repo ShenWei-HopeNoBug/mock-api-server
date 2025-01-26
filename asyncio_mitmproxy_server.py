@@ -4,15 +4,23 @@ from time import sleep
 
 from mitmproxy.options import Options
 from mitmproxy.tools.dump import DumpMaster
-from multiprocessing import Process, Manager
+from multiprocessing import Process
 from request_catch import RequestRecorder
+from decorate import error_catch
 import global_var
 
 
-async def config_mitmproxy(host='0.0.0.0', port=8080):
+# 启动抓包服务task
+@error_catch(error_msg='mitmproxy_task: 启动抓包服务失败！')
+async def mitmproxy_task(mitmproxy_config: dict):
+  print('mitmproxy_config', mitmproxy_config)
+  host = mitmproxy_config.get('host', '0.0.0.0')
+  port = mitmproxy_config.get('port', 8080)
+  work_dir = mitmproxy_config.get('work_dir', '.')
+  use_history = mitmproxy_config.get('use_history', False)
   """配置 mitmproxy 参数与启动"""
   options = Options(listen_host=host, listen_port=port)
-  request_recorder = RequestRecorder(use_history=False)
+  request_recorder = RequestRecorder(use_history=use_history, work_dir=work_dir)
   addons = [request_recorder]
 
   # 创建 DumpMaster 实例
@@ -21,34 +29,33 @@ async def config_mitmproxy(host='0.0.0.0', port=8080):
   # 把 master 实例挂在脚本实例上，用于内部条件触发关闭 master 服务
   request_recorder.mitmproxy_master = master
 
-  try:
-    print('启动 mitmproxy 主循环...')
-    # 启动 mitmproxy 主循环
-    await master.run()
+  print('启动 mitmproxy 主循环...')
 
-    # 主循环退出，重置下抓包结束信号
-    global_var.update_global_var(key='mitmproxy_stop_signal', value=False)
-    print('停止 mitmproxy 主循环')
-  except KeyboardInterrupt:
-    print('error: mitmproxy 主循环 shutdown!')
-    master.shutdown()  # 当手动中断时，关闭 master
+  # 启动 mitmproxy 主循环
+  await master.run()
+
+  # 主循环退出，重置下抓包结束信号
+  global_var.update_global_var(key='mitmproxy_stop_signal', value=False)
+  print('mitmproxy 主循环结束！')
 
 
-def run_mitmproxy(host='0.0.0.0', port=8080):
+# 启动抓包服务
+def run_mitmproxy(share_dict):
   """运行 mitmproxy"""
   loop = asyncio.new_event_loop()
   asyncio.set_event_loop(loop)
-  loop.run_until_complete(config_mitmproxy(host, port))
+  loop.run_until_complete(mitmproxy_task(share_dict))
   loop.close()
 
 
-def start_mitmproxy(host='0.0.0.0', port=8080) -> Process:
+def start_mitmproxy(share_dict) -> Process:
   """启动 mitmproxy"""
   print("Start Mitmproxy")
-  mitmproxy_process = Process(target=run_mitmproxy, args=(host, port,))
+  mitmproxy_process = Process(target=run_mitmproxy, args=(share_dict,))
   mitmproxy_process.start()
   print("Mitmproxy is running")
   return mitmproxy_process
+
 
 # 强杀进程退出服务
 def stop_mitmproxy(process: Process) -> None:
@@ -61,7 +68,13 @@ def stop_mitmproxy(process: Process) -> None:
 
 # -------------- 调试
 def test():
-  mitmproxy_process = start_mitmproxy(host='0.0.0.0', port=8080)  # 启动 mitmproxy
+  mitmproxy_config = {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "work_dir": ".",
+    "use_history": False,
+  }
+  mitmproxy_process = start_mitmproxy(mitmproxy_config)  # 启动 mitmproxy
   sleep(10)
   stop_mitmproxy(mitmproxy_process)
 

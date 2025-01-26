@@ -17,16 +17,11 @@ import requests
 mock_server = MockServer()
 
 
-# mitmdump 服务进程启动
-def mitmdump_server_process_start(port=8080):
-  start_mitmproxy(host='0.0.0.0', port=port)
-
-
 # mock 服务进程启动
-def server_process_start(cache=False, port=5000):
+def server_process_start(read_cache=False, port=5000):
   if mock_server:
     # 启动本地 mock 服务
-    mock_server.start_server(cache=cache, port=port)
+    mock_server.start_server(read_cache=read_cache, port=port)
 
 
 # app 主窗口
@@ -40,6 +35,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   def __init__(self):
     super().__init__()
+    # 初始化全局变量文件
+    global_var.init()
+
     # 抓包服务端口号
     self.catch_server_port = 8080
     # 抓包服务是否启动
@@ -189,9 +187,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       )
       return
 
+    # 抓包服务启动配置
+    mitmproxy_config = {
+      "host": "0.0.0.0",
+      "port": self.catch_server_port,
+      "work_dir": self.server_work_dir,
+      "use_history": False,
+    }
+
     server_process = Process(
-      target=mitmdump_server_process_start,
-      args=(self.catch_server_port,),
+      target=start_mitmproxy,
+      args=(mitmproxy_config,),
       name='mitmdump_server',
     )
     server_process.start()
