@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
 from mitmproxy import http
-from mitmproxy.tools.main import mitmdump
 import re
 import pandas as pd
-from utils import (create_md5, JsonFormat, find_connection_process, check_and_create_dir)
+from utils import (create_md5, JsonFormat, check_and_create_dir)
 import global_var
 import json
 
@@ -179,35 +178,3 @@ class RequestRecorder:
 
     # 添加新的请求 response 内容
     self.response_catch_dict[search_key][md5_key] = record
-
-
-class MitmdumpServer:
-  def __init__(self):
-    self.port = 8080
-
-  # 启动抓包服务
-  def start_server(self, port=8080):
-    print('>' * 10, '抓包服务启动...', port)
-    self.port = port
-    mitmdump(['-s', __file__, '-p {}'.format(self.port)])
-
-  # 关闭抓包服务
-  def stop_server(self):
-    process_list = find_connection_process(ip='0.0.0.0', port=self.port)
-    if len(process_list) == 0:
-      print('未找到 mitmdump server 进程！')
-
-    for proc in process_list:
-      proc.terminate()
-      print('关闭 mitmdump server 成功!', proc)
-
-
-addons = [
-  # RequestRecorder(use_history=True)
-  RequestRecorder(use_history=False)
-]
-
-if __name__ == '__main__':
-  mitmdump_server = MitmdumpServer()
-  # mitmdump_server.stop_server()
-  mitmdump_server.start_server(port=8080)
