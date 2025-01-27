@@ -8,6 +8,7 @@ import json
 import time
 import requests
 import global_var
+import history
 from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
 from multiprocessing import Process
@@ -42,6 +43,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     super().__init__()
     # 初始化全局变量文件
     global_var.init()
+    # 初始化历史数据文件
+    history.init()
+    # 获取历史工作目录
+    work_dir = history.get_history_var(key='work_dir')  or './server'
 
     # 抓包服务端口号
     self.catch_server_port = 8080
@@ -54,7 +59,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 是否正在下载静态资源
     self.downloading = False
     # 服务工作目录
-    self.work_dir = './server'
+    self.work_dir = work_dir
     # 服务是否正在运行
     self.server_running = False
     # 服务端口号
@@ -128,6 +133,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.work_dir = directory
         self.serverWorkDirLineEdit.setText(self.work_dir)
         self.serverWorkDirLineEdit.setToolTip(self.work_dir)
+        # 更新工作目录历史记录
+        history.update_history_var(key='work_dir', value=self.work_dir)
         # 更换工作目录后，检查目录文件
         self.check_work_dir_files()
 

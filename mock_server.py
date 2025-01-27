@@ -220,8 +220,9 @@ class MockServer:
   def start_server(self, read_cache=False):
     print('>' * 10, '本地 mock 服务启动...')
     api_dict = self.get_server_api_dict(read_cache)
-
-    app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path, root_path=self.work_dir)
+    # 工作目录的绝对路径
+    root_path = os.path.abspath(self.work_dir)
+    app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path, root_path=root_path)
     # 配置跨域(这个配置低版本的Flask加不加都一样)
     CORS(app, resources={r"/static/*".format(self.ip_address): {"origins": "*"}})
 

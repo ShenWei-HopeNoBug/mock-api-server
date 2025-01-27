@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from decorate import error_catch
 import json
+from utils import check_and_create_dir
 
 # 版本号
 version = 'v0.0.2'
@@ -13,11 +14,16 @@ mitmproxy_config = {
 data_dir_path = r'/data'
 # 存放配置文件的目录
 config_dir_path = r'/config'
+# 存放系统文件的目录
+system_dir_path = r'./system'
 # 默认全局变量文件地址
-global_file_path = './global_var.json'
+global_file_path = '{}/global_var.json'.format(system_dir_path)
 
 
 def init(file=global_file_path):
+  # 检查并创建系统文件夹
+  check_and_create_dir(system_dir_path)
+
   global_dict = {
     "client_exit": False,  # 是否已经退出程序
     "mitmproxy_stop_signal": False,  # 抓包停止信号
@@ -43,5 +49,5 @@ def update_global_var(file=global_file_path, key='', value=None):
     global_dict = json.loads(data)
     global_dict[key] = value
 
-  with open(global_file_path, 'w', encoding='utf-8') as fl:
+  with open(file, 'w', encoding='utf-8') as fl:
     fl.write(json.dumps(global_dict))

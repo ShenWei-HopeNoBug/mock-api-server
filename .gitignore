@@ -25,8 +25,7 @@ dist-ssr
 *.sw?
 
 # User directories and files
-/mitmproxy_config.json
-/global_var.json
+/system
 /test
 /static
 /server
