@@ -54,7 +54,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 是否正在下载静态资源
     self.downloading = False
     # 服务工作目录
-    self.server_work_dir = './server'
+    self.work_dir = './server'
     # 服务是否正在运行
     self.server_running = False
     # 服务端口号
@@ -125,15 +125,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def select_directory():
       directory = QFileDialog.getExistingDirectory(self, '选择工作目录', r'./')
       if directory:
-        self.server_work_dir = directory
-        self.serverWorkDirLineEdit.setText(self.server_work_dir)
-        self.serverWorkDirLineEdit.setToolTip(self.server_work_dir)
+        self.work_dir = directory
+        self.serverWorkDirLineEdit.setText(self.work_dir)
+        self.serverWorkDirLineEdit.setToolTip(self.work_dir)
         # 更换工作目录后，检查目录文件
         self.check_work_dir_files()
 
     # 选择服务的工作目录
-    self.serverWorkDirLineEdit.setText(self.server_work_dir)
-    self.serverWorkDirLineEdit.setToolTip(self.server_work_dir)
+    self.serverWorkDirLineEdit.setText(self.work_dir)
+    self.serverWorkDirLineEdit.setToolTip(self.work_dir)
     self.severWorkDirBrowsePushButton.clicked.connect(select_directory)
 
   # mock 服务启动状态变化
@@ -200,9 +200,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 检查工作目录文件完整性
   def check_work_dir_files(self):
-    check_and_create_dir(self.server_work_dir)
+    # 创建工作目录
+    check_and_create_dir(self.work_dir)
 
-    mitmproxy_config_file = '{}/mitmproxy_config.json'.format(self.server_work_dir)
+    # 配置文件目录
+    config_dir = '{}{}'.format(self.work_dir, global_var.config_dir_path)
+    check_and_create_dir(config_dir)
+
+    mitmproxy_config_file = '{}/mitmproxy_config.json'.format(config_dir)
     if not os.path.exists(mitmproxy_config_file):
       # 生成默认抓包配置文件
       with open(mitmproxy_config_file, 'w', encoding='utf-8') as fl:
@@ -230,7 +235,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     mitmproxy_config = {
       "host": "0.0.0.0",
       "port": self.catch_server_port,
-      "work_dir": self.server_work_dir,
+      "work_dir": self.work_dir,
       "use_history": self.use_history,
     }
 
@@ -264,7 +269,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if self.downloading:
       return
 
-    server = MockServer(work_dir=self.server_work_dir, port=self.server_port)
+    server = MockServer(work_dir=self.work_dir, port=self.server_port)
     self.downloading_signal.emit(True)
     server.download_static(compress=self.compress_image)
     self.downloading_signal.emit(False)
@@ -285,7 +290,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return
 
     server_config = {
-      "work_dir": self.server_work_dir,
+      "work_dir": self.work_dir,
       "port": self.server_port,
       "read_cache": self.cache,
     }

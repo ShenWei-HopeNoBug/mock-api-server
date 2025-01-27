@@ -25,21 +25,23 @@ class MockServer:
   def __init__(self, work_dir='.', port=5000):
     # 工作目录相关配置
     self.work_dir = work_dir
-    self.api_dict_path = '{}/api_dict.json'.format(work_dir)
-    self.api_data_path = '{}/output.json'.format(work_dir)
+    self.api_dict_path = '{}{}/api_dict.json'.format(work_dir, global_var.data_dir_path)
+    self.api_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
+    self.mitmproxy_config_path = '{}{}/mitmproxy_config.json'.format(work_dir, global_var.config_dir_path)
     self.static_url_path = '/static'
     # ip 相关配置
     self.ip_address = get_ip_address()
     self.port = port
     # 静态资源相关配置
     self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
+    # 包含的静态资源文件类型
     self.include_files = []
 
     # 工作目录文件检查
     self.check_work_dir_files()
 
-    mitmproxy_config_file = '{}/mitmproxy_config.json'.format(self.work_dir)
-    with open(mitmproxy_config_file, 'r', encoding='utf-8') as fl:
+    # 读取包含的静态资源文件类型
+    with open(self.mitmproxy_config_path, 'r', encoding='utf-8') as fl:
       mitmproxy_config = json.loads(fl.read())
       self.include_files = mitmproxy_config.get('include_files', [])
 
@@ -55,14 +57,22 @@ class MockServer:
 
   # 检查工作目录文件完整性
   def check_work_dir_files(self):
+    # 静态资源目录
+    assets_dir = '{}{}'.format(self.work_dir, self.static_url_path)
+    check_and_create_dir(assets_dir)
+
+    # 存放数据的文件夹
+    data_dir = '{}{}'.format(self.work_dir, global_var.data_dir_path)
+    check_and_create_dir(data_dir)
+
+    # 配置文件目录
+    config_dir = '{}{}'.format(self.work_dir, global_var.config_dir_path)
+    check_and_create_dir(config_dir)
+
     # 抓包数据文件不存在，创建一个
     if not os.path.exists(self.api_data_path):
       with open(self.api_data_path, 'w') as fl:
         fl.write('{}')
-
-    # 静态资源目录
-    assets_dir = '{}/{}'.format(self.work_dir, self.static_url_path)
-    check_and_create_dir(assets_dir)
 
   # 下载静态资源
   def download_static(self, compress=True):
@@ -81,7 +91,7 @@ class MockServer:
     assets_list = list(set(assets_list))
 
     # 静态资源目录
-    assets_dir = '{}/{}'.format(self.work_dir, self.static_url_path)
+    assets_dir = '{}{}'.format(self.work_dir, self.static_url_path)
     # 创建静态资源文件夹
     check_and_create_dir(assets_dir)
 
