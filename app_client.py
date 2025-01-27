@@ -96,7 +96,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.compress_image = not self.compress_image
 
     def static_download_button_click():
-      self.static_download()
+      self.download_static()
 
     def server_port_change(value):
       self.server_port = value
@@ -127,11 +127,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       if directory:
         self.server_work_dir = directory
         self.serverWorkDirLineEdit.setText(self.server_work_dir)
+        self.serverWorkDirLineEdit.setToolTip(self.server_work_dir)
         # 更换工作目录后，检查目录文件
         self.check_work_dir_files()
 
     # 选择服务的工作目录
     self.serverWorkDirLineEdit.setText(self.server_work_dir)
+    self.serverWorkDirLineEdit.setToolTip(self.server_work_dir)
     self.severWorkDirBrowsePushButton.clicked.connect(select_directory)
 
   # mock 服务启动状态变化
@@ -257,14 +259,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 下载静态资源
   @create_thread
-  def static_download(self):
+  def download_static(self):
     # 正在下载中，跳过
     if self.downloading:
       return
 
     server = MockServer(work_dir=self.server_work_dir, port=self.server_port)
     self.downloading_signal.emit(True)
-    server.check_static(compress=self.compress_image)
+    server.download_static(compress=self.compress_image)
     self.downloading_signal.emit(False)
     time.sleep(0.5)
 

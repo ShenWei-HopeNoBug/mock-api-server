@@ -64,8 +64,8 @@ class MockServer:
     assets_dir = '{}/{}'.format(self.work_dir, self.static_url_path)
     check_and_create_dir(assets_dir)
 
-  # 检查和下载静态资源
-  def check_static(self, compress=True):
+  # 下载静态资源
+  def download_static(self, compress=True):
     print('>' * 10, '开始检查和下载静态资源...')
 
     data = pd.read_json(self.api_data_path)
@@ -125,7 +125,7 @@ class MockServer:
           continue
         assets_data = response.content
 
-        # 将图片写入指定位置
+        # 将文件写入指定位置
         with open(assets_path, 'wb') as fl:
           fl.write(assets_data)
 
