@@ -17,7 +17,7 @@ config_dir_path = r'/config'
 # 存放系统文件的目录
 system_dir_path = r'./system'
 # 默认全局变量文件地址
-global_file_path = '{}/global_var.json'.format(system_dir_path)
+global_file_path = '{}/globals.json'.format(system_dir_path)
 
 
 def init(file=global_file_path):
