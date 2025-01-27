@@ -85,14 +85,29 @@ class MockServer:
     # 创建静态资源文件夹
     check_and_create_dir(assets_dir)
 
-    assets_length = len(assets_list)
-    for i, assets in enumerate(assets_list):
+    download_assets = []
+    # 检查需要下载的静态资源文件
+    for asset in assets_list:
+      client_exit = global_var.get_global_var(key='client_exit')
+      # 程序已经全局退出，退出
+      if client_exit:
+        return
+
+      file_name = asset.split('/')[-1]
+
+      # 拼接图片存放地址和名字
+      assets_path = '{}/{}'.format(assets_dir, file_name)
+      if not os.path.exists(assets_path):
+        download_assets.append(asset)
+
+    assets_length = len(download_assets)
+    for i, asset in enumerate(download_assets):
       client_exit = global_var.get_global_var(key='client_exit')
       # 程序已经全局退出，停止下载处理
       if client_exit:
         return
 
-      file_name = assets.split('/')[-1]
+      file_name = asset.split('/')[-1]
 
       # 拼接图片存放地址和名字
       assets_path = '{}/{}'.format(assets_dir, file_name)
@@ -101,12 +116,12 @@ class MockServer:
       if os.path.exists(assets_path):
         continue
 
-      print('{}/{} 正在下载：{}'.format(i + 1, assets_length, assets))
+      print('{}/{} 正在下载：{}'.format(i + 1, assets_length, asset))
       # 下载静态资源
       try:
-        response = requests.get(assets, timeout=30)
+        response = requests.get(asset, timeout=30)
         if response.status_code != 200:
-          print('下载失败：{}'.format(assets))
+          print('下载失败：{}'.format(asset))
           continue
         assets_data = response.content
 
