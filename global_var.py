@@ -7,7 +7,7 @@ from utils import check_and_create_dir
 version = 'v0.0.2'
 # mitmproxy 抓包默认配置
 mitmproxy_config = {
-  "include_path": "dream.aimiai.com/dream-plus",
+  "include_path": "www.baidu.com",
   "include_files": [".png", ".jpg", ".jpeg", ".gif", ".avif", ".webp", ".npy"],
 }
 # 存放数据文件的目录

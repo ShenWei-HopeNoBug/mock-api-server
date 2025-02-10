@@ -19,3 +19,6 @@
 #### 带黑窗
 
 `pyinstaller -F main.py`
+
+### 查看被 LFS 追踪的所有文件
+`git lfs ls-files`
