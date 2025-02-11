@@ -46,7 +46,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 初始化历史数据文件
     history.init()
     # 获取历史工作目录
-    work_dir = history.get_history_var(key='work_dir')  or './server'
+    work_dir = history.get_history_var(key='work_dir') or './server'
 
     # 抓包服务端口号
     self.catch_server_port = 8080
@@ -219,6 +219,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       # 生成默认抓包配置文件
       with open(mitmproxy_config_file, 'w', encoding='utf-8') as fl:
         fl.write(json.dumps(global_var.mitmproxy_config))
+
+    mock_server_config_file = '{}/mock_server_config.json'.format(config_dir)
+    if not os.path.exists(mock_server_config_file):
+      # 生成默认 mock 服务配置文件
+      with open(mock_server_config_file, 'w', encoding='utf-8') as fl:
+        fl.write(json.dumps(global_var.mock_server_config))
+
   # 启动抓包服务
   def start_catch_server(self):
     mitmproxy_stop_signal = global_var.get_global_var(key='mitmproxy_stop_signal')

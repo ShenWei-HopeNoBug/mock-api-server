@@ -8,8 +8,13 @@ version = 'v0.0.2'
 # mitmproxy 抓包默认配置
 mitmproxy_config = {
   "include_path": "www.baidu.com",
+}
+
+# mock 服务的配置
+mock_server_config = {
   "include_files": [".png", ".jpg", ".jpeg", ".gif", ".avif", ".webp", ".npy"],
 }
+
 # 存放数据文件的目录
 data_dir_path = r'/data'
 # 存放配置文件的目录

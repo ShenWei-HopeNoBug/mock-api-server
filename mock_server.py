@@ -27,7 +27,7 @@ class MockServer:
     self.work_dir = work_dir
     self.api_dict_path = '{}{}/api_dict.json'.format(work_dir, global_var.data_dir_path)
     self.api_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
-    self.mitmproxy_config_path = '{}{}/mitmproxy_config.json'.format(work_dir, global_var.config_dir_path)
+    self.mock_server_config_path = '{}{}/mock_server_config.json'.format(work_dir, global_var.config_dir_path)
     self.static_url_path = '/static'
     # ip 相关配置
     self.ip_address = get_ip_address()
@@ -41,9 +41,9 @@ class MockServer:
     self.check_work_dir_files()
 
     # 读取包含的静态资源文件类型
-    with open(self.mitmproxy_config_path, 'r', encoding='utf-8') as fl:
-      mitmproxy_config = json.loads(fl.read())
-      self.include_files = mitmproxy_config.get('include_files', [])
+    with open(self.mock_server_config_path, 'r', encoding='utf-8') as fl:
+      mock_server_config = json.loads(fl.read())
+      self.include_files = mock_server_config.get('include_files', [])
 
     pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.include_files))
     # 静态资源正则匹配配置
