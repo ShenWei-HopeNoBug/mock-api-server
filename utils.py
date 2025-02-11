@@ -36,6 +36,21 @@ def check_and_create_dir(path):
     os.makedirs(path)
 
 
+@error_catch(error_msg='判断是否为文件请求失败', error_return=False)
+def is_file_request(url=''):
+  # 去掉 query 参数的请求
+  pure_url = url.split(r'?')[0]
+  # 去掉协议头
+  pure_url = re.sub(r'https?://', '', pure_url)
+  # 判断是否有子路径
+  if re.search(r'/', pure_url):
+    last_route = pure_url.split(r'/')[-1]
+    # 末尾路由带.的判断为文件请求
+    return bool(re.search(r'\.', last_route))
+  else:
+    return False
+
+
 class JsonFormat:
   # 格式化 json string 数据(业务映射)
   @staticmethod

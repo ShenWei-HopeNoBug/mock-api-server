@@ -3,7 +3,12 @@ import os
 from mitmproxy import http
 import re
 import pandas as pd
-from utils import (create_md5, JsonFormat, check_and_create_dir)
+from utils import (
+  create_md5,
+  JsonFormat,
+  check_and_create_dir,
+  is_file_request,
+)
 import global_var
 import json
 
@@ -150,9 +155,8 @@ class RequestRecorder:
     # 请求链接
     url = request.url
 
-    # 需要排除的请求
-    except_reg = re.compile(r'\.(png|jpg|jpeg|gif|avif|webp|js|css|ico|ttf|html|xml)')
-    if except_reg.search(url):
+    # 排除文件类型的请求
+    if is_file_request(url):
       return False
 
     # 需要包含的请求
