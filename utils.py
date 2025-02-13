@@ -8,6 +8,9 @@ import psutil
 from PIL import Image
 from decorate import error_catch
 import socket
+import global_var
+import pandas as pd
+import webbrowser
 
 
 # 获取本机 ip 地址
@@ -126,3 +129,35 @@ def compress_image(input_path, output_path, quality=80):
       # jpg 压缩
       img.save(output_path, quality=quality)
   return True
+
+
+def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
+  # 数据源地址
+  api_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
+  if not os.path.exists(api_data_path):
+    return
+
+  data = pd.read_json(api_data_path)
+  # 预览数据列表
+  preview_list = []
+  # 行遍历
+  for row_index, row_data in data.iterrows():
+    response = row_data.get('Response')
+    method = row_data.get('Method')
+    params = row_data.get('Params')
+    url = row_data.get('Url')
+    preview_list.append({
+      "Url": url,
+      "Method": method,
+      "Params": params,
+      "Response": response,
+    })
+
+  # 覆盖 web 预览数据源文件
+  web_mitmproxy_output_file = '{}/web/mitmproxy_output.json'.format(root_dir)
+  with open(web_mitmproxy_output_file, 'w', encoding='utf-8') as fl:
+    fl.write(json.dumps(preview_list))
+
+  preview_html = '{}/web/apps/dataPreview/index.html'.format(root_dir)
+  # 用浏览器打开预览 html 文件
+  webbrowser.open(os.path.abspath(preview_html))
