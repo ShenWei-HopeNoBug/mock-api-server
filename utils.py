@@ -153,11 +153,12 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
       "Response": response,
     })
 
-  # 覆盖 web 预览数据源文件
-  web_mitmproxy_output_file = '{}/web/mitmproxy_output.json'.format(root_dir)
+  # 把预览数据写入web的静态资源文件
+  web_mitmproxy_output_file = r'{}/web/mitmproxy_output.js'.format(root_dir)
   with open(web_mitmproxy_output_file, 'w', encoding='utf-8') as fl:
-    fl.write(json.dumps(preview_list))
+    content = "window.MITMPROXY_OUTPUT = {}\n".format(json.dumps(preview_list))
+    fl.write(content)
 
-  preview_html = '{}/web/apps/dataPreview/index.html'.format(root_dir)
+  preview_html = r'{}/web/apps/dataPreview/index.html'.format(root_dir)
   # 用浏览器打开预览 html 文件
   webbrowser.open(os.path.abspath(preview_html))
