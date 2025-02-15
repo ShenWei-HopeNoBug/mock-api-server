@@ -4,7 +4,6 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QMessageBox, QMainWindow, QFileDialog
 
 import os
-import json
 import time
 import requests
 import global_var
@@ -17,6 +16,7 @@ from utils import (
   check_local_connection,
   check_and_create_dir,
   open_mitmproxy_preview_html,
+  JsonFormat,
 )
 from asyncio_mitmproxy_server import start_mitmproxy
 
@@ -71,13 +71,13 @@ def create_work_files(work_dir=DEFAULT_WORK_DIR):
   if not os.path.exists(mitmproxy_config_file):
     # 生成默认抓包配置文件
     with open(mitmproxy_config_file, 'w', encoding='utf-8') as fl:
-      fl.write(json.dumps(global_var.mitmproxy_config))
+      fl.write(JsonFormat.format_dict_to_json_string(global_var.mitmproxy_config))
 
   mock_server_config_file = '{}/mock_server_config.json'.format(config_dir)
   if not os.path.exists(mock_server_config_file):
     # 生成默认 mock 服务配置文件
     with open(mock_server_config_file, 'w', encoding='utf-8') as fl:
-      fl.write(json.dumps(global_var.mock_server_config))
+      fl.write(JsonFormat.format_dict_to_json_string(global_var.mock_server_config))
 
 
 # app 主窗口

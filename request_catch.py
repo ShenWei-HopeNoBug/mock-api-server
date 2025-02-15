@@ -66,13 +66,13 @@ class RequestRecorder:
 
     # 抓包数据文件不存在，创建一个
     if not os.path.exists(self.save_path):
-      with open(self.save_path, 'w') as fl:
+      with open(self.save_path, 'w', encoding='utf-8') as fl:
         fl.write('{}')
 
     if not os.path.exists(self.mitmproxy_config_path):
       # 生成默认抓包配置文件
       with open(self.mitmproxy_config_path, 'w', encoding='utf-8') as fl:
-        fl.write(json.dumps(global_var.mitmproxy_config))
+        fl.write(JsonFormat.format_dict_to_json_string(global_var.mitmproxy_config))
 
   # 接口请求
   def request(self, flow: http.HTTPFlow):
@@ -147,7 +147,7 @@ class RequestRecorder:
     df = pd.DataFrame(data)
 
     # 将DataFrame写入Excel文件，每行为一个数据
-    df.to_json(self.save_path)
+    df.to_json(self.save_path, force_ascii=False)
     self.response_catch_dict = {}
 
   # 检查请求是否需要被抓取保存

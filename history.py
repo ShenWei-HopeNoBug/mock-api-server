@@ -3,7 +3,7 @@ import os
 from decorate import error_catch
 import json
 import global_var
-from utils import check_and_create_dir
+from utils import check_and_create_dir, JsonFormat
 
 # 默认历史数据文件地址
 history_file_path = '{}/history.json'.format(global_var.system_dir_path)
@@ -22,7 +22,7 @@ def init(file=history_file_path):
   }
 
   with open(file, 'w', encoding='utf-8') as fl:
-    fl.write(json.dumps(history_dict))
+    fl.write(JsonFormat.format_dict_to_json_string(history_dict))
 
 
 @error_catch(error_msg='查找历史数据失败！', error_return=None)
@@ -42,4 +42,4 @@ def update_history_var(file=history_file_path, key='', value=None):
     history_dict[key] = value
 
   with open(file, 'w', encoding='utf-8') as fl:
-    fl.write(json.dumps(history_dict))
+    fl.write(JsonFormat.format_dict_to_json_string(history_dict))

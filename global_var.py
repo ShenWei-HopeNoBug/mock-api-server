@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from decorate import error_catch
 import json
-from utils import check_and_create_dir
+from utils import check_and_create_dir, JsonFormat
 
 # 版本号
 version = 'v0.0.2'
@@ -35,7 +35,7 @@ def init(file=global_file_path):
   }
 
   with open(file, 'w', encoding='utf-8') as fl:
-    fl.write(json.dumps(global_dict))
+    fl.write(JsonFormat.format_dict_to_json_string(global_dict))
 
 
 @error_catch(error_msg='查找全局变量失败！', error_return=None)
@@ -55,4 +55,4 @@ def update_global_var(file=global_file_path, key='', value=None):
     global_dict[key] = value
 
   with open(file, 'w', encoding='utf-8') as fl:
-    fl.write(json.dumps(global_dict))
+    fl.write(JsonFormat.format_dict_to_json_string(global_dict))

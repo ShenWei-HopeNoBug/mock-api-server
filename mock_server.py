@@ -73,12 +73,12 @@ class MockServer:
 
     # 抓包数据文件不存在，创建一个
     if not os.path.exists(self.api_data_path):
-      with open(self.api_data_path, 'w') as fl:
+      with open(self.api_data_path, 'w', encoding='utf-8') as fl:
         fl.write('{}')
 
     # 用户手动配置 api 数据文件不存在，创建一个
     if not os.path.exists(self.user_api_data_path):
-      with open(self.user_api_data_path, 'w') as fl:
+      with open(self.user_api_data_path, 'w', encoding='utf-8') as fl:
         fl.write('[]')
 
   # 下载静态资源
@@ -200,7 +200,7 @@ class MockServer:
 
     # 写入生成的 api 映射数据
     with open(self.api_dict_path, 'w', encoding='utf-8') as fl:
-      fl.write(json.dumps(api_dict))
+      fl.write(JsonFormat.format_dict_to_json_string(api_dict))
 
     return api_dict
 
