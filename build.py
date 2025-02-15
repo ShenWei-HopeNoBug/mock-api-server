@@ -3,6 +3,7 @@ import subprocess
 import global_var
 import os
 import shutil
+import datetime
 
 '''
 打包应用
@@ -11,8 +12,9 @@ import shutil
 def app_build(window=False):
   # 当前版本号
   version = global_var.version
+  timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
   win_ext = '.win' if window else ''
-  app_name = 'mockServer{}-{}'.format(win_ext, version)
+  app_name = 'mockServer{}-{}-{}'.format(win_ext, timestamp, version)
   args = ["pyinstaller", f"--name={app_name}", "main.py", "-F"]
   # 打包命令加上黑窗
   if not window:

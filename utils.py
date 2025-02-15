@@ -130,12 +130,12 @@ def compress_image(input_path, output_path, quality=80):
       img.save(output_path, quality=quality)
   return True
 
-
+@error_catch(error_msg='打开抓包数据预览html失败', error_return=False)
 def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
   # 数据源地址
   api_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
   if not os.path.exists(api_data_path):
-    return
+    return False
 
   data = pd.read_json(api_data_path)
   # 预览数据列表
@@ -155,10 +155,16 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
 
   # 把预览数据写入web的静态资源文件
   web_mitmproxy_output_file = r'{}/web/mitmproxy_output.js'.format(root_dir)
+  if not os.path.exists(web_mitmproxy_output_file):
+    return False
   with open(web_mitmproxy_output_file, 'w', encoding='utf-8') as fl:
     content = "window.MITMPROXY_OUTPUT = {}\n".format(json.dumps(preview_list))
     fl.write(content)
 
   preview_html = r'{}/web/apps/dataPreview/index.html'.format(root_dir)
+  if not os.path.exists(preview_html):
+    return False
   # 用浏览器打开预览 html 文件
   webbrowser.open(os.path.abspath(preview_html))
+
+  return True

@@ -99,7 +99,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.use_history = not self.use_history
 
     def data_preview_button_click():
-      open_mitmproxy_preview_html(root_dir='.', work_dir=self.work_dir)
+      result = open_mitmproxy_preview_html(root_dir='.', work_dir=self.work_dir)
+      # 打开失败
+      if not result:
+        QMessageBox.critical(self, '异常', '打开抓包数据预览html失败！')
 
     def cache_checkbox_click():
       self.cache = not self.cache
