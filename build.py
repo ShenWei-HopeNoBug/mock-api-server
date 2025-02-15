@@ -5,16 +5,22 @@ import os
 import shutil
 import datetime
 
+
+def create_timestamp():
+  return datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+
+
 '''
 打包应用
 @:param window -打包的应用是否带黑窗
+@:param timestamp -打包应用名带的时间戳
 '''
-def app_build(window=False):
+def app_build(window=False, timestamp=''):
   # 当前版本号
   version = global_var.version
-  timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
   win_ext = '.win' if window else ''
-  app_name = 'mockServer{}-{}-{}'.format(win_ext, timestamp, version)
+  time_ext = '.{}'.format(timestamp) if timestamp else ''
+  app_name = 'mockServer{}{}-{}'.format(win_ext, time_ext, version)
   args = ["pyinstaller", f"--name={app_name}", "main.py", "-F"]
   # 打包命令加上黑窗
   if not window:
@@ -34,5 +40,6 @@ def app_build(window=False):
 
 
 if __name__ == '__main__':
-  app_build(window=False)
-  app_build(window=True)
+  current = create_timestamp()
+  app_build(window=False, timestamp=current)
+  app_build(window=True, timestamp=current)

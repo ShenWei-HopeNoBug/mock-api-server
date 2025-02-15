@@ -86,7 +86,7 @@ class MockServer:
     print('>' * 10, '开始检查和下载静态资源...')
 
     data = pd.read_json(self.api_data_path)
-    response_col = data['Response']
+    response_col = data['response']
     assets_list = []
     # 提取静态资源链接
     for response in response_col:
