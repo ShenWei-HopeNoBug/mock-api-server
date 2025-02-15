@@ -130,28 +130,42 @@ def compress_image(input_path, output_path, quality=80):
       img.save(output_path, quality=quality)
   return True
 
+
+@error_catch(error_msg='读取抓包数据文件失败', error_return=[])
+def get_mock_api_data_list(work_dir='.'):
+  # 数据源地址
+  api_list = []
+
+  mitmproxy_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
+  # 读取抓包数据
+  if os.path.exists(mitmproxy_data_path):
+    data = pd.read_json(mitmproxy_data_path)
+
+    # 行遍历
+    for row_index, row_data in data.iterrows():
+      api_list.append({
+        "Type": row_data.get('Type'),
+        "Url": row_data.get('Url'),
+        "Method": row_data.get('Method'),
+        "Params": row_data.get('Params'),
+        "Response": row_data.get('Response'),
+      })
+
+  # 读取用户手动 mock 的接口数据
+  user_data_path = '{}{}/user_api.json'.format(work_dir, global_var.data_dir_path)
+  if os.path.exists(user_data_path):
+    with open(user_data_path, 'r', encoding='utf-8') as fl:
+      user_api_list = json.loads(fl.read())
+      api_list.extend(user_api_list)
+
+  return api_list
+
+
+# 加工并打开抓包数据预览html
 @error_catch(error_msg='打开抓包数据预览html失败', error_return=False)
 def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
-  # 数据源地址
-  api_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
-  if not os.path.exists(api_data_path):
-    return False
-
-  data = pd.read_json(api_data_path)
   # 预览数据列表
-  preview_list = []
-  # 行遍历
-  for row_index, row_data in data.iterrows():
-    response = row_data.get('Response')
-    method = row_data.get('Method')
-    params = row_data.get('Params')
-    url = row_data.get('Url')
-    preview_list.append({
-      "Url": url,
-      "Method": method,
-      "Params": params,
-      "Response": response,
-    })
+  preview_list = get_mock_api_data_list(work_dir=work_dir)
 
   # 把预览数据写入web的静态资源文件
   web_mitmproxy_output_file = r'{}/web/mitmproxy_output.js'.format(root_dir)

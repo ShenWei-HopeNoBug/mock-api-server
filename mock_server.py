@@ -13,6 +13,7 @@ from utils import (
   find_connection_process,
   compress_image,
   get_ip_address,
+  get_mock_api_data_list,
 )
 
 import json
@@ -27,6 +28,7 @@ class MockServer:
     self.work_dir = work_dir
     self.api_dict_path = '{}{}/api_dict.json'.format(work_dir, global_var.data_dir_path)
     self.api_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
+    self.user_api_data_path = '{}{}/user_api.json'.format(work_dir, global_var.data_dir_path)
     self.mock_server_config_path = '{}{}/mock_server_config.json'.format(work_dir, global_var.config_dir_path)
     self.static_url_path = '/static'
     # ip 相关配置
@@ -73,6 +75,11 @@ class MockServer:
     if not os.path.exists(self.api_data_path):
       with open(self.api_data_path, 'w') as fl:
         fl.write('{}')
+
+    # 用户手动配置 api 数据文件不存在，创建一个
+    if not os.path.exists(self.user_api_data_path):
+      with open(self.user_api_data_path, 'w') as fl:
+        fl.write('[]')
 
   # 下载静态资源
   def download_static(self, compress=True):
@@ -168,8 +175,10 @@ class MockServer:
       return '{}/{}'.format(assets_base_url, file_name)
 
     api_dict = {}
+    # 所有的 mock 数据列表
+    mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
     # 行遍历
-    for row_index, row_data in data.iterrows():
+    for row_data in mock_api_data_list:
       response = row_data.get('Response')
       method = row_data.get('Method')
       params = row_data.get('Params')
