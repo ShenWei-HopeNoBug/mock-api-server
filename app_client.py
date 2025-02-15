@@ -13,7 +13,11 @@ from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
 from multiprocessing import Process
 from decorate import create_thread, error_catch
-from utils import check_local_connection, check_and_create_dir
+from utils import (
+  check_local_connection,
+  check_and_create_dir,
+  open_mitmproxy_preview_html,
+)
 from asyncio_mitmproxy_server import start_mitmproxy
 
 
@@ -94,6 +98,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def use_history_checkbox_click():
       self.use_history = not self.use_history
 
+    def data_preview_button_click():
+      open_mitmproxy_preview_html(root_dir='.', work_dir=self.work_dir)
+
     def cache_checkbox_click():
       self.cache = not self.cache
 
@@ -116,6 +123,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 抓包是否采用追加模式
     self.useHistoryCheckBox.setChecked(self.use_history)
     self.useHistoryCheckBox.clicked.connect(use_history_checkbox_click)
+    # 打开抓包数据预览html
+    self.dataPreviewButton.clicked.connect(data_preview_button_click)
     # 压缩静态资源按钮
     self.compressCheckBox.setChecked(self.compress_image)
     self.compressCheckBox.clicked.connect(compress_image_button_click)
@@ -194,6 +203,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.catchServerPortSpinBox.setDisabled(disabled)
     self.useHistoryCheckBox.setDisabled(disabled)
     self.severWorkDirBrowsePushButton.setDisabled(disabled)
+    self.dataPreviewButton.setDisabled(disabled)
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
 

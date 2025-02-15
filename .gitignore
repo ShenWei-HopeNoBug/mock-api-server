@@ -32,4 +32,5 @@ dist-ssr
 /output.*
 /api_dict.json
 /build
+/web
 main.spec
