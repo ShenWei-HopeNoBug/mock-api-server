@@ -144,11 +144,11 @@ def get_mock_api_data_list(work_dir='.'):
     # 行遍历
     for row_index, row_data in data.iterrows():
       api_list.append({
-        "Type": row_data.get('Type'),
-        "Url": row_data.get('Url'),
-        "Method": row_data.get('Method'),
-        "Params": row_data.get('Params'),
-        "Response": row_data.get('Response'),
+        "type": row_data.get('type'),
+        "url": row_data.get('url'),
+        "method": row_data.get('method'),
+        "params": row_data.get('params'),
+        "response": row_data.get('response'),
       })
 
   # 读取用户手动 mock 的接口数据

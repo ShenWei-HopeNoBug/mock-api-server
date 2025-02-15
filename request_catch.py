@@ -44,7 +44,7 @@ class RequestRecorder:
   # 读取本地保存数据初始化抓包缓存 dict
   def init_response_catch_dict(self):
     data = pd.read_json(self.save_path)
-    fieldnames = ["Type", "Url", "Method", "Params", "Response"]
+    fieldnames = ["type", "url", "method", "params", "response"]
 
     self.response_catch_dict = {}
     # 行遍历
@@ -119,11 +119,11 @@ class RequestRecorder:
     response = flow.response.get_text()
 
     record = {
-      "Type": "PACKAGE_CATCH",
-      "Url": url,
-      "Method": method,
-      "Params": params,
-      "Response": response,
+      "type": "MITMPROXY",
+      "url": url,
+      "method": method,
+      "params": params,
+      "response": response,
     }
 
     # 保存请求映射
@@ -132,7 +132,7 @@ class RequestRecorder:
   # 抓包结束
   def done(self):
     print('mitmproxy done!')
-    fieldnames = ["Type", "Url", "Method", "Params", "Response"]
+    fieldnames = ["type", "url", "method", "params", "response"]
     data = {}
     for name in fieldnames:
       data[name] = []
@@ -173,9 +173,9 @@ class RequestRecorder:
 
   # 保存抓包数据到缓存
   def __save_response(self, record):
-    secret_key = r'{}{}'.format(record['Method'], record['Params'])
+    secret_key = r'{}{}'.format(record['method'], record['params'])
     md5_key = create_md5(secret_key)
-    search_key = r'{}{}'.format(record['Url'], record['Method'])
+    search_key = r'{}{}'.format(record['url'], record['method'])
     # 创建新 url 的答案映射 dict
     if search_key not in self.response_catch_dict:
       self.response_catch_dict[search_key] = {}

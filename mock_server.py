@@ -179,10 +179,10 @@ class MockServer:
     mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
     # 行遍历
     for row_data in mock_api_data_list:
-      response = row_data.get('Response')
-      method = row_data.get('Method')
-      params = row_data.get('Params')
-      url = row_data.get('Url')
+      response = row_data.get('response')
+      method = row_data.get('method')
+      params = row_data.get('params')
+      url = row_data.get('url')
 
       request_key = create_md5(remove_url_domain(url))
       # 响应数据查询键名
