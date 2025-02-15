@@ -18,13 +18,14 @@ async def mitmproxy_task(mitmproxy_config: dict):
   port = mitmproxy_config.get('port', 8080)
   work_dir = mitmproxy_config.get('work_dir', '.')
   use_history = mitmproxy_config.get('use_history', False)
+  mitmproxy_log = mitmproxy_config.get('mitmproxy_log', False)
   """配置 mitmproxy 参数与启动"""
   options = Options(listen_host=host, listen_port=port)
   request_recorder = RequestRecorder(use_history=use_history, work_dir=work_dir)
   addons = [request_recorder]
 
   # 创建 DumpMaster 实例
-  master = DumpMaster(options)
+  master = DumpMaster(options, with_termlog=mitmproxy_log, with_dumper=mitmproxy_log)
   master.addons.add(*addons)
   # 把 master 实例挂在脚本实例上，用于内部条件触发关闭 master 服务
   request_recorder.mitmproxy_master = master
@@ -73,6 +74,7 @@ def test():
     "port": 8080,
     "work_dir": ".",
     "use_history": False,
+    "mitmproxy_log": False,
   }
   mitmproxy_process = start_mitmproxy(mitmproxy_config)  # 启动 mitmproxy
   sleep(10)

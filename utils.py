@@ -184,7 +184,7 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
   if not os.path.exists(web_mitmproxy_output_file):
     return False
   with open(web_mitmproxy_output_file, 'w', encoding='utf-8') as fl:
-    content = "window.MITMPROXY_OUTPUT = {}\n".format(
+    content = "window.MITMPROXY_OUTPUT = {};\n".format(
       JsonFormat.format_dict_to_json_string(preview_list),
     )
     fl.write(content)

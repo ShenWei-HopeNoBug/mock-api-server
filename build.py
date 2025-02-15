@@ -6,8 +6,17 @@ import shutil
 import datetime
 
 
+# 生成时间戳
 def create_timestamp():
   return datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+
+
+# 设置环境变量
+def set_env_params(mitmproxy_log=False):
+  with open('./ENV.py', 'w', encoding='utf-8') as fl:
+    data = 'mitmproxy_log = {}\n'.format(mitmproxy_log)
+    print('写入环境变量：', data)
+    fl.write(data)
 
 
 '''
@@ -25,6 +34,11 @@ def app_build(window=False, timestamp=''):
   # 打包命令加上黑窗
   if not window:
     args.append("-w")
+
+  # 设置下环境变量
+  set_env_params(mitmproxy_log=window)
+
+  # 开始打包
   subprocess.run(args)
 
   spec_file = './{}.spec'.format(app_name)
@@ -40,6 +54,11 @@ def app_build(window=False, timestamp=''):
 
 
 if __name__ == '__main__':
+  # 正式打包
   current = create_timestamp()
-  app_build(window=False, timestamp=current)
   app_build(window=True, timestamp=current)
+  app_build(window=False, timestamp=current)
+  # 调试打包
+  # app_build(window=False)
+
+  set_env_params(mitmproxy_log=True)

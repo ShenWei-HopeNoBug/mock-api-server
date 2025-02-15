@@ -19,6 +19,7 @@ from utils import (
   JsonFormat,
 )
 from asyncio_mitmproxy_server import start_mitmproxy
+import ENV
 
 # APP默认工作目录
 DEFAULT_WORK_DIR = './server'
@@ -315,6 +316,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       "port": self.catch_server_port,
       "work_dir": self.work_dir,
       "use_history": self.use_history,
+      "mitmproxy_log": ENV.mitmproxy_log,
     }
 
     server_process = Process(
