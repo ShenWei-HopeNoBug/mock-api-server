@@ -2,14 +2,16 @@ import threading
 
 
 # 异常捕获
-def error_catch(error_msg='', error_return=None):
+def error_catch(error_msg='', error_return=None, print_error_msg=True):
   def decorate(func):
     def wrapper(*args, **kwargs):
       try:
         return func(*args, **kwargs)
       except Exception as e:
-        message = error_msg or 'error'
-        print('{}：{}'.format(message, e))
+        # 判断是否要打印日志
+        if print_error_msg:
+          message = error_msg or 'Error'
+          print('{}：{}'.format(message, e))
         return error_return
 
     return wrapper

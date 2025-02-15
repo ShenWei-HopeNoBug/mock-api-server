@@ -25,9 +25,12 @@ dist-ssr
 *.sw?
 
 # User directories and files
+/system
 /test
 /static
+/server
 /output.*
 /api_dict.json
 /build
+/web
 main.spec
