@@ -20,6 +20,9 @@ from utils import (
 )
 from asyncio_mitmproxy_server import start_mitmproxy
 
+# APP默认工作目录
+DEFAULT_WORK_DIR = './server'
+
 
 # mock 服务进程启动
 def server_process_start(server_config: dict):
@@ -30,6 +33,51 @@ def server_process_start(server_config: dict):
   server = MockServer(work_dir=work_dir, port=port)
   # 启动本地 mock 服务
   server.start_server(read_cache=read_cache)
+
+
+# 检查工作目录文件完整性
+def check_work_files(work_dir=DEFAULT_WORK_DIR):
+  # 配置文件目录
+  config_dir = '{}{}'.format(work_dir, global_var.config_dir_path)
+  mitmproxy_config_file = '{}/mitmproxy_config.json'.format(config_dir)
+  mock_server_config_file = '{}/mock_server_config.json'.format(config_dir)
+  check_path_list = [
+    work_dir,
+    config_dir,
+    mitmproxy_config_file,
+    mock_server_config_file,
+  ]
+
+  valid = True
+  # 文件完整性检查
+  for path in check_path_list:
+    if not os.path.exists(path):
+      valid = False
+      break
+
+  return valid
+
+
+# 创建工作目录文件
+def create_work_files(work_dir=DEFAULT_WORK_DIR):
+  # 创建工作目录
+  check_and_create_dir(work_dir)
+
+  # 创建配置文件目录
+  config_dir = '{}{}'.format(work_dir, global_var.config_dir_path)
+  check_and_create_dir(config_dir)
+
+  mitmproxy_config_file = '{}/mitmproxy_config.json'.format(config_dir)
+  if not os.path.exists(mitmproxy_config_file):
+    # 生成默认抓包配置文件
+    with open(mitmproxy_config_file, 'w', encoding='utf-8') as fl:
+      fl.write(json.dumps(global_var.mitmproxy_config))
+
+  mock_server_config_file = '{}/mock_server_config.json'.format(config_dir)
+  if not os.path.exists(mock_server_config_file):
+    # 生成默认 mock 服务配置文件
+    with open(mock_server_config_file, 'w', encoding='utf-8') as fl:
+      fl.write(json.dumps(global_var.mock_server_config))
 
 
 # app 主窗口
@@ -50,8 +98,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 初始化历史数据文件
     history.init()
     # 获取历史工作目录
-    work_dir = history.get_history_var(key='work_dir') or './server'
+    work_dir = history.get_history_var(key='work_dir') or DEFAULT_WORK_DIR
+    # 用户拒绝在历史工作目录创建文件，切到默认工作目录
+    if not self.check_and_create_work_files(work_dir):
+      create_work_files(DEFAULT_WORK_DIR)
+      # 更新工作目录历史记录
+      history.update_history_var(key='work_dir', value=DEFAULT_WORK_DIR)
+      work_dir = DEFAULT_WORK_DIR
 
+    # 服务工作目录
+    self.work_dir = work_dir
     # 抓包服务端口号
     self.catch_server_port = 8080
     # 抓包服务是否启动
@@ -62,8 +118,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.compress_image = True
     # 是否正在下载静态资源
     self.downloading = False
-    # 服务工作目录
-    self.work_dir = work_dir
     # 服务是否正在运行
     self.server_running = False
     # 服务端口号
@@ -73,9 +127,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     self.init_ui()
     self.add_events()
-
-    # 检查工作目录文件完整性
-    self.check_work_dir_files()
 
   # 初始化窗口 UI
   def init_ui(self):
@@ -141,14 +192,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 选择文件夹
     def select_directory():
       directory = QFileDialog.getExistingDirectory(self, '选择工作目录', r'./')
-      if directory:
+      if directory and self.check_and_create_work_files(directory):
+        # 更换工作目录后，检查目录文件
         self.work_dir = directory
         self.serverWorkDirLineEdit.setText(self.work_dir)
         self.serverWorkDirLineEdit.setToolTip(self.work_dir)
         # 更新工作目录历史记录
         history.update_history_var(key='work_dir', value=self.work_dir)
-        # 更换工作目录后，检查目录文件
-        self.check_work_dir_files()
 
     # 选择服务的工作目录
     self.serverWorkDirLineEdit.setText(self.work_dir)
@@ -219,25 +269,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     time.sleep(0.5)
 
   # 检查工作目录文件完整性
-  def check_work_dir_files(self):
-    # 创建工作目录
-    check_and_create_dir(self.work_dir)
+  def check_and_create_work_files(self, work_dir=DEFAULT_WORK_DIR):
+    # 检查目录文件完整性
+    if check_work_files(work_dir):
+      return True
 
-    # 配置文件目录
-    config_dir = '{}{}'.format(self.work_dir, global_var.config_dir_path)
-    check_and_create_dir(config_dir)
+    reply = QMessageBox.question(
+      self,
+      '消息',
+      '应用工作目录文件完整性检查未通过，是否创建工作目录文件？\n当前工作目录：{}'.format(
+        os.path.abspath(work_dir),
+      ),
+      QMessageBox.Yes | QMessageBox.No,
+      QMessageBox.No,
+    )
 
-    mitmproxy_config_file = '{}/mitmproxy_config.json'.format(config_dir)
-    if not os.path.exists(mitmproxy_config_file):
-      # 生成默认抓包配置文件
-      with open(mitmproxy_config_file, 'w', encoding='utf-8') as fl:
-        fl.write(json.dumps(global_var.mitmproxy_config))
-
-    mock_server_config_file = '{}/mock_server_config.json'.format(config_dir)
-    if not os.path.exists(mock_server_config_file):
-      # 生成默认 mock 服务配置文件
-      with open(mock_server_config_file, 'w', encoding='utf-8') as fl:
-        fl.write(json.dumps(global_var.mock_server_config))
+    if reply == QMessageBox.Yes:
+      create_work_files(work_dir)
+      return True
+    else:
+      return False
 
   # 启动抓包服务
   def start_catch_server(self):
