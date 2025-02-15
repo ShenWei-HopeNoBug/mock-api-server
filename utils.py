@@ -131,11 +131,10 @@ def compress_image(input_path, output_path, quality=80):
   return True
 
 
-@error_catch(error_msg='读取抓包数据文件失败', error_return=[])
-def get_mock_api_data_list(work_dir='.'):
-  # 数据源地址
+@error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
+def get_mitmproxy_api_data_list(work_dir='.'):
   api_list = []
-
+  # 数据源地址
   mitmproxy_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
   # 读取抓包数据
   if os.path.exists(mitmproxy_data_path):
@@ -151,12 +150,25 @@ def get_mock_api_data_list(work_dir='.'):
         "response": row_data.get('response'),
       })
 
+  return api_list
+
+
+@error_catch(error_msg='读取 user api 数据失败', error_return=[])
+def get_user_api_data_list(work_dir='.'):
   # 读取用户手动 mock 的接口数据
   user_data_path = '{}{}/user_api.json'.format(work_dir, global_var.data_dir_path)
-  if os.path.exists(user_data_path):
-    with open(user_data_path, 'r', encoding='utf-8') as fl:
-      user_api_list = json.loads(fl.read())
-      api_list.extend(user_api_list)
+  if not os.path.exists(user_data_path):
+    return []
+
+  with open(user_data_path, 'r', encoding='utf-8') as fl:
+    user_api_list = json.loads(fl.read())
+    return user_api_list
+
+
+@error_catch(error_msg='读取 api 数据文件失败', error_return=[])
+def get_mock_api_data_list(work_dir='.'):
+  api_list = get_mitmproxy_api_data_list(work_dir=work_dir)
+  api_list.extend(get_user_api_data_list(work_dir=work_dir))
 
   return api_list
 

@@ -147,7 +147,7 @@ class RequestRecorder:
     df = pd.DataFrame(data)
 
     # 将DataFrame写入Excel文件，每行为一个数据
-    df.to_json(self.save_path, force_ascii=False)
+    df.to_json(self.save_path, force_ascii=False, orient='records')
     self.response_catch_dict = {}
 
   # 检查请求是否需要被抓取保存
