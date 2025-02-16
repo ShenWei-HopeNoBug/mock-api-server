@@ -33,6 +33,11 @@ def remove_url_domain(url=''):
   return parse_data.path
 
 
+# 去掉链接里面的 query 参数
+def remove_url_query(url=''):
+  return re.sub(r'\?.*$', '', url)
+
+
 # 检查并创建文件夹
 def check_and_create_dir(path):
   if not os.path.exists(path):

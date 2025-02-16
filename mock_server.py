@@ -9,6 +9,7 @@ from utils import (
   JsonFormat,
   create_md5,
   remove_url_domain,
+  remove_url_query,
   check_and_create_dir,
   find_connection_process,
   compress_image,
@@ -183,8 +184,13 @@ class MockServer:
       method = row_data.get('method')
       params = row_data.get('params')
       url = row_data.get('url')
+      # 去掉域名
+      url = remove_url_domain(url)
+      # GET 请求去掉 query 参数
+      if method == 'GET':
+        url = remove_url_query(url)
 
-      request_key = create_md5(remove_url_domain(url))
+      request_key = create_md5(url)
       # 响应数据查询键名
       response_key = self.__get_response_dict_key(
         method,
@@ -243,14 +249,16 @@ class MockServer:
     # 常规接口
     @app.route('/api/<path:path>', methods=['GET', 'POST'])
     def request_api(path):
+      method = request.method
       route = '/' + path
-      request_key = create_md5(route)
+      # GET 请求去掉 query 参数
+      if method == 'GET':
+        route = remove_url_query(route)
 
+      request_key = create_md5(route)
       # 请求路径 mock 数据中不存在
       if request_key not in api_dict:
         return
-
-      method = request.method
 
       params = JsonFormat.format_dict_to_json_string({})
       request_content_type = request.headers.get('content-type') or ''
