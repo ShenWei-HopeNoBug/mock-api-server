@@ -48,7 +48,7 @@ class MockServer:
       mock_server_config = json.loads(fl.read())
       self.include_files = mock_server_config.get('include_files', [])
 
-    pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.include_files))
+    pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(self.include_files))
     # 静态资源正则匹配配置
     self.static_match_config = {
       # 匹配的正则实例
