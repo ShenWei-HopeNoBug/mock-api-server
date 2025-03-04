@@ -86,12 +86,15 @@ class MockServer:
   def download_static(self, compress=True):
     print('>' * 10, '开始检查和下载静态资源...')
 
-    data = pd.read_json(self.api_data_path)
-    response_col = data['response']
+    # mock 数据列表（包括抓包数据和自定义数据）
+    mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
+
+    # 静态资源链接列表
     assets_list = []
     # 提取静态资源链接
-    for response in response_col:
-      assets_reg = self.static_match_config['compare']
+    assets_reg = self.static_match_config['compare']
+    for row_data in mock_api_data_list:
+      response = row_data.get('response', '')
       assets = assets_reg.findall(response)
       assets_list.extend(assets)
 
