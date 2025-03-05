@@ -39,6 +39,8 @@ class MockServer:
     self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
     # 包含的静态资源文件类型
     self.include_files = []
+    # 全局接口响应延时
+    self.response_delay = 0
 
     # 工作目录文件检查
     self.check_work_dir_files()
@@ -47,6 +49,7 @@ class MockServer:
     with open(self.mock_server_config_path, 'r', encoding='utf-8') as fl:
       mock_server_config = json.loads(fl.read())
       self.include_files = mock_server_config.get('include_files', [])
+      self.response_delay = mock_server_config.get('response_delay', 0)
 
     pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(self.include_files))
     # 静态资源正则匹配配置
@@ -274,6 +277,11 @@ class MockServer:
         params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
 
       response_key = self.__get_response_dict_key(method, params)
+
+      # 接口响应延时
+      if self.response_delay > 0:
+        print('接口响应延时：{}ms'.format(self.response_delay))
+        time.sleep(self.response_delay / 1000)
 
       # 命中 mock 数据直接返回
       if response_key in api_dict[request_key]:
