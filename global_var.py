@@ -13,11 +13,9 @@ mitmproxy_config = {
 '''
 mock 服务的配置
 include_files: 启动服务后要动态替换的静态资源链接扩展名列表
-response_delay: 全局接口响应延时(ms)
 '''
 mock_server_config = {
   "include_files": [".png", ".jpg", ".jpeg", ".gif", ".avif", ".webp", ".npy"],
-  "response_delay": 0,
 }
 
 # 存放数据文件的目录

@@ -31,7 +31,8 @@ def server_process_start(server_config: dict):
   read_cache = server_config.get('read_cache', False)
   port = server_config.get('port', 5000)
   work_dir = server_config.get('work_dir', '.')
-  server = MockServer(work_dir=work_dir, port=port)
+  response_delay = server_config.get('response_delay', 0)
+  server = MockServer(work_dir=work_dir, port=port, response_delay=response_delay)
   # 启动本地 mock 服务
   server.start_server(read_cache=read_cache)
 
@@ -123,6 +124,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.server_running = False
     # 服务端口号
     self.server_port = 5000
+    # 服务响应延时
+    self.response_delay = 0
     # 是否以缓存模式启动服务
     self.cache = False
 
@@ -168,11 +171,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def server_port_change(value):
       self.server_port = value
 
+    def response_delay_change(value):
+      self.response_delay = value
+
     # 端口号输入绑定
     self.catchServerPortSpinBox.setValue(self.catch_server_port)
     self.catchServerPortSpinBox.valueChanged.connect(catch_server_port_change)
     self.serverPortSpinBox.setValue(self.server_port)
     self.serverPortSpinBox.valueChanged.connect(server_port_change)
+    self.responseDelaySpinBox.setValue(self.response_delay)
+    self.responseDelaySpinBox.valueChanged.connect(response_delay_change)
     # 抓包服务按钮
     self.catchServerButton.clicked.connect(self.catch_server_button_click)
     # 抓包是否采用追加模式
@@ -221,6 +229,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverButton.setText(button_text)
     self.cacheCheckBox.setDisabled(disabled)
     self.serverPortSpinBox.setDisabled(disabled)
+    self.responseDelaySpinBox.setDisabled(disabled)
     self.cacheCheckBox.setDisabled(disabled)
     self.severWorkDirBrowsePushButton.setDisabled(disabled)
     # mock 服务启动时禁止启动抓包服务
@@ -373,6 +382,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       "work_dir": self.work_dir,
       "port": self.server_port,
       "read_cache": self.cache,
+      "response_delay": self.response_delay,
     }
     server_process = Process(
       target=server_process_start,

@@ -24,7 +24,7 @@ import global_var
 
 
 class MockServer:
-  def __init__(self, work_dir='.', port=5000):
+  def __init__(self, work_dir='.', port=5000, response_delay=0):
     # 工作目录相关配置
     self.work_dir = work_dir
     self.api_dict_path = '{}{}/api_dict.json'.format(work_dir, global_var.data_dir_path)
@@ -40,7 +40,7 @@ class MockServer:
     # 包含的静态资源文件类型
     self.include_files = []
     # 全局接口响应延时
-    self.response_delay = 0
+    self.response_delay = response_delay
 
     # 工作目录文件检查
     self.check_work_dir_files()
@@ -49,7 +49,6 @@ class MockServer:
     with open(self.mock_server_config_path, 'r', encoding='utf-8') as fl:
       mock_server_config = json.loads(fl.read())
       self.include_files = mock_server_config.get('include_files', [])
-      self.response_delay = mock_server_config.get('response_delay', 0)
 
     pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(self.include_files))
     # 静态资源正则匹配配置
@@ -280,7 +279,7 @@ class MockServer:
 
       # 接口响应延时
       if self.response_delay > 0:
-        print('接口响应延时：{}ms'.format(self.response_delay))
+        print('接口响应延时：{}ms, route：{}'.format(self.response_delay, route))
         time.sleep(self.response_delay / 1000)
 
       # 命中 mock 数据直接返回
