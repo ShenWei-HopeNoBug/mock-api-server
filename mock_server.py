@@ -15,10 +15,11 @@ from utils import (
   compress_image,
   get_ip_address,
   get_mock_api_data_list,
+  is_file_request,
 )
 
 import json
-from flask import Flask, request
+from flask import (Flask, request, send_from_directory)
 from flask_cors import CORS
 import global_var
 
@@ -39,26 +40,42 @@ class MockServer:
     self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
     # 包含的静态资源文件类型
     self.include_files = []
+    # 动态匹配静态资源请求的路由
+    self.static_match_route = []
     # 全局接口响应延时
     self.response_delay = response_delay
-
-    # 工作目录文件检查
-    self.check_work_dir_files()
-
-    # 读取包含的静态资源文件类型
-    with open(self.mock_server_config_path, 'r', encoding='utf-8') as fl:
-      mock_server_config = json.loads(fl.read())
-      self.include_files = mock_server_config.get('include_files', [])
-
-    pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(self.include_files))
     # 静态资源正则匹配配置
     self.static_match_config = {
-      # 匹配的正则实例
-      "compare": re.compile(pattern, flags=re.IGNORECASE),
+      "compare": None,
       # 静态资源要将 domain 替换的的基础 url 路径
       "domain": self.static_host,
       "static_url_path": self.static_url_path,
     }
+
+    # -------------------
+    # 初始化
+    # -------------------
+    self.init()
+
+  def init(self):
+    # 工作目录文件检查
+    self.check_work_dir_files()
+    # 加载 mock 服务配置
+    self.load_mock_server_config()
+
+    pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(self.include_files))
+    # 更新静态资源正则匹配配置
+    self.static_match_config["compare"] = re.compile(pattern, flags=re.IGNORECASE)
+
+  # 加载 mock 服务配置
+  def load_mock_server_config(self):
+    # 读取包含的静态资源文件类型
+    with open(self.mock_server_config_path, 'r', encoding='utf-8') as fl:
+      mock_server_config = json.loads(fl.read())
+      include_files = mock_server_config.get('include_files', [])
+      self.include_files = list(set(include_files))
+      static_match_route = mock_server_config.get('static_match_route', [])
+      self.static_match_route = list(set(static_match_route))
 
   # 检查工作目录文件完整性
   def check_work_dir_files(self):
@@ -246,12 +263,30 @@ class MockServer:
     # 配置跨域(这个配置低版本的Flask加不加都一样)
     CORS(app, resources={r"/static/*".format(self.ip_address): {"origins": "*"}})
 
+    # 动态匹配静态资源
+    def static_match(path):
+      # 非文件请求，跳过
+      if not is_file_request(path):
+        return
+
+      # 文件名
+      file_name = path.split('/')[-1]
+      return send_from_directory('static', file_name)
+
+    # 批量注册静态资源匹配接口
+    for static_route in self.static_match_route:
+      # 配置路由合法性检查
+      if not static_route.startswith('/'):
+        continue
+      app.route('{}/<path:path>'.format(static_route), methods=['GET'])(static_match)
+
+    # 服务进程自杀
     @app.route('/system/shutdown', methods=['GET'])
     def server_shutdown():
       print('mock 服务收到 shutdown 指令！正在关闭服务...')
       self.stop_server()
 
-    # 常规接口
+    # 常规 mock 匹配接口
     @app.route('/api/<path:path>', methods=['GET', 'POST'])
     def request_api(path):
       method = request.method

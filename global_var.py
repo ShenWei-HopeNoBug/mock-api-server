@@ -18,9 +18,11 @@ mitmproxy_config = {
 '''
 mock 服务的配置
 include_files: 启动服务后要动态替换的静态资源链接扩展名列表
+static_match_route: 动态匹配静态资源请求的路由
 '''
 mock_server_config = {
   "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
+  "static_match_route": []
 }
 
 # 存放数据文件的目录
