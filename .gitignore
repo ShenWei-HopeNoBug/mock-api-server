@@ -34,3 +34,4 @@ dist-ssr
 /build
 /web
 main.spec
+/test.py

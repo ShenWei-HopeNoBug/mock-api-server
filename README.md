@@ -1,3 +1,5 @@
+## 项目 python 版本 v3.8.9
+
 ### 初始化 package.txt 包版本
 
 `pip freeze > package.txt`

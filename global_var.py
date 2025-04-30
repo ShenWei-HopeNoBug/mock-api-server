@@ -5,9 +5,14 @@ from utils import check_and_create_dir, JsonFormat
 
 # 版本号
 version = 'v0.0.2'
-# mitmproxy 抓包默认配置
+'''
+mitmproxy 抓包默认配置
+include_path: 抓包链接要包含的文本内容
+static_include_path: 抓包静态资源链接要包含的文本内容
+'''
 mitmproxy_config = {
   "include_path": "www.baidu.com",
+  "static_include_path": []
 }
 
 '''
@@ -15,7 +20,7 @@ mock 服务的配置
 include_files: 启动服务后要动态替换的静态资源链接扩展名列表
 '''
 mock_server_config = {
-  "include_files": [".png", ".jpg", ".jpeg", ".gif", ".avif", ".webp", ".npy"],
+  "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
 }
 
 # 存放数据文件的目录

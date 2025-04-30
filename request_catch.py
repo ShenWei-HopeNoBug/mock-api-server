@@ -2,9 +2,8 @@
 import os
 from mitmproxy import http
 import re
-import pandas as pd
+from lib import mitmproxy_lib
 from utils import (
-  create_md5,
   JsonFormat,
   check_and_create_dir,
   is_file_request,
@@ -24,35 +23,45 @@ class RequestRecorder:
     self.mitmproxy_stop_signal = False
     # 抓包数据保存路径
     self.save_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
+    self.static_save_path = '{}{}/static.json'.format(work_dir, global_var.data_dir_path)
     self.mitmproxy_config_path = '{}{}/mitmproxy_config.json'.format(work_dir, global_var.config_dir_path)
     # 抓包缓存数据 dict
-    self.response_catch_dict = {}
-    # 抓包包含的 base_url
+    self.response_cache_dict = {}
+    # 抓包包含的 path
     self.include_path = ''
+    # 静态资源包含的 path
+    self.static_include_path = []
+    # 抓取静态资源缓存数据 dict
+    self.static_cache_dict = {}
 
+    # -------------------
+    # 初始化
+    # -------------------
+    self.init(use_history)
+
+  def init(self, use_history=True):
     # 检查工作目录文件完整性
     self.check_work_dir_files()
-
-    with open(self.mitmproxy_config_path, 'r', encoding='utf-8') as fl:
-      mitmproxy_config = json.loads(fl.read())
-      self.include_path = mitmproxy_config.get('include_path', '')
+    # 加载抓包配置
+    self.load_mitmproxy_config()
 
     # 以历史数据为基础继续抓包
     if use_history:
-      self.init_response_catch_dict()
+      self.load_history_cache()
 
-  # 读取本地保存数据初始化抓包缓存 dict
-  def init_response_catch_dict(self):
-    data = pd.read_json(self.save_path)
-    fieldnames = ["type", "url", "method", "params", "response"]
+  # 加载抓包配置
+  def load_mitmproxy_config(self):
+    with open(self.mitmproxy_config_path, 'r', encoding='utf-8') as fl:
+      mitmproxy_config = json.loads(fl.read())
+      self.include_path = mitmproxy_config.get('include_path', '')
+      self.static_include_path = mitmproxy_config.get('static_include_path', [])
 
-    self.response_catch_dict = {}
-    # 行遍历
-    for row_index, row_data in data.iterrows():
-      record = {}
-      for key in fieldnames:
-        record[key] = row_data.get(key)
-      self.__save_response(record)
+  # 读取本地保存数据初始化抓包数据
+  def load_history_cache(self):
+    # 加载 response 数据
+    self.response_cache_dict = mitmproxy_lib.load_response_cache(self.save_path)
+    # 加载静态资源数据
+    self.static_cache_dict = mitmproxy_lib.load_static_cache(self.static_save_path)
 
   # 检查工作目录文件
   def check_work_dir_files(self):
@@ -69,6 +78,11 @@ class RequestRecorder:
       with open(self.save_path, 'w', encoding='utf-8') as fl:
         fl.write('{}')
 
+    # 静态资源数据文件不存在，创建一个
+    if not os.path.exists(self.save_path):
+      with open(self.static_save_path, 'w', encoding='utf-8') as fl:
+        fl.write('{}')
+
     if not os.path.exists(self.mitmproxy_config_path):
       # 生成默认抓包配置文件
       with open(self.mitmproxy_config_path, 'w', encoding='utf-8') as fl:
@@ -79,6 +93,9 @@ class RequestRecorder:
     # 抓包结束，跳出
     if self.mitmproxy_stop_signal:
       return
+
+    # 检查和保存静态资源的请求
+    self.__check_and_save_static(flow)
 
     mitmproxy_stop_signal = global_var.get_global_var(key='mitmproxy_stop_signal')
     self.mitmproxy_stop_signal = mitmproxy_stop_signal
@@ -126,32 +143,26 @@ class RequestRecorder:
       "response": response,
     }
 
-    # 保存请求映射
-    self.__save_response(record)
+    mitmproxy_lib.save_response_to_cache(record, self.response_cache_dict)
 
   # 抓包结束
   def done(self):
     print('mitmproxy done!')
-    fieldnames = ["type", "url", "method", "params", "response"]
-    data = {}
-    for name in fieldnames:
-      data[name] = []
 
-    for response_data in self.response_catch_dict.values():
-      for record in response_data.values():
-        # 将数据存入对应列
-        for key, value in record.items():
-          if key in data:
-            data[key].append(value)
+    print('----> 正在保存抓包数据：', self.save_path)
+    mitmproxy_lib.save_response(self.save_path, self.response_cache_dict)
+    self.response_cache_dict = {}
 
-    df = pd.DataFrame(data)
-
-    # 将DataFrame写入Excel文件，每行为一个数据
-    df.to_json(self.save_path, force_ascii=False, orient='records')
-    self.response_catch_dict = {}
+    print('----> 正在保存静态资源数据：', self.static_save_path)
+    mitmproxy_lib.save_static(self.static_save_path, self.static_cache_dict)
+    self.static_cache_dict = {}
 
   # 检查请求是否需要被抓取保存
   def __check_response(self, request, response):
+    # 没配置过滤条件，跳过
+    if not len(self.include_path):
+      return False
+
     # 请求链接
     url = request.url
 
@@ -171,14 +182,25 @@ class RequestRecorder:
 
     return True
 
-  # 保存抓包数据到缓存
-  def __save_response(self, record):
-    secret_key = r'{}{}'.format(record['method'], record['params'])
-    md5_key = create_md5(secret_key)
-    search_key = r'{}{}'.format(record['url'], record['method'])
-    # 创建新 url 的答案映射 dict
-    if search_key not in self.response_catch_dict:
-      self.response_catch_dict[search_key] = {}
+  # 检查和保存静态资源数据
+  def __check_and_save_static(self, flow: http.HTTPFlow):
+    # 没有配置静态资源包含路径
+    if not len(self.static_include_path):
+      return
 
-    # 添加新的请求 response 内容
-    self.response_catch_dict[search_key][md5_key] = record
+    url = flow.request.url
+    # 非文件请求，跳过
+    if not is_file_request(url):
+      return
+
+    pattern = r'({})'.format('|'.join(self.static_include_path))
+    static_include_reg = re.compile(pattern)
+    # 检测链接内容是否符合配置
+    if not static_include_reg.search(url):
+      return
+
+    record = {
+      "type": "MITMPROXY",
+      "url": url,
+    }
+    mitmproxy_lib.save_static_to_cache(record, self.static_cache_dict)
