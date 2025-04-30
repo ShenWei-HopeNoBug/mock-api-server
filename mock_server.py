@@ -5,6 +5,7 @@ import requests
 import time
 import os
 from decorate import create_thread
+from lib import server_lib
 from utils import (
   JsonFormat,
   create_md5,
@@ -30,6 +31,7 @@ class MockServer:
     self.work_dir = work_dir
     self.api_dict_path = '{}{}/api_dict.json'.format(work_dir, global_var.data_dir_path)
     self.api_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
+    self.static_save_path = '{}{}/static.json'.format(work_dir, global_var.data_dir_path)
     self.user_api_data_path = '{}{}/user_api.json'.format(work_dir, global_var.data_dir_path)
     self.mock_server_config_path = '{}{}/mock_server_config.json'.format(work_dir, global_var.config_dir_path)
     self.static_url_path = '/static'
@@ -94,7 +96,12 @@ class MockServer:
     # 抓包数据文件不存在，创建一个
     if not os.path.exists(self.api_data_path):
       with open(self.api_data_path, 'w', encoding='utf-8') as fl:
-        fl.write('{}')
+        fl.write('[]')
+
+    # 静态资源数据文件不存在，创建一个
+    if not os.path.exists(self.static_save_path):
+      with open(self.static_save_path, 'w', encoding='utf-8') as fl:
+        fl.write('[]')
 
     # 用户手动配置 api 数据文件不存在，创建一个
     if not os.path.exists(self.user_api_data_path):
@@ -107,15 +114,21 @@ class MockServer:
 
     # mock 数据列表（包括抓包数据和自定义数据）
     mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
+    static_data_list = server_lib.get_static_data_list(work_dir=self.work_dir)
 
     # 静态资源链接列表
     assets_list = []
-    # 提取静态资源链接
+    # 提取 response 静态资源链接
     assets_reg = self.static_match_config['compare']
     for row_data in mock_api_data_list:
       response = row_data.get('response', '')
       assets = assets_reg.findall(response)
       assets_list.extend(assets)
+
+    # 添加静态资源链接
+    for row_data in static_data_list:
+      url = row_data.get('url', '')
+      assets_list.append(url)
 
     # 去重
     assets_list = list(set(assets_list))

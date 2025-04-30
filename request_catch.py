@@ -76,12 +76,12 @@ class RequestRecorder:
     # 抓包数据文件不存在，创建一个
     if not os.path.exists(self.save_path):
       with open(self.save_path, 'w', encoding='utf-8') as fl:
-        fl.write('{}')
+        fl.write('[]')
 
     # 静态资源数据文件不存在，创建一个
-    if not os.path.exists(self.save_path):
+    if not os.path.exists(self.static_save_path):
       with open(self.static_save_path, 'w', encoding='utf-8') as fl:
-        fl.write('{}')
+        fl.write('[]')
 
     if not os.path.exists(self.mitmproxy_config_path):
       # 生成默认抓包配置文件

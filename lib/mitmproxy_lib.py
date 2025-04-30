@@ -27,7 +27,7 @@ def save_response_to_cache(record: dict, cache: dict) -> None:
 
 
 # 读取本地抓包数据
-@error_catch(error_msg='读取本地抓包数据异常！', error_return={})
+@error_catch(error_msg='读取本地抓包数据异常', error_return={})
 def load_response_cache(path: str = '') -> dict:
   # 路径检查
   if not os.path.isfile(path):
@@ -57,7 +57,7 @@ def save_static_to_cache(record: dict, cache: dict) -> None:
 
 
 # 读取本地静态资源抓包数据到缓存
-@error_catch(error_msg='读取本地静态资源抓包数据异常！', error_return={})
+@error_catch(error_msg='读取本地静态资源抓包数据异常', error_return={})
 def load_static_cache(path: str = '') -> dict:
   # 路径检查
   if not os.path.isfile(path):
@@ -78,7 +78,7 @@ def load_static_cache(path: str = '') -> dict:
 
 
 # 保存抓包数据到本地
-@error_catch(error_msg='保存抓包数据到本地异常！')
+@error_catch(error_msg='保存抓包数据到本地异常')
 def save_response(path: str, cache: dict) -> None:
   fieldnames = ["type", "url", "method", "params", "response"]
   data = {}
@@ -98,7 +98,7 @@ def save_response(path: str, cache: dict) -> None:
 
 
 # 保存静态资源数据到本地
-@error_catch(error_msg='保存抓包数据到本地异常！')
+@error_catch(error_msg='保存抓包数据到本地异常')
 def save_static(path: str, cache: dict) -> None:
   fieldnames = ["type", "url"]
   data = {}
