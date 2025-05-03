@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import json
 import psutil
 from PIL import Image
-from decorate import error_catch
+from lib.decorate import error_catch
 import socket
 import pandas as pd
 import webbrowser

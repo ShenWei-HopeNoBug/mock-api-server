@@ -2,7 +2,7 @@
 
 import os
 import pandas as pd
-from decorate import error_catch
+from lib.decorate import error_catch
 from config.work_file import STATIC_DATA_PATH
 
 

@@ -3,7 +3,7 @@ import os
 import json
 import copy
 from utils import (check_and_create_dir, JsonFormat)
-from decorate import error_catch
+from lib.decorate import error_catch
 
 
 class ConfigFileManager:

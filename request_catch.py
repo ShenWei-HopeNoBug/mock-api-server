@@ -5,7 +5,7 @@ from lib import mitmproxy_lib
 from lib.work_file_lib import create_work_files
 from config.work_file import (MITMPROXY_DATA_PATH, STATIC_DATA_PATH, MITMPROXY_CONFIG_PATH)
 from utils import (JsonFormat, is_file_request)
-import global_var
+from lib.system_lib import GLOBALS_CONFIG_MANAGER
 import json
 
 
@@ -69,7 +69,7 @@ class RequestRecorder:
     # 检查和保存静态资源的请求
     self.__check_and_save_static(flow)
 
-    mitmproxy_stop_signal = global_var.get_global_var(key='mitmproxy_stop_signal')
+    mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     self.mitmproxy_stop_signal = mitmproxy_stop_signal
     # 收到结束抓包的信号，尝试关闭抓包服务
     if self.mitmproxy_master and mitmproxy_stop_signal:

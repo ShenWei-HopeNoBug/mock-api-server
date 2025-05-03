@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import subprocess
-import global_var
+from config import globals
 import os
 import shutil
 import datetime
@@ -26,7 +26,7 @@ def set_env_params(mitmproxy_log=False):
 '''
 def app_build(window=False, timestamp=''):
   # 当前版本号
-  version = global_var.version
+  version = globals.version
   win_ext = '.win' if window else ''
   time_ext = '.{}'.format(timestamp) if timestamp else ''
   app_name = 'mockServer{}{}-{}'.format(win_ext, time_ext, version)

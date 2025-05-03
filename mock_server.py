@@ -3,10 +3,11 @@ import re
 import requests
 import time
 import os
-from decorate import create_thread
+from lib.decorate import create_thread
 from lib import server_lib
 from lib.work_file_lib import create_work_files
 from config.work_file import (MOCK_SERVER_CONFIG_PATH, DATA_DIR)
+from lib.system_lib import GLOBALS_CONFIG_MANAGER
 from utils import (
   JsonFormat,
   create_md5,
@@ -23,7 +24,6 @@ from utils import (
 import json
 from flask import (Flask, request, send_from_directory)
 from flask_cors import CORS
-import global_var
 
 
 class MockServer:
@@ -110,7 +110,7 @@ class MockServer:
     download_assets = []
     # 检查需要下载的静态资源文件
     for asset in assets_list:
-      client_exit = global_var.get_global_var(key='client_exit')
+      client_exit = GLOBALS_CONFIG_MANAGER.get(key='client_exit')
       # 程序已经全局退出，退出
       if client_exit:
         return
@@ -124,7 +124,7 @@ class MockServer:
 
     assets_length = len(download_assets)
     for i, asset in enumerate(download_assets):
-      client_exit = global_var.get_global_var(key='client_exit')
+      client_exit = GLOBALS_CONFIG_MANAGER.get(key='client_exit')
       # 程序已经全局退出，停止下载处理
       if client_exit:
         return

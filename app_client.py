@@ -6,16 +6,16 @@ from PyQt5.QtWidgets import QMessageBox, QMainWindow, QFileDialog
 import os
 import time
 import requests
-import global_var
-import history
+from config import globals
 from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
 from multiprocessing import Process
-from decorate import create_thread, error_catch
+from lib.decorate import create_thread, error_catch
 from utils import (check_local_connection, open_mitmproxy_preview_html)
 from lib.work_file_lib import (check_work_files, create_work_files)
 from asyncio_mitmproxy_server import start_mitmproxy
 from config.work_file import DEFAULT_WORK_DIR
+from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
 import ENV
 
 
@@ -45,16 +45,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def __init__(self):
     super().__init__()
     # 初始化全局变量文件
-    global_var.init()
+    GLOBALS_CONFIG_MANAGER.init(replace=True)
     # 初始化历史数据文件
-    history.init()
+    HISTORY_CONFIG_MANAGER.init(replace=False)
     # 获取历史工作目录
-    work_dir = history.get_history_var(key='work_dir') or DEFAULT_WORK_DIR
+    work_dir = HISTORY_CONFIG_MANAGER.get(key='work_dir') or DEFAULT_WORK_DIR
     # 用户拒绝在历史工作目录创建文件，切到默认工作目录
     if not self.check_and_create_work_files(work_dir):
       create_work_files(DEFAULT_WORK_DIR)
       # 更新工作目录历史记录
-      history.update_history_var(key='work_dir', value=DEFAULT_WORK_DIR)
+      HISTORY_CONFIG_MANAGER.set(key='work_dir', value=DEFAULT_WORK_DIR)
       work_dir = DEFAULT_WORK_DIR
 
     # 服务工作目录
@@ -85,7 +85,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def init_ui(self):
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
-    self.setWindowTitle('mock server {}'.format(global_var.version))
+    self.setWindowTitle('mock server {}'.format(globals.version))
 
   def add_events(self):
     # 监听信号变化
@@ -156,7 +156,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.serverWorkDirLineEdit.setText(self.work_dir)
         self.serverWorkDirLineEdit.setToolTip(self.work_dir)
         # 更新工作目录历史记录
-        history.update_history_var(key='work_dir', value=self.work_dir)
+        HISTORY_CONFIG_MANAGER.set(key='work_dir', value=self.work_dir)
 
     # 选择服务的工作目录
     self.serverWorkDirLineEdit.setText(self.work_dir)
@@ -252,7 +252,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 启动抓包服务
   def start_catch_server(self):
-    mitmproxy_stop_signal = global_var.get_global_var(key='mitmproxy_stop_signal')
+    mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
       return
@@ -288,7 +288,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 停止抓包服务
   def stop_catch_server(self):
-    mitmproxy_stop_signal = global_var.get_global_var(key='mitmproxy_stop_signal')
+    mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
       return
@@ -296,7 +296,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if not self.catch_server_running:
       return
     # 设置全局 mitmproxy 服务停止信号
-    global_var.update_global_var(key='mitmproxy_stop_signal', value=True)
+    GLOBALS_CONFIG_MANAGER.set(key='mitmproxy_stop_signal', value=True)
     # 向 mitmproxy 抓包服务发送一个本地请求，触发 addons 脚本内关闭服务事件
     requests.get('http://127.0.0.1:{}/index.html'.format(self.catch_server_port))
     self.catch_server_running_signal.emit(False)
@@ -370,7 +370,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.stop_catch_server()
       self.stop_server()
       # 设置退出程序的全局变量
-      global_var.update_global_var(key='client_exit', value=True)
+      GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
       time.sleep(0.2)
       event.accept()
     else:
