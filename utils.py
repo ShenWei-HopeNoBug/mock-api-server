@@ -8,9 +8,9 @@ import psutil
 from PIL import Image
 from decorate import error_catch
 import socket
-import global_var
 import pandas as pd
 import webbrowser
+from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 
 
 # 获取本机 ip 地址
@@ -74,6 +74,11 @@ class JsonFormat:
   @staticmethod
   def format_dict_to_json_string(dict_data):
     return json.dumps(dict_data, ensure_ascii=False)
+
+  # 将数据格式化为标准的 json string
+  @staticmethod
+  def dumps(data):
+    return json.dumps(data, ensure_ascii=False)
 
 
 # 找到监听指定 ip 和 端口号网络服务的进程列表
@@ -140,7 +145,7 @@ def compress_image(input_path, output_path, quality=80):
 def get_mitmproxy_api_data_list(work_dir='.'):
   api_list = []
   # 数据源地址
-  mitmproxy_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
+  mitmproxy_data_path = '{}{}'.format(work_dir, MITMPROXY_DATA_PATH)
   # 读取抓包数据
   if os.path.exists(mitmproxy_data_path):
     data = pd.read_json(mitmproxy_data_path)
@@ -161,7 +166,7 @@ def get_mitmproxy_api_data_list(work_dir='.'):
 @error_catch(error_msg='读取 user api 数据失败', error_return=[])
 def get_user_api_data_list(work_dir='.'):
   # 读取用户手动 mock 的接口数据
-  user_data_path = '{}{}/user_api.json'.format(work_dir, global_var.data_dir_path)
+  user_data_path = '{}{}'.format(work_dir, USER_API_DATA_PATH)
   if not os.path.exists(user_data_path):
     return []
 
