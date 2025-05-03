@@ -30,6 +30,9 @@ USER_API_DATA_PATH = r'{}/user_api.json'.format(DATA_DIR)
 # 静态资源数据文件路径
 STATIC_DATA_PATH = r'{}/static.json'.format(DATA_DIR)
 
+# 静态资源目录
+STATIC_DIR = r'/static'
+
 # -------------------------------------------------------------
 # 系统文件字典
 SYSTEM_FILE_DICT = {
@@ -55,6 +58,9 @@ WORK_DIR_DICT = {
   },
   "DATA_DIR": {
     "path": DATA_DIR
+  },
+  "STATIC_DIR": {
+    "path": STATIC_DIR
   }
 }
 

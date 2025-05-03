@@ -6,8 +6,14 @@ from config.work_file import (DEFAULT_WORK_DIR, WORK_DIR_DICT, WORK_FILE_DICT)
 
 # 检查工作目录文件完整性
 def check_work_files(work_dir=DEFAULT_WORK_DIR):
-  dir_path_list = [detail.get('path') for detail in WORK_DIR_DICT.values()]
-  file_path_list = [detail.get('path') for detail in WORK_FILE_DICT.values()]
+  dir_path_list = [r'{}{}'.format(
+    work_dir,
+    detail.get('path')
+  ) for detail in WORK_DIR_DICT.values()]
+  file_path_list = [r'{}{}'.format(
+    work_dir,
+    detail.get('path')
+  ) for detail in WORK_FILE_DICT.values()]
   check_path_list = [work_dir, *dir_path_list, *file_path_list]
 
   valid = True

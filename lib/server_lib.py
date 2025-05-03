@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 
 import os
-import global_var
 import pandas as pd
 from decorate import error_catch
+from config.work_file import STATIC_DATA_PATH
 
 
 # 读取 static 数据
 @error_catch(error_msg='读取 static 数据失败', error_return=[])
 def get_static_data_list(work_dir='.') -> list:
   static_list = []
-  static_data_path = '{}{}/static.json'.format(work_dir, global_var.data_dir_path)
+  static_data_path = r'{}{}'.format(work_dir, STATIC_DATA_PATH)
   if not os.path.exists(static_data_path):
     return []
 

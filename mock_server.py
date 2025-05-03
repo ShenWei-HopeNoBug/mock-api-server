@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import re
-import pandas as pd
 import requests
 import time
 import os
 from decorate import create_thread
 from lib import server_lib
+from lib.work_file_lib import create_work_files
+from config.work_file import (MOCK_SERVER_CONFIG_PATH, DATA_DIR)
 from utils import (
   JsonFormat,
   create_md5,
@@ -29,11 +30,8 @@ class MockServer:
   def __init__(self, work_dir='.', port=5000, response_delay=0):
     # 工作目录相关配置
     self.work_dir = work_dir
-    self.api_dict_path = '{}{}/api_dict.json'.format(work_dir, global_var.data_dir_path)
-    self.api_data_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
-    self.static_save_path = '{}{}/static.json'.format(work_dir, global_var.data_dir_path)
-    self.user_api_data_path = '{}{}/user_api.json'.format(work_dir, global_var.data_dir_path)
-    self.mock_server_config_path = '{}{}/mock_server_config.json'.format(work_dir, global_var.config_dir_path)
+    self.api_dict_path = '{}{}/api_dict.json'.format(work_dir, DATA_DIR)
+    self.mock_server_config_path = r'{}{}'.format(work_dir, MOCK_SERVER_CONFIG_PATH)
     self.static_url_path = '/static'
     # ip 相关配置
     self.ip_address = get_ip_address()
@@ -61,7 +59,7 @@ class MockServer:
 
   def init(self):
     # 工作目录文件检查
-    self.check_work_dir_files()
+    create_work_files(self.work_dir)
     # 加载 mock 服务配置
     self.load_mock_server_config()
 
@@ -78,35 +76,6 @@ class MockServer:
       self.include_files = list(set(include_files))
       static_match_route = mock_server_config.get('static_match_route', [])
       self.static_match_route = list(set(static_match_route))
-
-  # 检查工作目录文件完整性
-  def check_work_dir_files(self):
-    # 静态资源目录
-    assets_dir = '{}{}'.format(self.work_dir, self.static_url_path)
-    check_and_create_dir(assets_dir)
-
-    # 存放数据的文件夹
-    data_dir = '{}{}'.format(self.work_dir, global_var.data_dir_path)
-    check_and_create_dir(data_dir)
-
-    # 配置文件目录
-    config_dir = '{}{}'.format(self.work_dir, global_var.config_dir_path)
-    check_and_create_dir(config_dir)
-
-    # 抓包数据文件不存在，创建一个
-    if not os.path.exists(self.api_data_path):
-      with open(self.api_data_path, 'w', encoding='utf-8') as fl:
-        fl.write('[]')
-
-    # 静态资源数据文件不存在，创建一个
-    if not os.path.exists(self.static_save_path):
-      with open(self.static_save_path, 'w', encoding='utf-8') as fl:
-        fl.write('[]')
-
-    # 用户手动配置 api 数据文件不存在，创建一个
-    if not os.path.exists(self.user_api_data_path):
-      with open(self.user_api_data_path, 'w', encoding='utf-8') as fl:
-        fl.write('[]')
 
   # 下载静态资源
   def download_static(self, compress=True):
@@ -198,7 +167,6 @@ class MockServer:
 
   # 创建并保存 api_dict
   def create_api_dict(self):
-    data = pd.read_json(self.api_data_path)
     assets_reg = self.static_match_config['compare']
     # 静态资源 base_url
     assets_base_url = '{}{}'.format(self.static_host, self.static_url_path)

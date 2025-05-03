@@ -4,12 +4,12 @@ from lib.system_lib import HISTORY_CONFIG_MANAGER
 
 
 def init():
-  HISTORY_CONFIG_MANAGER.init()
+  HISTORY_CONFIG_MANAGER.init(replace=False)
 
 
 @error_catch(error_msg='查找历史数据失败！', error_return=None)
 def get_history_var(key=''):
-  HISTORY_CONFIG_MANAGER.get(key=key)
+  return HISTORY_CONFIG_MANAGER.get(key=key)
 
 
 @error_catch(error_msg='更新历史数据失败！')

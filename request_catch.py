@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
-import os
 from mitmproxy import http
 import re
 from lib import mitmproxy_lib
-from utils import (
-  JsonFormat,
-  check_and_create_dir,
-  is_file_request,
-)
+from lib.work_file_lib import create_work_files
+from config.work_file import (MITMPROXY_DATA_PATH, STATIC_DATA_PATH, MITMPROXY_CONFIG_PATH)
+from utils import (JsonFormat, is_file_request)
 import global_var
 import json
 
@@ -22,9 +19,9 @@ class RequestRecorder:
     # 抓包结束标记
     self.mitmproxy_stop_signal = False
     # 抓包数据保存路径
-    self.save_path = '{}{}/output.json'.format(work_dir, global_var.data_dir_path)
-    self.static_save_path = '{}{}/static.json'.format(work_dir, global_var.data_dir_path)
-    self.mitmproxy_config_path = '{}{}/mitmproxy_config.json'.format(work_dir, global_var.config_dir_path)
+    self.save_path = r'{}{}'.format(work_dir, MITMPROXY_DATA_PATH)
+    self.static_save_path = r'{}{}'.format(work_dir, STATIC_DATA_PATH)
+    self.mitmproxy_config_path = r'{}{}'.format(work_dir, MITMPROXY_CONFIG_PATH)
     # 抓包缓存数据 dict
     self.response_cache_dict = {}
     # 抓包包含的 path
@@ -41,7 +38,7 @@ class RequestRecorder:
 
   def init(self, use_history=True):
     # 检查工作目录文件完整性
-    self.check_work_dir_files()
+    create_work_files(self.work_dir)
     # 加载抓包配置
     self.load_mitmproxy_config()
 
@@ -62,31 +59,6 @@ class RequestRecorder:
     self.response_cache_dict = mitmproxy_lib.load_response_cache(self.save_path)
     # 加载静态资源数据
     self.static_cache_dict = mitmproxy_lib.load_static_cache(self.static_save_path)
-
-  # 检查工作目录文件
-  def check_work_dir_files(self):
-    # 存放数据的文件夹
-    data_dir = '{}{}'.format(self.work_dir, global_var.data_dir_path)
-    check_and_create_dir(data_dir)
-
-    # 配置文件目录
-    config_dir = '{}{}'.format(self.work_dir, global_var.config_dir_path)
-    check_and_create_dir(config_dir)
-
-    # 抓包数据文件不存在，创建一个
-    if not os.path.exists(self.save_path):
-      with open(self.save_path, 'w', encoding='utf-8') as fl:
-        fl.write('[]')
-
-    # 静态资源数据文件不存在，创建一个
-    if not os.path.exists(self.static_save_path):
-      with open(self.static_save_path, 'w', encoding='utf-8') as fl:
-        fl.write('[]')
-
-    if not os.path.exists(self.mitmproxy_config_path):
-      # 生成默认抓包配置文件
-      with open(self.mitmproxy_config_path, 'w', encoding='utf-8') as fl:
-        fl.write(JsonFormat.format_dict_to_json_string(global_var.mitmproxy_config))
 
   # 接口请求
   def request(self, flow: http.HTTPFlow):

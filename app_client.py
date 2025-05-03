@@ -12,17 +12,11 @@ from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
 from multiprocessing import Process
 from decorate import create_thread, error_catch
-from utils import (
-  check_local_connection,
-  check_and_create_dir,
-  open_mitmproxy_preview_html,
-  JsonFormat,
-)
+from utils import (check_local_connection, open_mitmproxy_preview_html)
+from lib.work_file_lib import (check_work_files, create_work_files)
 from asyncio_mitmproxy_server import start_mitmproxy
+from config.work_file import DEFAULT_WORK_DIR
 import ENV
-
-# APP默认工作目录
-DEFAULT_WORK_DIR = './server'
 
 
 # mock 服务进程启动
@@ -35,51 +29,6 @@ def server_process_start(server_config: dict):
   server = MockServer(work_dir=work_dir, port=port, response_delay=response_delay)
   # 启动本地 mock 服务
   server.start_server(read_cache=read_cache)
-
-
-# 检查工作目录文件完整性
-def check_work_files(work_dir=DEFAULT_WORK_DIR):
-  # 配置文件目录
-  config_dir = '{}{}'.format(work_dir, global_var.config_dir_path)
-  mitmproxy_config_file = '{}/mitmproxy_config.json'.format(config_dir)
-  mock_server_config_file = '{}/mock_server_config.json'.format(config_dir)
-  check_path_list = [
-    work_dir,
-    config_dir,
-    mitmproxy_config_file,
-    mock_server_config_file,
-  ]
-
-  valid = True
-  # 文件完整性检查
-  for path in check_path_list:
-    if not os.path.exists(path):
-      valid = False
-      break
-
-  return valid
-
-
-# 创建工作目录文件
-def create_work_files(work_dir=DEFAULT_WORK_DIR):
-  # 创建工作目录
-  check_and_create_dir(work_dir)
-
-  # 创建配置文件目录
-  config_dir = '{}{}'.format(work_dir, global_var.config_dir_path)
-  check_and_create_dir(config_dir)
-
-  mitmproxy_config_file = '{}/mitmproxy_config.json'.format(config_dir)
-  if not os.path.exists(mitmproxy_config_file):
-    # 生成默认抓包配置文件
-    with open(mitmproxy_config_file, 'w', encoding='utf-8') as fl:
-      fl.write(JsonFormat.format_dict_to_json_string(global_var.mitmproxy_config))
-
-  mock_server_config_file = '{}/mock_server_config.json'.format(config_dir)
-  if not os.path.exists(mock_server_config_file):
-    # 生成默认 mock 服务配置文件
-    with open(mock_server_config_file, 'w', encoding='utf-8') as fl:
-      fl.write(JsonFormat.format_dict_to_json_string(global_var.mock_server_config))
 
 
 # app 主窗口
@@ -295,6 +244,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     )
 
     if reply == QMessageBox.Yes:
+      # 创建工作文件
       create_work_files(work_dir)
       return True
     else:

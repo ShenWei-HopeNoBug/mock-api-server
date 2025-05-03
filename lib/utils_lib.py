@@ -11,10 +11,15 @@ class ConfigFileManager:
     self.path = path
     self.config = copy.deepcopy(config)
 
-  def init(self):
+  def init(self, replace: bool = False):
     work_dir = os.path.dirname(self.path)
     # 检查并创建系统文件夹
     check_and_create_dir(work_dir)
+
+    # 不替换已经存在的文件
+    if not replace and os.path.exists(self.path):
+      return
+
     with open(self.path, 'w', encoding='utf-8') as fl:
       fl.write(JsonFormat.dumps(copy.deepcopy(self.config)))
 
