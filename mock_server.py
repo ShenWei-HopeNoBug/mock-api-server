@@ -8,7 +8,8 @@ from lib import server_lib
 from lib.work_file_lib import create_work_files
 from config.work_file import (MOCK_SERVER_CONFIG_PATH, API_CACHE_DATA_PATH, STATIC_DIR)
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
-from utils import (
+from lib.app_lib import get_mock_api_data_list
+from lib.utils_lib import (
   JsonFormat,
   create_md5,
   remove_url_domain,
@@ -17,7 +18,6 @@ from utils import (
   find_connection_process,
   compress_image,
   get_ip_address,
-  get_mock_api_data_list,
   is_file_request,
 )
 

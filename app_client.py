@@ -11,8 +11,9 @@ from qt_ui.mian_window import Ui_MainWindow
 from mock_server import MockServer
 from multiprocessing import Process
 from lib.decorate import create_thread, error_catch
-from utils import (check_local_connection, open_mitmproxy_preview_html)
+from lib.utils_lib import check_local_connection
 from lib.work_file_lib import (check_work_files, create_work_files)
+from lib.app_lib import open_mitmproxy_preview_html
 from asyncio_mitmproxy_server import start_mitmproxy
 from config.work_file import DEFAULT_WORK_DIR
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)

@@ -4,7 +4,7 @@ import re
 from lib import mitmproxy_lib
 from lib.work_file_lib import create_work_files
 from config.work_file import (MITMPROXY_DATA_PATH, STATIC_DATA_PATH, MITMPROXY_CONFIG_PATH)
-from utils import (JsonFormat, is_file_request)
+from lib.utils_lib import (JsonFormat, is_file_request)
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
 import json
 
