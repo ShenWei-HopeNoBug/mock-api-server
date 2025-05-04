@@ -5,7 +5,7 @@ from time import sleep
 from mitmproxy.options import Options
 from mitmproxy.tools.dump import DumpMaster
 from multiprocessing import Process
-from request_catch import RequestRecorder
+from module.request_catch import RequestRecorder
 from lib.decorate import error_catch
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
 
