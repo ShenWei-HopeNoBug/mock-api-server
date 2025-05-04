@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>877</width>
-    <height>539</height>
+    <height>590</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -407,8 +407,8 @@
   <widget class="QCheckBox" name="cacheCheckBox">
    <property name="geometry">
     <rect>
-     <x>270</x>
-     <y>460</y>
+     <x>30</x>
+     <y>520</y>
      <width>211</width>
      <height>48</height>
     </rect>
@@ -484,6 +484,48 @@
    <property name="text">
     <string>查看抓包数据</string>
    </property>
+  </widget>
+  <widget class="QWidget" name="horizontalLayoutWidget_7">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>460</y>
+     <width>271</width>
+     <height>51</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout_7">
+    <item>
+     <widget class="QLabel" name="label_7">
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="text">
+       <string>响应延时(ms)：</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QSpinBox" name="responseDelaySpinBox">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>40</height>
+       </size>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+      <property name="maximum">
+       <number>120000</number>
+      </property>
+     </widget>
+    </item>
+   </layout>
   </widget>
  </widget>
  <resources/>

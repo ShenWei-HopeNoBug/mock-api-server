@@ -10,7 +10,10 @@ mitmproxy_config = {
   "include_path": "www.baidu.com",
 }
 
-# mock 服务的配置
+'''
+mock 服务的配置
+include_files: 启动服务后要动态替换的静态资源链接扩展名列表
+'''
 mock_server_config = {
   "include_files": [".png", ".jpg", ".jpeg", ".gif", ".avif", ".webp", ".npy"],
 }

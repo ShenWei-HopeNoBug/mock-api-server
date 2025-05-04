@@ -9,6 +9,7 @@ from utils import (
   JsonFormat,
   create_md5,
   remove_url_domain,
+  remove_url_query,
   check_and_create_dir,
   find_connection_process,
   compress_image,
@@ -23,7 +24,7 @@ import global_var
 
 
 class MockServer:
-  def __init__(self, work_dir='.', port=5000):
+  def __init__(self, work_dir='.', port=5000, response_delay=0):
     # 工作目录相关配置
     self.work_dir = work_dir
     self.api_dict_path = '{}{}/api_dict.json'.format(work_dir, global_var.data_dir_path)
@@ -38,6 +39,8 @@ class MockServer:
     self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
     # 包含的静态资源文件类型
     self.include_files = []
+    # 全局接口响应延时
+    self.response_delay = response_delay
 
     # 工作目录文件检查
     self.check_work_dir_files()
@@ -47,7 +50,7 @@ class MockServer:
       mock_server_config = json.loads(fl.read())
       self.include_files = mock_server_config.get('include_files', [])
 
-    pattern = r'(https?://[-/a-zA-Z0-9_.]*(?:{}))'.format('|'.join(self.include_files))
+    pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(self.include_files))
     # 静态资源正则匹配配置
     self.static_match_config = {
       # 匹配的正则实例
@@ -85,12 +88,15 @@ class MockServer:
   def download_static(self, compress=True):
     print('>' * 10, '开始检查和下载静态资源...')
 
-    data = pd.read_json(self.api_data_path)
-    response_col = data['response']
+    # mock 数据列表（包括抓包数据和自定义数据）
+    mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
+
+    # 静态资源链接列表
     assets_list = []
     # 提取静态资源链接
-    for response in response_col:
-      assets_reg = self.static_match_config['compare']
+    assets_reg = self.static_match_config['compare']
+    for row_data in mock_api_data_list:
+      response = row_data.get('response', '')
       assets = assets_reg.findall(response)
       assets_list.extend(assets)
 
@@ -183,8 +189,13 @@ class MockServer:
       method = row_data.get('method')
       params = row_data.get('params')
       url = row_data.get('url')
+      # 去掉域名
+      url = remove_url_domain(url)
+      # GET 请求去掉 query 参数
+      if method == 'GET':
+        url = remove_url_query(url)
 
-      request_key = create_md5(remove_url_domain(url))
+      request_key = create_md5(url)
       # 响应数据查询键名
       response_key = self.__get_response_dict_key(
         method,
@@ -243,14 +254,16 @@ class MockServer:
     # 常规接口
     @app.route('/api/<path:path>', methods=['GET', 'POST'])
     def request_api(path):
+      method = request.method
       route = '/' + path
-      request_key = create_md5(route)
+      # GET 请求去掉 query 参数
+      if method == 'GET':
+        route = remove_url_query(route)
 
+      request_key = create_md5(route)
       # 请求路径 mock 数据中不存在
       if request_key not in api_dict:
         return
-
-      method = request.method
 
       params = JsonFormat.format_dict_to_json_string({})
       request_content_type = request.headers.get('content-type') or ''
@@ -263,6 +276,11 @@ class MockServer:
         params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
 
       response_key = self.__get_response_dict_key(method, params)
+
+      # 接口响应延时
+      if self.response_delay > 0:
+        print('接口响应延时：{}ms, route：{}'.format(self.response_delay, route))
+        time.sleep(self.response_delay / 1000)
 
       # 命中 mock 数据直接返回
       if response_key in api_dict[request_key]:
