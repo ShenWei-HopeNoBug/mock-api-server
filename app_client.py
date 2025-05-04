@@ -50,12 +50,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     HISTORY_CONFIG_MANAGER.init(replace=False)
     # 获取历史工作目录
     work_dir = HISTORY_CONFIG_MANAGER.get(key='work_dir') or DEFAULT_WORK_DIR
-    # 用户拒绝在历史工作目录创建文件，切到默认工作目录
-    if not self.check_and_create_work_files(work_dir):
-      create_work_files(DEFAULT_WORK_DIR)
-      # 更新工作目录历史记录
-      HISTORY_CONFIG_MANAGER.set(key='work_dir', value=DEFAULT_WORK_DIR)
-      work_dir = DEFAULT_WORK_DIR
 
     # 服务工作目录
     self.work_dir = work_dir
@@ -80,6 +74,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     self.init_ui()
     self.add_events()
+
+  def init(self):
+    # 用户拒绝在历史工作目录创建文件，切到默认工作目录
+    if not self.check_and_create_work_files(self.work_dir):
+      create_work_files(DEFAULT_WORK_DIR)
+      # 更新工作目录历史记录
+      HISTORY_CONFIG_MANAGER.set(key='work_dir', value=DEFAULT_WORK_DIR)
+      self.work_dir = DEFAULT_WORK_DIR
 
   # 初始化窗口 UI
   def init_ui(self):

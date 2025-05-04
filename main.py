@@ -27,4 +27,5 @@ if __name__ == '__main__':
   #   main_window.setStyleSheet(styleSheet)
 
   main_window.show()
+  main_window.init()
   sys.exit(app.exec_())

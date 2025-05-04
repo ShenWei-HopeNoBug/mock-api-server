@@ -6,7 +6,7 @@ import os
 from lib.decorate import create_thread
 from lib import server_lib
 from lib.work_file_lib import create_work_files
-from config.work_file import (MOCK_SERVER_CONFIG_PATH, DATA_DIR)
+from config.work_file import (MOCK_SERVER_CONFIG_PATH, API_CACHE_DATA_PATH, STATIC_DIR)
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
 from utils import (
   JsonFormat,
@@ -30,9 +30,8 @@ class MockServer:
   def __init__(self, work_dir='.', port=5000, response_delay=0):
     # 工作目录相关配置
     self.work_dir = work_dir
-    self.api_dict_path = '{}{}/api_dict.json'.format(work_dir, DATA_DIR)
-    self.mock_server_config_path = r'{}{}'.format(work_dir, MOCK_SERVER_CONFIG_PATH)
-    self.static_url_path = '/static'
+    self.api_cache_path = r'{}{}'.format(work_dir, API_CACHE_DATA_PATH)
+    self.static_url_path = STATIC_DIR
     # ip 相关配置
     self.ip_address = get_ip_address()
     self.port = port
@@ -44,13 +43,6 @@ class MockServer:
     self.static_match_route = []
     # 全局接口响应延时
     self.response_delay = response_delay
-    # 静态资源正则匹配配置
-    self.static_match_config = {
-      "compare": None,
-      # 静态资源要将 domain 替换的的基础 url 路径
-      "domain": self.static_host,
-      "static_url_path": self.static_url_path,
-    }
 
     # -------------------
     # 初始化
@@ -63,19 +55,30 @@ class MockServer:
     # 加载 mock 服务配置
     self.load_mock_server_config()
 
-    pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(self.include_files))
-    # 更新静态资源正则匹配配置
-    self.static_match_config["compare"] = re.compile(pattern, flags=re.IGNORECASE)
-
   # 加载 mock 服务配置
   def load_mock_server_config(self):
+    mock_server_config_path = r'{}{}'.format(self.work_dir, MOCK_SERVER_CONFIG_PATH)
+
     # 读取包含的静态资源文件类型
-    with open(self.mock_server_config_path, 'r', encoding='utf-8') as fl:
+    with open(mock_server_config_path, 'r', encoding='utf-8') as fl:
       mock_server_config = json.loads(fl.read())
       include_files = mock_server_config.get('include_files', [])
       self.include_files = list(set(include_files))
+
       static_match_route = mock_server_config.get('static_match_route', [])
-      self.static_match_route = list(set(static_match_route))
+      static_match_route = list(set(static_match_route))
+      filter_route_list = ['/system', '/api', self.static_url_path]
+      route_list = []
+      # 去除内部已经占用的路由
+      for route in static_match_route:
+        valid = True
+        for filter_route in filter_route_list:
+          if route.startswith(filter_route):
+            valid = False
+            break
+        if valid:
+          route_list.append(route)
+      self.static_match_route = route_list
 
   # 下载静态资源
   def download_static(self, compress=True):
@@ -88,7 +91,7 @@ class MockServer:
     # 静态资源链接列表
     assets_list = []
     # 提取 response 静态资源链接
-    assets_reg = self.static_match_config['compare']
+    assets_reg = self.__get_static_match_regexp()
     for row_data in mock_api_data_list:
       response = row_data.get('response', '')
       assets = assets_reg.findall(response)
@@ -167,7 +170,7 @@ class MockServer:
 
   # 创建并保存 api_dict
   def create_api_dict(self):
-    assets_reg = self.static_match_config['compare']
+    assets_reg = self.__get_static_match_regexp()
     # 静态资源 base_url
     assets_base_url = '{}{}'.format(self.static_host, self.static_url_path)
 
@@ -208,7 +211,7 @@ class MockServer:
       api_dict[request_key][response_key] = json.loads(response)
 
     # 写入生成的 api 映射数据
-    with open(self.api_dict_path, 'w', encoding='utf-8') as fl:
+    with open(self.api_cache_path, 'w', encoding='utf-8') as fl:
       fl.write(JsonFormat.format_dict_to_json_string(api_dict))
 
     return api_dict
@@ -220,11 +223,11 @@ class MockServer:
       return self.create_api_dict()
 
     # 本地不存在已经生成的 api 映射表，当场生成一份
-    if not os.path.exists(self.api_dict_path):
+    if not os.path.exists(self.api_cache_path):
       return self.create_api_dict()
 
     # 读取生成的 api 映射数据
-    with open(self.api_dict_path, 'r', encoding='utf-8') as fl:
+    with open(self.api_cache_path, 'r', encoding='utf-8') as fl:
       data = fl.read()
       try:
         api_dict = json.loads(data)
@@ -240,9 +243,10 @@ class MockServer:
     api_dict = self.get_server_api_dict(read_cache)
     # 工作目录的绝对路径
     root_path = os.path.abspath(self.work_dir)
-    app = Flask(__name__, static_folder='static', static_url_path=self.static_url_path, root_path=root_path)
+    static_folder = self.static_url_path.lstrip('/')
+    app = Flask(__name__, static_folder=static_folder, static_url_path=self.static_url_path, root_path=root_path)
     # 配置跨域(这个配置低版本的Flask加不加都一样)
-    CORS(app, resources={r"/static/*".format(self.ip_address): {"origins": "*"}})
+    CORS(app, resources={r"{}/*".format(self.static_url_path): {"origins": "*"}})
 
     # 动态匹配静态资源
     def static_match(path):
@@ -252,7 +256,7 @@ class MockServer:
 
       # 文件名
       file_name = path.split('/')[-1]
-      return send_from_directory('static', file_name)
+      return send_from_directory(static_folder, file_name)
 
     # 批量注册静态资源匹配接口
     for static_route in self.static_match_route:
@@ -324,3 +328,8 @@ class MockServer:
   @staticmethod
   def __get_response_dict_key(method, params):
     return create_md5('{}{}'.format(method, params))
+
+  # 获取静态资源匹配正则对象
+  def __get_static_match_regexp(self):
+    pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(self.include_files))
+    return re.compile(pattern, flags=re.IGNORECASE)

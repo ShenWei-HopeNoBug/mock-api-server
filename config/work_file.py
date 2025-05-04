@@ -29,6 +29,8 @@ MITMPROXY_DATA_PATH = r'{}/output.json'.format(DATA_DIR)
 USER_API_DATA_PATH = r'{}/user_api.json'.format(DATA_DIR)
 # 静态资源数据文件路径
 STATIC_DATA_PATH = r'{}/static.json'.format(DATA_DIR)
+# 服务创建接口缓存文件地址
+API_CACHE_DATA_PATH = r'{}/api_cache.json'.format(DATA_DIR)
 
 # 静态资源目录
 STATIC_DIR = r'/static'
@@ -101,5 +103,9 @@ WORK_FILE_DICT = {
   "STATIC_DATA": {
     "path": STATIC_DATA_PATH,
     "default": [],
+  },
+  "API_CACHE_DATA": {
+    "path": API_CACHE_DATA_PATH,
+    "default": {},
   }
 }
