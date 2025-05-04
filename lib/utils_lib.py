@@ -180,3 +180,23 @@ class ConfigFileManager:
 
     with open(self.path, 'w', encoding='utf-8') as fl:
       fl.write(JsonFormat.dumps(dict_data))
+
+
+# 校验链接是否满足匹配条件
+@error_catch(error_msg='校验链接是否满足匹配条件失败', error_return=False)
+def is_url_match(url: str, includes: list or str) -> bool:
+  # 入参校验
+  if not len(url) or not len(includes):
+    return False
+
+  # 校验规则为字符串
+  if type(includes) == str:
+    include_reg = re.compile(includes)
+    return bool(include_reg.search(url))
+  # 校验规则为字符串列表
+  elif type(includes) == list:
+    pattern = r'({})'.format('|'.join(includes))
+    include_reg = re.compile(pattern)
+    return bool(include_reg.search(url))
+  else:
+    return False

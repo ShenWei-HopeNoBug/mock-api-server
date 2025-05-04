@@ -4,7 +4,7 @@ import re
 from lib import mitmproxy_lib
 from lib.work_file_lib import create_work_files
 from config.work_file import (MITMPROXY_DATA_PATH, STATIC_DATA_PATH, MITMPROXY_CONFIG_PATH)
-from lib.utils_lib import (JsonFormat, is_file_request)
+from lib.utils_lib import (JsonFormat, is_file_request, is_url_match)
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
 import json
 
@@ -25,7 +25,7 @@ class RequestRecorder:
     # 抓包缓存数据 dict
     self.response_cache_dict = {}
     # 抓包包含的 path
-    self.include_path = ''
+    self.include_path: str or list = ''
     # 静态资源包含的 path
     self.static_include_path = []
     # 抓取静态资源缓存数据 dict
@@ -131,10 +131,6 @@ class RequestRecorder:
 
   # 检查请求是否需要被抓取保存
   def __check_response(self, request, response):
-    # 没配置过滤条件，跳过
-    if not len(self.include_path):
-      return False
-
     # 请求链接
     url = request.url
 
@@ -143,8 +139,7 @@ class RequestRecorder:
       return False
 
     # 需要包含的请求
-    include_reg = re.compile(self.include_path)
-    if not include_reg.search(url):
+    if not is_url_match(url, self.include_path):
       return False
 
     response_content_type = response.headers.get('Content-Type') or ''
@@ -156,19 +151,13 @@ class RequestRecorder:
 
   # 检查和保存静态资源数据
   def __check_and_save_static(self, flow: http.HTTPFlow):
-    # 没有配置静态资源包含路径
-    if not len(self.static_include_path):
-      return
-
     url = flow.request.url
     # 非文件请求，跳过
     if not is_file_request(url):
       return
 
-    pattern = r'({})'.format('|'.join(self.static_include_path))
-    static_include_reg = re.compile(pattern)
     # 检测链接内容是否符合配置
-    if not static_include_reg.search(url):
+    if not is_url_match(url, self.static_include_path):
       return
 
     record = {
