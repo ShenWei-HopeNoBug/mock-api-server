@@ -139,6 +139,7 @@ def compress_image(input_path, output_path, quality=80):
   return True
 
 
+# 配置文件管理器
 class ConfigFileManager:
   def __init__(self, path: str, config: dict = {}):
     self.path = path
