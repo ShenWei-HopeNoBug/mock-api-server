@@ -352,7 +352,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     @error_catch(print_error_msg=False)
     def shutdown():
-      '''这个请求发送到 mock 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了'''
+      """这个请求发送到 mock 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
       requests.get('http://127.0.0.1:{}/system/shutdown'.format(self.server_port))
 
     shutdown()

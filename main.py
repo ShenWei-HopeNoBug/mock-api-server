@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from app_client import MainWindow
+from module.app_client import MainWindow
 from PyQt5.QtWidgets import QApplication, QMessageBox
 import sys
 import multiprocessing
