@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QMessageBox, QMainWindow, QFileDialog
+from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QAction)
 
 import os
 import time
@@ -27,7 +27,9 @@ def server_process_start(server_config: dict):
   port = server_config.get('port', 5000)
   work_dir = server_config.get('work_dir', '.')
   response_delay = server_config.get('response_delay', 0)
-  server = MockServer(work_dir=work_dir, port=port, response_delay=response_delay)
+  static_delay = server_config.get('static_delay', 0)
+  # 初始化 mock 服务实例
+  server = MockServer(work_dir=work_dir, port=port, response_delay=response_delay, static_delay=static_delay)
   # 启动本地 mock 服务
   server.start_server(read_cache=read_cache)
 
@@ -68,12 +70,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.server_running = False
     # 服务端口号
     self.server_port = 5000
-    # 服务响应延时
+    # 接口响应延时
     self.response_delay = 0
+    # 静态资源请求响应延时
+    self.static_delay = 0
     # 是否以缓存模式启动服务
     self.cache = False
+    # 文件菜单对象
+    self.file_menu = None
 
     self.init_ui()
+    self.render_menu_bar()
     self.add_events()
 
   def init(self):
@@ -89,6 +96,41 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
     self.setWindowTitle('mock server {}'.format(globals.version))
+
+  # 渲染菜单栏
+  def render_menu_bar(self):
+    # 打开工作目录
+    def open_work_dir():
+      if not os.path.exists(self.work_dir):
+        return
+
+      os.startfile(os.path.abspath(self.work_dir))
+
+    # 选择工作目录
+    def select_work_dir():
+      directory = QFileDialog.getExistingDirectory(self, '选择工作目录', r'./')
+      if directory and self.check_and_create_work_files(directory):
+        # 更换工作目录后，检查目录文件
+        self.work_dir = directory
+        self.serverWorkDirLineEdit.setText(self.work_dir)
+        self.serverWorkDirLineEdit.setToolTip(self.work_dir)
+        # 更新工作目录历史记录
+        HISTORY_CONFIG_MANAGER.set(key='work_dir', value=self.work_dir)
+
+    # 匹配菜单 action 类型
+    def file_menu_action(action):
+      action_name = action.text()
+      if action_name == '更换工作目录':
+        select_work_dir()
+      elif action_name == '打开工作目录':
+        open_work_dir()
+
+    menu_bar = self.menuBar()
+    file_menu = menu_bar.addMenu('文件')
+    self.file_menu = file_menu
+    file_menu.addAction('更换工作目录')
+    file_menu.addAction('打开工作目录')
+    file_menu.triggered[QAction].connect(file_menu_action)
 
   def add_events(self):
     # 监听信号变化
@@ -126,6 +168,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def response_delay_change(value):
       self.response_delay = value
 
+    def static_delay_change(value):
+      self.static_delay = value
+
     # 端口号输入绑定
     self.catchServerPortSpinBox.setValue(self.catch_server_port)
     self.catchServerPortSpinBox.valueChanged.connect(catch_server_port_change)
@@ -133,6 +178,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverPortSpinBox.valueChanged.connect(server_port_change)
     self.responseDelaySpinBox.setValue(self.response_delay)
     self.responseDelaySpinBox.valueChanged.connect(response_delay_change)
+    self.staticDelaySpinBox.setValue(self.static_delay)
+    self.staticDelaySpinBox.valueChanged.connect(static_delay_change)
     # 抓包服务按钮
     self.catchServerButton.clicked.connect(self.catch_server_button_click)
     # 抓包是否采用追加模式
@@ -150,21 +197,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # mock 服务按钮
     self.serverButton.clicked.connect(self.server_button_click)
 
-    # 选择文件夹
-    def select_directory():
-      directory = QFileDialog.getExistingDirectory(self, '选择工作目录', r'./')
-      if directory and self.check_and_create_work_files(directory):
-        # 更换工作目录后，检查目录文件
-        self.work_dir = directory
-        self.serverWorkDirLineEdit.setText(self.work_dir)
-        self.serverWorkDirLineEdit.setToolTip(self.work_dir)
-        # 更新工作目录历史记录
-        HISTORY_CONFIG_MANAGER.set(key='work_dir', value=self.work_dir)
-
     # 选择服务的工作目录
     self.serverWorkDirLineEdit.setText(self.work_dir)
     self.serverWorkDirLineEdit.setToolTip(self.work_dir)
-    self.severWorkDirBrowsePushButton.clicked.connect(select_directory)
+
+  @error_catch(error_msg='更新【文件】菜单子按钮禁用状态失败')
+  def set_file_menu_disabled(self, action_name: str = '', disabled: bool = False):
+    if not self.file_menu:
+      return
+
+    actions = self.file_menu.actions()
+    target = None
+    for action in actions:
+      if action.text() == action_name:
+        target = action
+        break
+
+    if target:
+      target.setEnabled(not disabled)
 
   # mock 服务启动状态变化
   def server_running_change(self, value):
@@ -182,8 +232,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.cacheCheckBox.setDisabled(disabled)
     self.serverPortSpinBox.setDisabled(disabled)
     self.responseDelaySpinBox.setDisabled(disabled)
+    self.staticDelaySpinBox.setDisabled(disabled)
     self.cacheCheckBox.setDisabled(disabled)
-    self.severWorkDirBrowsePushButton.setDisabled(disabled)
+    self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
     # mock 服务启动时禁止启动抓包服务
     self.catchServerButton.setDisabled(disabled)
 
@@ -201,7 +252,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticDownloadButton.setText(button_text)
     self.compressCheckBox.setDisabled(disabled)
     self.staticDownloadButton.setDisabled(disabled)
-    self.severWorkDirBrowsePushButton.setDisabled(disabled)
+    self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
 
   # 抓包服务启动状态变化
   def catch_server_running_change(self, value):
@@ -217,7 +268,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.catchServerButton.setText(button_text)
     self.catchServerPortSpinBox.setDisabled(disabled)
     self.useHistoryCheckBox.setDisabled(disabled)
-    self.severWorkDirBrowsePushButton.setDisabled(disabled)
+    self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
     self.dataPreviewButton.setDisabled(disabled)
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
@@ -336,6 +387,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       "port": self.server_port,
       "read_cache": self.cache,
       "response_delay": self.response_delay,
+      "static_delay": self.static_delay,
     }
     server_process = Process(
       target=server_process_start,

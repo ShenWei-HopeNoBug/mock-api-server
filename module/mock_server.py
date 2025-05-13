@@ -3,10 +3,11 @@ import re
 import requests
 import time
 import os
+from config.work_file import (MOCK_SERVER_CONFIG_PATH, API_CACHE_DATA_PATH, STATIC_DIR)
+from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread
 from lib import server_lib
 from lib.work_file_lib import create_work_files
-from config.work_file import (MOCK_SERVER_CONFIG_PATH, API_CACHE_DATA_PATH, STATIC_DIR)
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
 from lib.app_lib import get_mock_api_data_list
 from lib.utils_lib import (
@@ -27,7 +28,7 @@ from flask_cors import CORS
 
 
 class MockServer:
-  def __init__(self, work_dir='.', port=5000, response_delay=0):
+  def __init__(self, work_dir='.', port=5000, response_delay=0, static_delay=0):
     # 工作目录相关配置
     self.work_dir = work_dir
     self.api_cache_path = r'{}{}'.format(work_dir, API_CACHE_DATA_PATH)
@@ -43,6 +44,8 @@ class MockServer:
     self.static_match_route = []
     # 全局接口响应延时
     self.response_delay = response_delay
+    # 全局静态资源响应延时
+    self.static_delay = static_delay
 
     # -------------------
     # 初始化
@@ -67,7 +70,8 @@ class MockServer:
 
       static_match_route = mock_server_config.get('static_match_route', [])
       static_match_route = list(set(static_match_route))
-      filter_route_list = ['/system', '/api', self.static_url_path]
+      # 内置已经占用命名的路由
+      filter_route_list = [SYSTEM_ROUTE, MOCK_API_ROUTE, self.static_url_path]
       route_list = []
       # 去除内部已经占用的路由
       for route in static_match_route:
@@ -78,6 +82,11 @@ class MockServer:
             break
         if valid:
           route_list.append(route)
+
+      # 如果设置了静态资源返回延时，添加内置延时动态匹配路由
+      if self.static_delay > 0:
+        route_list.extend(STATIC_DELAY_ROUTE)
+
       self.static_match_route = route_list
 
   # 下载静态资源
@@ -171,8 +180,10 @@ class MockServer:
   # 创建并保存 api_dict
   def create_api_dict(self):
     assets_reg = self.__get_static_match_regexp()
+    # 区分是否延时两种静态资源的路由
+    assets_route = STATIC_DELAY_ROUTE if self.static_delay > 0 else self.static_url_path
     # 静态资源 base_url
-    assets_base_url = '{}{}'.format(self.static_host, self.static_url_path)
+    assets_base_url = '{}{}'.format(self.static_host, assets_route)
 
     # 静态资源文本替换规则
     def assets_replace_method(match):
@@ -256,6 +267,10 @@ class MockServer:
 
       # 文件名
       file_name = path.split('/')[-1]
+      # 静态资源响应延时
+      if self.static_delay > 0:
+        time.sleep(self.static_delay / 1000)
+
       return send_from_directory(static_folder, file_name)
 
     # 批量注册静态资源匹配接口
@@ -266,13 +281,13 @@ class MockServer:
       app.route('{}/<path:path>'.format(static_route), methods=['GET'])(static_match)
 
     # 服务进程自杀
-    @app.route('/system/shutdown', methods=['GET'])
+    @app.route('{}/shutdown'.format(SYSTEM_ROUTE), methods=['GET'])
     def server_shutdown():
       print('mock 服务收到 shutdown 指令！正在关闭服务...')
       self.stop_server()
 
-    # 常规 mock 匹配接口
-    @app.route('/api/<path:path>', methods=['GET', 'POST'])
+    # 统一 mock 匹配接口
+    @app.route('{}/<path:path>'.format(MOCK_API_ROUTE), methods=['GET', 'POST'])
     def request_api(path):
       method = request.method
       route = '/' + path
