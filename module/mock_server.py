@@ -28,7 +28,7 @@ from flask_cors import CORS
 
 
 class MockServer:
-  def __init__(self, work_dir='.', port=5000, response_delay=0, static_delay=0):
+  def __init__(self, work_dir='.', port=5000, response_delay=0, static_load_speed=0):
     # 工作目录相关配置
     self.work_dir = work_dir
     self.api_cache_path = r'{}{}'.format(work_dir, API_CACHE_DATA_PATH)
@@ -44,8 +44,8 @@ class MockServer:
     self.static_match_route = []
     # 全局接口响应延时
     self.response_delay = response_delay
-    # 全局静态资源响应延时
-    self.static_delay = static_delay
+    # 全局静态资源请求加载速率
+    self.static_load_speed = static_load_speed
 
     # -------------------
     # 初始化
@@ -84,7 +84,7 @@ class MockServer:
           route_list.append(route)
 
       # 如果设置了静态资源返回延时，添加内置延时动态匹配路由
-      if self.static_delay > 0:
+      if self.static_load_speed > 0:
         route_list.extend(STATIC_DELAY_ROUTE)
 
       self.static_match_route = route_list
@@ -181,7 +181,7 @@ class MockServer:
   def create_api_dict(self):
     assets_reg = self.__get_static_match_regexp()
     # 区分是否延时两种静态资源的路由
-    assets_route = STATIC_DELAY_ROUTE if self.static_delay > 0 else self.static_url_path
+    assets_route = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
     # 静态资源 base_url
     assets_base_url = '{}{}'.format(self.static_host, assets_route)
 
@@ -267,9 +267,22 @@ class MockServer:
 
       # 文件名
       file_name = path.split('/')[-1]
+      file_path = os.path.abspath(r'{}{}/{}'.format(self.work_dir, self.static_url_path, file_name))
+
+      if not os.path.exists(file_path):
+        return
+
       # 静态资源响应延时
-      if self.static_delay > 0:
-        time.sleep(self.static_delay / 1000)
+      if self.static_load_speed > 0:
+        file_size = os.path.getsize(file_path) / 1024
+        delay = file_size / self.static_load_speed
+
+        # 限制最大延时时间
+        max_delay = 120
+        if delay > max_delay:
+          delay = max_delay
+        print('静态资源延时属性  文件大小：{}KB  延时时间：{}s'.format(file_size, delay))
+        time.sleep(delay)
 
       return send_from_directory(static_folder, file_name)
 

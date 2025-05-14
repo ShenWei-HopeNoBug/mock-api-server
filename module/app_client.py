@@ -27,9 +27,14 @@ def server_process_start(server_config: dict):
   port = server_config.get('port', 5000)
   work_dir = server_config.get('work_dir', '.')
   response_delay = server_config.get('response_delay', 0)
-  static_delay = server_config.get('static_delay', 0)
+  static_load_speed = server_config.get('static_load_speed', 0)
   # 初始化 mock 服务实例
-  server = MockServer(work_dir=work_dir, port=port, response_delay=response_delay, static_delay=static_delay)
+  server = MockServer(
+    work_dir=work_dir,
+    port=port,
+    response_delay=response_delay,
+    static_load_speed=static_load_speed,
+  )
   # 启动本地 mock 服务
   server.start_server(read_cache=read_cache)
 
@@ -72,8 +77,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.server_port = 5000
     # 接口响应延时
     self.response_delay = 0
-    # 静态资源请求响应延时
-    self.static_delay = 0
+    # 静态资源请求加载速率
+    self.static_load_speed = 0
     # 是否以缓存模式启动服务
     self.cache = False
     # 文件菜单对象
@@ -168,8 +173,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def response_delay_change(value):
       self.response_delay = value
 
-    def static_delay_change(value):
-      self.static_delay = value
+    def static_load_speed_change(value):
+      self.static_load_speed = value
 
     # 端口号输入绑定
     self.catchServerPortSpinBox.setValue(self.catch_server_port)
@@ -178,8 +183,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverPortSpinBox.valueChanged.connect(server_port_change)
     self.responseDelaySpinBox.setValue(self.response_delay)
     self.responseDelaySpinBox.valueChanged.connect(response_delay_change)
-    self.staticDelaySpinBox.setValue(self.static_delay)
-    self.staticDelaySpinBox.valueChanged.connect(static_delay_change)
+    self.staticLoadSpeedSpinBox.setValue(self.static_load_speed)
+    self.staticLoadSpeedSpinBox.valueChanged.connect(static_load_speed_change)
     # 抓包服务按钮
     self.catchServerButton.clicked.connect(self.catch_server_button_click)
     # 抓包是否采用追加模式
@@ -232,7 +237,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.cacheCheckBox.setDisabled(disabled)
     self.serverPortSpinBox.setDisabled(disabled)
     self.responseDelaySpinBox.setDisabled(disabled)
-    self.staticDelaySpinBox.setDisabled(disabled)
+    self.staticLoadSpeedSpinBox.setDisabled(disabled)
     self.cacheCheckBox.setDisabled(disabled)
     self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
     # mock 服务启动时禁止启动抓包服务
@@ -387,7 +392,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       "port": self.server_port,
       "read_cache": self.cache,
       "response_delay": self.response_delay,
-      "static_delay": self.static_delay,
+      "static_load_speed": self.static_load_speed,
     }
     server_process = Process(
       target=server_process_start,
