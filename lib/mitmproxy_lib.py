@@ -65,7 +65,7 @@ def load_static_cache(path: str = '') -> dict:
     return {}
 
   data = pd.read_json(path)
-  fieldnames = ["url"]
+  fieldnames = ["type", "url"]
   cache = {}
   # 行遍历
   for row_index, row_data in data.iterrows():
