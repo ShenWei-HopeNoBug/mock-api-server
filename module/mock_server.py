@@ -259,6 +259,9 @@ class MockServer:
     # 配置跨域(这个配置低版本的Flask加不加都一样)
     CORS(app, resources={r"{}/*".format(self.static_url_path): {"origins": "*"}})
 
+    # 静态资源匹配缓存
+    static_match_cache = set()
+
     # 动态匹配静态资源
     def static_match(path):
       # 非文件请求，跳过
@@ -272,8 +275,10 @@ class MockServer:
       if not os.path.exists(file_path):
         return
 
+      search_key = create_md5(path)
+
       # 静态资源响应延时
-      if self.static_load_speed > 0:
+      if (self.static_load_speed > 0) and (search_key not in static_match_cache):
         file_size = os.path.getsize(file_path) / 1024
         delay = file_size / self.static_load_speed
 
@@ -283,6 +288,7 @@ class MockServer:
           delay = max_delay
         print('静态资源延时属性  文件大小：{}KB  延时时间：{}s'.format(file_size, delay))
         time.sleep(delay)
+        static_match_cache.add(search_key)
 
       return send_from_directory(static_folder, file_name)
 
