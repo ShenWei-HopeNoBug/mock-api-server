@@ -250,13 +250,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.downloading = value
     if value:
       disabled = True
-      button_text = '静态资源下载中...'
+      button_text = '停止资源下载'
     else:
       disabled = False
       button_text = '静态资源下载'
     self.staticDownloadButton.setText(button_text)
     self.compressCheckBox.setDisabled(disabled)
-    self.staticDownloadButton.setDisabled(disabled)
     self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
 
   # 抓包服务启动状态变化
@@ -363,12 +362,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 下载静态资源
   @create_thread
   def download_static(self):
-    # 正在下载中，跳过
+    # 正在下载中
     if self.downloading:
+      GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=True)
+      time.sleep(0.5)
       return
 
     server = MockServer(work_dir=self.work_dir, port=self.server_port)
     self.downloading_signal.emit(True)
+    GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
     server.download_static(compress=self.compress_image)
     self.downloading_signal.emit(False)
     time.sleep(0.5)

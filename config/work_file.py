@@ -46,6 +46,7 @@ SYSTEM_FILE_DICT = {
     "default": {
       "client_exit": False,  # 是否已经退出程序
       "mitmproxy_stop_signal": False,  # 抓包停止信号
+      "download_exit": False, # 是否已经退出下载
     }
   },
   "HISTORY_CONFIG": {

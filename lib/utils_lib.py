@@ -175,7 +175,7 @@ class ConfigFileManager:
     return dict_data.get(key, None)
 
   @error_catch(error_msg='更新变量失败！')
-  def set(self, key: str, value):
+  def set(self, key: str, value: any):
     if not key:
       return
 
