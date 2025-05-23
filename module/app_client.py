@@ -46,7 +46,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 是否追加抓包信号
   use_history_signal = pyqtSignal(bool)
   # 下载静态资源信号
-  downloading_signal = pyqtSignal(bool)
+  downloading_signal = pyqtSignal(str)
   # mock 服务运行信号
   server_running_signal = pyqtSignal(bool)
 
@@ -69,8 +69,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.use_history = True
     # 下载静态资源是否压缩图片
     self.compress_image = True
-    # 是否正在下载静态资源
-    self.downloading = False
+    # 静态资源下载状态
+    self.download_status = 'READY'
     # 服务是否正在运行
     self.server_running = False
     # 服务端口号
@@ -243,18 +243,27 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # mock 服务启动时禁止启动抓包服务
     self.catchServerButton.setDisabled(disabled)
 
-  def downloading_change(self, value):
-    if self.downloading == value:
-      return
-
-    self.downloading = value
-    if value:
+  # 下载状态变化
+  def downloading_change(self, text):
+    # 下载中
+    if text == 'DOWNLOAD':
+      download_btn_disabled = False
       disabled = True
       button_text = '停止资源下载'
+    # 正在停止下载
+    elif text == 'STOP_WAIT':
+      download_btn_disabled = True
+      disabled = False
+      button_text = '正在停止...'
+    # 初始化状态
     else:
+      download_btn_disabled = False
       disabled = False
       button_text = '静态资源下载'
+
+    self.download_status = text
     self.staticDownloadButton.setText(button_text)
+    self.staticDownloadButton.setDisabled(download_btn_disabled)
     self.compressCheckBox.setDisabled(disabled)
     self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
 
@@ -363,17 +372,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   @create_thread
   def download_static(self):
     # 正在下载中
-    if self.downloading:
+    if self.download_status == 'DOWNLOAD':
+      self.downloading_signal.emit('STOP_WAIT')
       GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=True)
       time.sleep(0.5)
       return
 
     server = MockServer(work_dir=self.work_dir, port=self.server_port)
-    self.downloading_signal.emit(True)
+    self.downloading_signal.emit('DOWNLOAD')
     GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
     server.download_static(compress=self.compress_image)
-    self.downloading_signal.emit(False)
+    # 下载任务结束后切换按钮显示
+    GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
     time.sleep(0.5)
+    self.downloading_signal.emit('READY')
 
   # 启动mock服务
   def start_server(self):
