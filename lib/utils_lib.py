@@ -9,6 +9,7 @@ import psutil
 from PIL import Image
 import socket
 from lib.decorate import error_catch
+import datetime
 
 
 # 获取本机 ip 地址
@@ -23,6 +24,11 @@ def get_ip_address():
 # 获取字符串的 md5
 def create_md5(string=''):
   return hashlib.md5(str(string).encode('utf-8')).hexdigest()
+
+
+# 生成时间戳
+def create_timestamp(time_format: str = '%Y%m%d%H%M%S'):
+  return datetime.datetime.now().strftime(time_format)
 
 
 # 去掉链接里面的域名

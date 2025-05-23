@@ -3,12 +3,7 @@ import subprocess
 from config import globals
 import os
 import shutil
-import datetime
-
-
-# 生成时间戳
-def create_timestamp():
-  return datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+from lib.utils_lib import create_timestamp
 
 
 # 设置环境变量
@@ -55,7 +50,7 @@ def app_build(window=False, timestamp=''):
 
 if __name__ == '__main__':
   # 正式打包
-  current = create_timestamp()
+  current = create_timestamp('%Y%m%d%H%M%S')
   app_build(window=True, timestamp=current)
   app_build(window=False, timestamp=current)
   # 调试打包

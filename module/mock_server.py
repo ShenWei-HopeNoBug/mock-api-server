@@ -3,13 +3,19 @@ import re
 import requests
 import time
 import os
-from config.work_file import (MOCK_SERVER_CONFIG_PATH, API_CACHE_DATA_PATH, STATIC_DIR)
+from config.work_file import (
+  MOCK_SERVER_CONFIG_PATH,
+  API_CACHE_DATA_PATH,
+  STATIC_DIR,
+  DOWNLOAD_DIR,
+)
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread
 from lib import server_lib
 from lib.work_file_lib import create_work_files
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
 from lib.app_lib import get_mock_api_data_list
+from lib.decorate import error_catch
 from lib.utils_lib import (
   JsonFormat,
   create_md5,
@@ -20,6 +26,7 @@ from lib.utils_lib import (
   compress_image,
   get_ip_address,
   is_file_request,
+  create_timestamp,
 )
 
 import json
@@ -134,6 +141,26 @@ class MockServer:
       if not os.path.exists(assets_path):
         download_assets.append(asset)
 
+    # 静态资源列表为空
+    if not len(download_assets):
+      print('没有需要下载的静态资源！')
+      return
+
+    download_log_path = '{}{}/{}.json'.format(
+      self.work_dir,
+      DOWNLOAD_DIR,
+      create_timestamp(),
+    )
+
+    # 下载日志
+    download_log = []
+
+    # 写入下载日志
+    @error_catch(error_msg='写入下载日志失败')
+    def white_download_log():
+      with open(download_log_path, 'w', encoding='utf-8') as log_file:
+        log_file.write(JsonFormat.dumps(download_log))
+
     assets_length = len(download_assets)
     for i, asset in enumerate(download_assets):
       client_exit = GLOBALS_CONFIG_MANAGER.get(key='client_exit')
@@ -156,6 +183,15 @@ class MockServer:
         response = requests.get(asset, timeout=30)
         if response.status_code != 200:
           print('下载失败：{}'.format(asset))
+          # 保存下载日志
+          download_log.append({
+            "url": asset,
+            "save_path": assets_path,
+            "file_name": file_name,
+            "success": True,
+            "message": "下载失败! STATUS_CODE:{}".format(response.status_code),
+          })
+          white_download_log()
           continue
         assets_data = response.content
 
@@ -171,9 +207,29 @@ class MockServer:
             quality=80
           )
 
+        # 保存下载日志
+        download_log.append({
+          "url": asset,
+          "save_path": assets_path,
+          "file_name": file_name,
+          "success": True,
+          "message": ""
+        })
+
         time.sleep(0.8)
       except Exception as e:
         print('下载静态资源出错！', e)
+        # 保存下载日志
+        download_log.append({
+          "url": asset,
+          "save_path": assets_path,
+          "file_name": file_name,
+          "success": True,
+          "message": "下载报错! ERROR:{}".format(e),
+        })
+
+      # 写入日志
+      white_download_log()
 
     print('下载静态资源完毕！')
 
