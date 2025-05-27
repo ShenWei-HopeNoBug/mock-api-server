@@ -48,7 +48,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 下载静态资源信号
   downloading_signal = pyqtSignal(str)
   # mock 服务运行信号
-  server_running_signal = pyqtSignal(bool)
+  server_status_signal = pyqtSignal(str)
 
   def __init__(self):
     super().__init__()
@@ -69,10 +69,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.use_history = True
     # 下载静态资源是否压缩图片
     self.compress_image = True
+    # -----------------
     # 静态资源下载状态
+    # READY：待运行
+    # DOWNLOAD：下载中
+    # STOP_WAIT：待停止下载
+    # -----------------
     self.download_status = 'READY'
-    # 服务是否正在运行
-    self.server_running = False
+    # -----------------
+    # mock服务运行状态
+    # READY：待运行
+    # RUNNING：运行中
+    # STOP_WAIT：待停止运行
+    # -----------------
+    self.server_status = 'READY'
     # 服务端口号
     self.server_port = 5000
     # 接口响应延时
@@ -139,7 +149,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   def add_events(self):
     # 监听信号变化
-    self.server_running_signal.connect(self.server_running_change)
+    self.server_status_signal.connect(self.server_status_change)
     self.downloading_signal.connect(self.downloading_change)
     self.catch_server_running_signal.connect(self.catch_server_running_change)
     '''
@@ -222,18 +232,31 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       target.setEnabled(not disabled)
 
   # mock 服务启动状态变化
-  def server_running_change(self, value):
-    if self.server_running == value:
-      return
+  def server_status_change(self, text):
+    self.server_status = text
 
-    self.server_running = value
-    if value:
+    button_text: str = ''
+    disabled: bool = False
+    server_btn_disabled: bool = False
+
+    if text == 'RUNNING':
       button_text = '停止服务'
       disabled = True
-    else:
+      server_btn_disabled = False
+    elif text == 'STOP_WAIT':
+      button_text = '正在停止...'
+      disabled = True
+      server_btn_disabled = True
+    elif text == 'READY':
       button_text = '启动服务'
       disabled = False
+      server_btn_disabled = False
+
+    self.server_status = text
+
     self.serverButton.setText(button_text)
+    self.serverButton.setDisabled(server_btn_disabled)
+
     self.cacheCheckBox.setDisabled(disabled)
     self.serverPortSpinBox.setDisabled(disabled)
     self.responseDelaySpinBox.setDisabled(disabled)
@@ -287,7 +310,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverButton.setDisabled(disabled)
 
   def server_button_click(self):
-    self.stop_server() if self.server_running else self.start_server()
+    if self.server_status == 'READY':
+      self.start_server()
+    elif self.server_status == 'RUNNING':
+      self.stop_server()
     time.sleep(0.5)
 
   def catch_server_button_click(self):
@@ -389,7 +415,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 启动mock服务
   def start_server(self):
-    if self.server_running:
+    # 服务不处于待启动状态，跳过
+    if not self.server_status == 'READY':
       return
 
     # 网络监听端口检查
@@ -414,11 +441,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       name='mock_server',
     )
     server_process.start()
-    self.server_running_signal.emit(True)
+    self.server_status_signal.emit('RUNNING')
 
   # 停止mock服务
+  @create_thread
   def stop_server(self):
-    if not self.server_running:
+    # 服务没在运行中，跳过
+    if not self.server_status == 'RUNNING':
       return
 
     @error_catch(print_error_msg=False)
@@ -426,8 +455,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       """这个请求发送到 mock 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
       requests.get('http://127.0.0.1:{}/system/shutdown'.format(self.server_port))
 
+    self.server_status_signal.emit('STOP_WAIT')
     shutdown()
-    self.server_running_signal.emit(False)
+    time.sleep(2)
+    self.server_status_signal.emit('READY')
 
   # 重写弹窗关闭事件
   def closeEvent(self, event: QCloseEvent):
