@@ -26,6 +26,8 @@ if __name__ == '__main__':
   #   styleSheet = fl.read()
   #   main_window.setStyleSheet(styleSheet)
 
+  # 展示窗口
   main_window.show()
+  # 初始化下窗口
   main_window.init()
   sys.exit(app.exec_())

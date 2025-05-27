@@ -7,7 +7,7 @@ import os
 import time
 import requests
 from config import globals
-from qt_ui.mian_window import Ui_MainWindow
+from qt_ui.main_win.win_ui import Ui_MainWindow
 from module.mock_server import MockServer
 from module.asyncio_mitmproxy_server import start_mitmproxy
 from multiprocessing import Process
@@ -105,6 +105,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.render_menu_bar()
     self.add_events()
 
+  # -----------------------------------
+  # 初始化（窗口实例化后必须手动调用一次）
+  # -----------------------------------
   def init(self):
     # 用户拒绝在历史工作目录创建文件，切到默认工作目录
     if not self.check_and_create_work_files(self.work_dir):
@@ -146,14 +149,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         select_work_dir()
       elif action_name == '打开工作目录':
         open_work_dir()
+      elif action_name == '导出静态资源':
+        self.output_static()
 
     menu_bar = self.menuBar()
     file_menu = menu_bar.addMenu('文件')
     self.file_menu = file_menu
     file_menu.addAction('更换工作目录')
     file_menu.addAction('打开工作目录')
+    file_menu.addAction('导出静态资源')
     file_menu.triggered[QAction].connect(file_menu_action)
 
+  # 绑定窗口事件
   def add_events(self):
     # 监听信号变化
     self.server_status_signal.connect(self.server_status_change)
@@ -223,6 +230,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverWorkDirLineEdit.setText(self.work_dir)
     self.serverWorkDirLineEdit.setToolTip(self.work_dir)
 
+  # 更新文件菜单中按钮的禁用状态
   @error_catch(error_msg='更新【文件】菜单子按钮禁用状态失败')
   def set_file_menu_disabled(self, action_name: str = '', disabled: bool = False):
     if not self.file_menu:
@@ -334,12 +342,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
 
+  # 点击 mock 服务按钮
   def server_button_click(self):
     if self.server_status == 'READY':
       self.start_server()
     elif self.server_status == 'RUNNING':
       self.stop_server()
 
+  # 点击抓包服务按钮
   def catch_server_button_click(self):
     if self.mitmproxy_server_status == 'READY':
       self.start_catch_server()
@@ -368,6 +378,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return True
     else:
       return False
+
+  # 导出静态资源
+  def output_static(self):
+    print('output_static')
 
   # 启动抓包服务
   @create_thread
