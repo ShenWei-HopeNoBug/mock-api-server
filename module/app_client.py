@@ -3,6 +3,8 @@ from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QAction)
 
+from qt_win.output_static_dialog import OutputStaticDialog
+
 import os
 import time
 import requests
@@ -133,7 +135,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 选择工作目录
     def select_work_dir():
-      directory = QFileDialog.getExistingDirectory(self, '选择工作目录', r'./')
+      directory = QFileDialog.getExistingDirectory(
+        self,
+        caption='选择工作目录',
+        directory=r'./',
+      )
       if directory and self.check_and_create_work_files(directory):
         # 更换工作目录后，检查目录文件
         self.work_dir = directory
@@ -382,6 +388,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 导出静态资源
   def output_static(self):
     print('output_static')
+    outputDialog = OutputStaticDialog()
+    outputDialog.exec()
 
   # 启动抓包服务
   @create_thread
