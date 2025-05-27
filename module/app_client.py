@@ -42,7 +42,7 @@ def server_process_start(server_config: dict):
 # app 主窗口
 class MainWindow(QMainWindow, Ui_MainWindow):
   # 抓包服务运行信号
-  catch_server_running_signal = pyqtSignal(bool)
+  mitmproxy_server_status_signal = pyqtSignal(str)
   # 是否追加抓包信号
   use_history_signal = pyqtSignal(bool)
   # 下载静态资源信号
@@ -63,8 +63,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.work_dir = work_dir
     # 抓包服务端口号
     self.catch_server_port = 8080
-    # 抓包服务是否启动
-    self.catch_server_running = False
+    # -----------------
+    # 抓包服务运行状态
+    # READY：待运行
+    # START_WAIT：正在开始
+    # RUNNING：运行中
+    # STOP_WAIT：正在停止
+    # -----------------
+    self.mitmproxy_server_status = 'READY'
     # 是否以追加模式抓包
     self.use_history = True
     # 下载静态资源是否压缩图片
@@ -73,16 +79,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 静态资源下载状态
     # READY：待运行
     # DOWNLOAD：下载中
-    # STOP_WAIT：待停止下载
+    # STOP_WAIT：正在停止
     # -----------------
-    self.download_status = 'READY'
+    self.download_status: str = 'READY'
     # -----------------
     # mock服务运行状态
     # READY：待运行
+    # START_WAIT：正在开始
     # RUNNING：运行中
-    # STOP_WAIT：待停止运行
+    # STOP_WAIT：正在停止
     # -----------------
-    self.server_status = 'READY'
+    self.server_status: str = 'READY'
     # 服务端口号
     self.server_port = 5000
     # 接口响应延时
@@ -151,7 +158,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 监听信号变化
     self.server_status_signal.connect(self.server_status_change)
     self.downloading_signal.connect(self.downloading_change)
-    self.catch_server_running_signal.connect(self.catch_server_running_change)
+    self.mitmproxy_server_status_signal.connect(self.mitmproxy_server_status_change)
     '''
     按钮事件绑定
     '''
@@ -232,9 +239,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       target.setEnabled(not disabled)
 
   # mock 服务启动状态变化
-  def server_status_change(self, text):
-    self.server_status = text
-
+  def server_status_change(self, text: str):
     button_text: str = ''
     disabled: bool = False
     server_btn_disabled: bool = False
@@ -243,6 +248,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       button_text = '停止服务'
       disabled = True
       server_btn_disabled = False
+    elif text == 'START_WAIT':
+      button_text = '正在启动...'
+      disabled = True
+      server_btn_disabled = True
     elif text == 'STOP_WAIT':
       button_text = '正在停止...'
       disabled = True
@@ -267,7 +276,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.catchServerButton.setDisabled(disabled)
 
   # 下载状态变化
-  def downloading_change(self, text):
+  def downloading_change(self, text: str):
     # 下载中
     if text == 'DOWNLOAD':
       download_btn_disabled = False
@@ -291,17 +300,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
 
   # 抓包服务启动状态变化
-  def catch_server_running_change(self, value):
-    if self.catch_server_running == value:
-      return
-    self.catch_server_running = value
-    if value:
+  def mitmproxy_server_status_change(self, text: str):
+    button_text: str = ''
+    disabled: bool = False
+    mitmproxy_btn_disabled: bool = False
+
+    if text == 'RUNNING':
       button_text = '停止抓包服务'
       disabled = True
-    else:
+      mitmproxy_btn_disabled = False
+    elif text == 'START_WAIT':
+      button_text = '正在启动...'
+      disabled = True
+      mitmproxy_btn_disabled = True
+    elif text == 'STOP_WAIT':
+      button_text = '正在停止...'
+      disabled = True
+      mitmproxy_btn_disabled = True
+    elif text == 'READY':
       button_text = '启动抓包服务'
       disabled = False
+      mitmproxy_btn_disabled = False
+
+    self.mitmproxy_server_status = text
+
     self.catchServerButton.setText(button_text)
+    self.catchServerButton.setDisabled(mitmproxy_btn_disabled)
+
     self.catchServerPortSpinBox.setDisabled(disabled)
     self.useHistoryCheckBox.setDisabled(disabled)
     self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
@@ -314,11 +339,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.start_server()
     elif self.server_status == 'RUNNING':
       self.stop_server()
-    time.sleep(0.5)
 
   def catch_server_button_click(self):
-    self.stop_catch_server() if self.catch_server_running else self.start_catch_server()
-    time.sleep(0.5)
+    if self.mitmproxy_server_status == 'READY':
+      self.start_catch_server()
+    elif self.mitmproxy_server_status == 'RUNNING':
+      self.stop_catch_server()
 
   # 检查工作目录文件完整性
   def check_and_create_work_files(self, work_dir=DEFAULT_WORK_DIR):
@@ -344,13 +370,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return False
 
   # 启动抓包服务
+  @create_thread
   def start_catch_server(self):
+    # 抓包服务不是待启动状态，跳过
+    if not self.mitmproxy_server_status == 'READY':
+      return
+
     mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
-      return
-
-    if self.catch_server_running:
       return
 
     # 网络监听端口检查
@@ -377,22 +405,29 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       name='mitmdump_server',
     )
     server_process.start()
-    self.catch_server_running_signal.emit(True)
+    self.mitmproxy_server_status_signal.emit('START_WAIT')
+    time.sleep(3)
+    self.mitmproxy_server_status_signal.emit('RUNNING')
 
   # 停止抓包服务
+  @create_thread
   def stop_catch_server(self):
+    # 抓包服务不在运行中，跳过
+    if not self.mitmproxy_server_status == 'RUNNING':
+      return
+
     mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
       return
 
-    if not self.catch_server_running:
-      return
+    self.mitmproxy_server_status_signal.emit('STOP_WAIT')
     # 设置全局 mitmproxy 服务停止信号
     GLOBALS_CONFIG_MANAGER.set(key='mitmproxy_stop_signal', value=True)
     # 向 mitmproxy 抓包服务发送一个本地请求，触发 addons 脚本内关闭服务事件
     requests.get('http://127.0.0.1:{}/index.html'.format(self.catch_server_port))
-    self.catch_server_running_signal.emit(False)
+    time.sleep(3)
+    self.mitmproxy_server_status_signal.emit('READY')
 
   # 下载静态资源
   @create_thread
@@ -414,6 +449,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.downloading_signal.emit('READY')
 
   # 启动mock服务
+  @create_thread
   def start_server(self):
     # 服务不处于待启动状态，跳过
     if not self.server_status == 'READY':
@@ -440,7 +476,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       args=(server_config,),
       name='mock_server',
     )
+
+    self.server_status_signal.emit('START_WAIT')
     server_process.start()
+    time.sleep(2)
     self.server_status_signal.emit('RUNNING')
 
   # 停止mock服务
