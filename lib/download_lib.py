@@ -50,11 +50,17 @@ def output_static_files(output_dir='./output', output_list=[]):
 
   # 检查并创建导出路径
   check_and_create_dir(save_dir)
+
+  # 待导出文件集合
+  path_set = set()
   for output_data in output_list:
     path = output_data.get('path')
     file_name = output_data.get('file_name', '')
     if not (path and file_name and os.path.exists(path)):
       continue
 
+    path_set.add(path)
+
+  for path in path_set:
     # 复制静态资源到目标文件夹
     shutil.copy(path, save_dir)

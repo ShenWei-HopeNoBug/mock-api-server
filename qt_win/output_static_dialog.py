@@ -1,33 +1,62 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PyQt5.QtCore import Qt, pyqtSignal
 from qt_ui.output_static_win.win_ui import Ui_Dialog
 
 import os
 from config.work_file import (DEFAULT_WORK_DIR, DOWNLOAD_DIR, OUTPUT_DIR)
-from lib.download_lib import get_output_data_list, output_static_files
+from lib.download_lib import (get_output_data_list, output_static_files)
+from lib.decorate import create_thread
 
 
 # 导出静态资源弹窗
 class OutputStaticDialog(QDialog, Ui_Dialog):
+  output_status_signal = pyqtSignal(str)
+  output_dialog_signal = pyqtSignal(str)
+
   def __init__(self, work_dir=DEFAULT_WORK_DIR):
     super().__init__()
     self.work_dir = work_dir
     self.output_dir = r'{}{}'.format(self.work_dir, OUTPUT_DIR)
     self.selected_row = -1
+    # -----------------
+    # 导出状态
+    # READY：待运行
+    # DOING：运行中
+    # -----------------
+    self.output_status = 'READY'
     self.init()
 
   def init(self):
     self.setupUi(self)
+    # 隐藏帮助问号按钮
+    self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
+    self.setWindowTitle('导出静态资源')
     self.browseLineEdit.setText(self.output_dir)
     self.browseLineEdit.setToolTip(self.output_dir)
     self.add_events()
 
   def add_events(self):
+
+    # 点击导出按钮
+    def output_button_click():
+      self.output()
+
+    # 展示提示弹窗
+    def show_info_dialog(message: str = ''):
+      if not message:
+        return
+
+      QMessageBox.information(self, '提示', message)
+
     self.browsePushButton.clicked.connect(self.select_output_dir)
     self.addPushButton.clicked.connect(self.add)
     self.deletePushButton.clicked.connect(self.delete)
-    self.outputPushButton.clicked.connect(self.output)
+    self.outputPushButton.clicked.connect(output_button_click)
     self.downloadLogListWidget.itemClicked.connect(self.select)
+
+    self.output_status_signal.connect(self.output_status_change)
+    self.output_dialog_signal.connect(show_info_dialog)
 
   # 获取下载日志路径列表
   def get_download_log_path_list(self):
@@ -39,6 +68,23 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     log_path_list = list(set(log_path_list))
 
     return log_path_list
+
+  # 导出状态变化
+  def output_status_change(self, text: str):
+    button_text: str = ''
+    disabled: bool = False
+    if text == 'DOING':
+      button_text = '导出中...'
+      disabled = True
+    else:
+      button_text = '导出'
+      disabled = False
+
+    self.output_status = text
+    self.addPushButton.setDisabled(disabled)
+    self.deletePushButton.setDisabled(disabled)
+    self.outputPushButton.setDisabled(disabled)
+    self.outputPushButton.setText(button_text)
 
   # 选择导出目录
   def select_output_dir(self):
@@ -85,7 +131,14 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.downloadLogListWidget.takeItem(self.selected_row)
     self.selected_row = -1
 
+  # 导出静态资源
+  @create_thread
   def output(self):
+    # 非待导出状态，跳过
+    if not self.output_status == 'READY':
+      return
+
+    self.output_status_signal.emit('DOING')
     log_path_list = self.get_download_log_path_list()
 
     # 静态资源路径列表
@@ -94,15 +147,8 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       output_data_list.extend(get_output_data_list(log_path=log_path, work_dir=self.work_dir))
     if len(output_data_list):
       output_static_files(output_dir=self.output_dir, output_list=output_data_list)
-      QMessageBox.information(
-        self,
-        '提示',
-        '静态资源导出完成！'
-      )
-      self.close()
+      self.output_status_signal.emit('READY')
+      self.output_dialog_signal.emit('导出静态资源完成！')
     else:
-      QMessageBox.information(
-        self,
-        '提示',
-        '下载日志没有可导出的静态资源！'
-      )
+      self.output_status_signal.emit('READY')
+      self.output_dialog_signal.emit('解析下载日志文件后，当前没有可导出的静态资源！')
