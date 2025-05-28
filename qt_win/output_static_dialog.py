@@ -25,8 +25,9 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     # 导出状态
     # READY：待运行
     # DOING：运行中
+    # DISABLED：禁用状态
     # -----------------
-    self.output_status = 'READY'
+    self.output_status = 'DISABLED'
     self.init()
 
   def init(self):
@@ -39,10 +40,18 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.add_events()
 
   def add_events(self):
-
     # 点击导出按钮
     def output_button_click():
-      self.output()
+      reply = QMessageBox.question(
+        self,
+        '消息',
+        '确认要开始导出静态资源？',
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.No,
+      )
+
+      if reply == QMessageBox.Yes:
+        self.output()
 
     self.browsePushButton.clicked.connect(self.select_output_dir)
     self.addPushButton.clicked.connect(self.add)
@@ -53,6 +62,10 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.output_status_signal.connect(self.output_status_change)
     self.message_dialog_signal.connect(self.show_message_dialog)
 
+    # 数据初始化
+    self.output_status_signal.emit(self.output_status)
+    self.set_select_row(-1)
+
   # 展示提示弹窗
   def show_message_dialog(self, dialog_type='critical', title='', message: str = ''):
     if not message:
@@ -62,6 +75,11 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       QMessageBox.critical(self, title or '提示', message)
     else:
       QMessageBox.information(self, title or '异常', message)
+
+  # 设置选中索引
+  def set_select_row(self, value: int):
+    self.selected_row = value
+    self.deletePushButton.setDisabled(value == -1)
 
   # 获取下载日志路径列表
   def get_download_log_path_list(self):
@@ -78,17 +96,24 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
   def output_status_change(self, text: str):
     button_text: str = ''
     disabled: bool = False
+    output_btn_disabled: bool = False
     if text == 'DOING':
       button_text = '导出中...'
       disabled = True
+      output_btn_disabled = True
+    elif text == 'DISABLED':
+      button_text = '导出'
+      disabled = False
+      output_btn_disabled = True
     else:
       button_text = '导出'
       disabled = False
+      output_btn_disabled = False
 
     self.output_status = text
     self.addPushButton.setDisabled(disabled)
-    self.deletePushButton.setDisabled(disabled)
-    self.outputPushButton.setDisabled(disabled)
+    self.deletePushButton.setDisabled(disabled or self.selected_row == -1)
+    self.outputPushButton.setDisabled(output_btn_disabled)
     self.outputPushButton.setText(button_text)
 
   # 选择导出目录
@@ -103,8 +128,10 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       self.browseLineEdit.setText(directory)
       self.browseLineEdit.setToolTip(directory)
 
+  # 选中选项
   def select(self):
-    self.selected_row = self.downloadLogListWidget.selectedIndexes()[0].row()
+    index = self.downloadLogListWidget.selectedIndexes()[0].row()
+    self.set_select_row(index)
 
   def add(self):
     directory = os.path.abspath(r'{}{}'.format(self.work_dir, DOWNLOAD_DIR))
@@ -127,6 +154,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.downloadLogListWidget.addItems(add_path_list)
     # 更新显示
     self.downloadLogListWidget.scrollToBottom()
+    self.output_status_signal.emit('READY')
 
   def delete(self):
     # 没有选中项，跳过
@@ -134,7 +162,10 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       return
 
     self.downloadLogListWidget.takeItem(self.selected_row)
-    self.selected_row = -1
+    self.set_select_row(-1)
+    log_path_list = self.get_download_log_path_list()
+    if not len(log_path_list):
+      self.output_status_signal.emit('DISABLED')
 
   # 导出静态资源
   @create_thread
@@ -152,10 +183,11 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       output_data_list.extend(get_output_data_list(log_path=log_path, work_dir=self.work_dir))
     if len(output_data_list):
       output_static_files(output_dir=self.output_dir, output_list=output_data_list)
-      self.output_status_signal.emit('READY')
       self.message_dialog_signal.emit('information', '提示', '导出静态资源完成！')
       # 清空列表
       self.downloadLogListWidget.clear()
+      self.set_select_row(-1)
+      self.output_status_signal.emit('DISABLED')
     else:
       self.output_status_signal.emit('READY')
       self.message_dialog_signal.emit('critical', '异常', '解析下载日志文件后，当前没有可导出的静态资源！')
