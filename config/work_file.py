@@ -38,6 +38,9 @@ STATIC_DIR = r'/static'
 # 下载目录
 DOWNLOAD_DIR = r'/download'
 
+# 导出目录
+OUTPUT_DIR = r'/output'
+
 # -------------------------------------------------------------
 # 系统文件字典
 SYSTEM_FILE_DICT = {
@@ -74,6 +77,10 @@ WORK_DIR_DICT = {
   # 下载目录
   "DOWNLOAD_DIR": {
     "path": DOWNLOAD_DIR
+  },
+  # 导出目录
+  "OUTPUT_DIR": {
+    "path": OUTPUT_DIR
   }
 }
 

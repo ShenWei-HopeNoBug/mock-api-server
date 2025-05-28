@@ -159,6 +159,10 @@ class MockServer:
     # 写入下载日志
     @error_catch(error_msg='写入下载日志失败')
     def white_download_log():
+      # 没有内容不写入
+      if not len(download_log):
+        return
+
       with open(download_log_path, 'w', encoding='utf-8') as log_file:
         log_file.write(JsonFormat.dumps(download_log))
 

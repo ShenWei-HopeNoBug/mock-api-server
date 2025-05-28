@@ -387,9 +387,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 导出静态资源
   def output_static(self):
-    print('output_static')
-    outputDialog = OutputStaticDialog()
-    outputDialog.exec()
+    output_dialog = OutputStaticDialog(work_dir=self.work_dir)
+    output_dialog.exec()
 
   # 启动抓包服务
   @create_thread
