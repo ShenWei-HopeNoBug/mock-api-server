@@ -189,6 +189,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       self.downloadLogListWidget.clear()
       self.set_select_row(-1)
       self.output_status_signal.emit('DISABLED')
+      os.startfile(self.output_dir)
     else:
       self.output_status_signal.emit('READY')
       self.message_dialog_signal.emit('critical', '异常', '解析下载日志文件后，当前没有可导出的静态资源！')
