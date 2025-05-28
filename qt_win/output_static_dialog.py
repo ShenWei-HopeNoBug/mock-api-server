@@ -127,6 +127,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     if directory:
       self.browseLineEdit.setText(directory)
       self.browseLineEdit.setToolTip(directory)
+      self.output_dir = directory
 
   # 选中选项
   def select(self):
