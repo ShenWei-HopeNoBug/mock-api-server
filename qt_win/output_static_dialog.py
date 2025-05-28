@@ -11,8 +11,10 @@ from lib.decorate import create_thread
 
 # 导出静态资源弹窗
 class OutputStaticDialog(QDialog, Ui_Dialog):
+  # 导出状态信号
   output_status_signal = pyqtSignal(str)
-  output_dialog_signal = pyqtSignal(str)
+  # 提示弹窗信号
+  message_dialog_signal = pyqtSignal(str, str, str)
 
   def __init__(self, work_dir=DEFAULT_WORK_DIR):
     super().__init__()
@@ -42,13 +44,6 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     def output_button_click():
       self.output()
 
-    # 展示提示弹窗
-    def show_info_dialog(message: str = ''):
-      if not message:
-        return
-
-      QMessageBox.information(self, '提示', message)
-
     self.browsePushButton.clicked.connect(self.select_output_dir)
     self.addPushButton.clicked.connect(self.add)
     self.deletePushButton.clicked.connect(self.delete)
@@ -56,7 +51,17 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.downloadLogListWidget.itemClicked.connect(self.select)
 
     self.output_status_signal.connect(self.output_status_change)
-    self.output_dialog_signal.connect(show_info_dialog)
+    self.message_dialog_signal.connect(self.show_message_dialog)
+
+  # 展示提示弹窗
+  def show_message_dialog(self, dialog_type='critical', title='', message: str = ''):
+    if not message:
+      return
+
+    if dialog_type == 'critical':
+      QMessageBox.critical(self, title or '提示', message)
+    else:
+      QMessageBox.information(self, title or '异常', message)
 
   # 获取下载日志路径列表
   def get_download_log_path_list(self):
@@ -148,7 +153,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     if len(output_data_list):
       output_static_files(output_dir=self.output_dir, output_list=output_data_list)
       self.output_status_signal.emit('READY')
-      self.output_dialog_signal.emit('导出静态资源完成！')
+      self.message_dialog_signal.emit('information', '提示', '导出静态资源完成！')
     else:
       self.output_status_signal.emit('READY')
-      self.output_dialog_signal.emit('解析下载日志文件后，当前没有可导出的静态资源！')
+      self.message_dialog_signal.emit('critical', '异常', '解析下载日志文件后，当前没有可导出的静态资源！')

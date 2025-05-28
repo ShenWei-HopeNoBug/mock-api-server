@@ -51,6 +51,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   downloading_signal = pyqtSignal(str)
   # mock 服务运行信号
   server_status_signal = pyqtSignal(str)
+  # 提示弹窗信号
+  message_dialog_signal = pyqtSignal(str, str, str)
 
   def __init__(self):
     super().__init__()
@@ -172,6 +174,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.server_status_signal.connect(self.server_status_change)
     self.downloading_signal.connect(self.downloading_change)
     self.mitmproxy_server_status_signal.connect(self.mitmproxy_server_status_change)
+    self.message_dialog_signal.connect(self.show_message_dialog)
     '''
     按钮事件绑定
     '''
@@ -251,6 +254,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     if target:
       target.setEnabled(not disabled)
+
+  # 展示提示弹窗
+  def show_message_dialog(self, dialog_type='critical', title = '', message: str = ''):
+    if not message:
+      return
+
+    if dialog_type == 'critical':
+      QMessageBox.critical(self, title or '提示', message)
+    else:
+      QMessageBox.information(self, title or '异常', message)
 
   # mock 服务启动状态变化
   def server_status_change(self, text: str):
@@ -404,8 +417,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 网络监听端口检查
     if check_local_connection('0.0.0.0', self.catch_server_port):
-      QMessageBox.critical(
-        self,
+      self.message_dialog_signal.emit(
+        'critical',
         '端口检查',
         '{} 端口已被占用，启动抓包服务失败！'.format(self.catch_server_port),
       )
@@ -478,8 +491,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 网络监听端口检查
     if check_local_connection('0.0.0.0', self.server_port):
-      QMessageBox.critical(
-        self,
+      self.message_dialog_signal.emit(
+        'critical',
         '端口检查',
         '{} 端口已被占用，启动 mock 服务失败！'.format(self.server_port),
       )
