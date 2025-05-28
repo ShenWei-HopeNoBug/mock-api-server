@@ -53,7 +53,20 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       if reply == QMessageBox.Yes:
         self.output()
 
+    def clear_btn_click():
+      reply = QMessageBox.question(
+        self,
+        '消息',
+        '确认要清空列表数据？',
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.No,
+      )
+
+      if reply == QMessageBox.Yes:
+        self.clear_list_widget()
+
     self.browsePushButton.clicked.connect(self.select_output_dir)
+    self.clearPushButton.clicked.connect(clear_btn_click)
     self.addPushButton.clicked.connect(self.add)
     self.deletePushButton.clicked.connect(self.delete)
     self.outputPushButton.clicked.connect(output_button_click)
@@ -115,6 +128,12 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.deletePushButton.setDisabled(disabled or self.selected_row == -1)
     self.outputPushButton.setDisabled(output_btn_disabled)
     self.outputPushButton.setText(button_text)
+
+  # 清空列表
+  def clear_list_widget(self):
+    self.downloadLogListWidget.clear()
+    self.set_select_row(-1)
+    self.output_status_signal.emit('DISABLED')
 
   # 选择导出目录
   def select_output_dir(self):
@@ -186,9 +205,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       output_static_files(output_dir=self.output_dir, output_list=output_data_list)
       self.message_dialog_signal.emit('information', '提示', '导出静态资源完成！')
       # 清空列表
-      self.downloadLogListWidget.clear()
-      self.set_select_row(-1)
-      self.output_status_signal.emit('DISABLED')
+      self.clear_list_widget()
       os.startfile(self.output_dir)
     else:
       self.output_status_signal.emit('READY')
