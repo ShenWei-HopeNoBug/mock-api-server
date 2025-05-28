@@ -154,6 +154,8 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       output_static_files(output_dir=self.output_dir, output_list=output_data_list)
       self.output_status_signal.emit('READY')
       self.message_dialog_signal.emit('information', '提示', '导出静态资源完成！')
+      # 清空列表
+      self.downloadLogListWidget.clear()
     else:
       self.output_status_signal.emit('READY')
       self.message_dialog_signal.emit('critical', '异常', '解析下载日志文件后，当前没有可导出的静态资源！')
