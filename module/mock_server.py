@@ -318,8 +318,11 @@ class MockServer:
     root_path = os.path.abspath(self.work_dir)
     static_folder = self.static_url_path.lstrip('/')
     app = Flask(__name__, static_folder=static_folder, static_url_path=self.static_url_path, root_path=root_path)
-    # 配置跨域(这个配置低版本的Flask加不加都一样)
-    CORS(app, resources={r"{}/*".format(self.static_url_path): {"origins": "*"}})
+
+    # 配置跨域(/static静态资源文件夹在低版本的Flask加不加都一样)
+    resources = {
+      r"{}/*".format(self.static_url_path): {"origins": "*"},
+    }
 
     # 静态资源匹配缓存
     static_match_cache = set()
@@ -359,7 +362,14 @@ class MockServer:
       # 配置路由合法性检查
       if not static_route.startswith('/'):
         continue
+
+      # 为静态资源请求路由加跨域头
+      resources[r"{}/*".format(static_route)] = {"origins": "*"}
+      # 创建静态资源请求接口
       app.route('{}/<path:path>'.format(static_route), methods=['GET'])(static_match)
+
+    # 添加跨域头
+    CORS(app, resources=resources)
 
     # 服务进程自杀
     @app.route('{}/shutdown'.format(SYSTEM_ROUTE), methods=['GET'])
