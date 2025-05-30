@@ -256,7 +256,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       target.setEnabled(not disabled)
 
   # 展示提示弹窗
-  def show_message_dialog(self, dialog_type='critical', title = '', message: str = ''):
+  def show_message_dialog(self, dialog_type='critical', title='', message: str = ''):
     if not message:
       return
 

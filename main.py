@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-from module.app_client import MainWindow
 from PyQt5.QtWidgets import QApplication, QMessageBox
+
 import sys
 import multiprocessing
+from lib.splash import StartSplash
+from module.app_client import MainWindow
 
 
 def exception_handler(exception_type, value, traceback):
@@ -18,16 +20,21 @@ if __name__ == '__main__':
   app = QApplication(sys.argv)
   # 全局异常捕获
   sys.excepthook = exception_handler
+
+  start_splash = StartSplash()
+  # 启动动画对象
+  start_splash.show()
+  # 防止启动动画卡住主进程
+  app.processEvents()
+
   # app 主窗口
   main_window = MainWindow()
-
-  # 引入QSS样式文件
-  # with open('./qt_style/index.qss', 'r', encoding='utf-8') as fl:
-  #   styleSheet = fl.read()
-  #   main_window.setStyleSheet(styleSheet)
-
   # 展示窗口
   main_window.show()
-  # 初始化下窗口
+  # 结束启动动画
+  start_splash.finish(main_window)
+  start_splash = None
+  # 初始化
   main_window.init()
+
   sys.exit(app.exec_())
