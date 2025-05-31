@@ -150,6 +150,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 更新工作目录历史记录
         HISTORY_CONFIG_MANAGER.set(key='work_dir', value=self.work_dir)
 
+    def open_preview_html():
+      result = open_mitmproxy_preview_html(root_dir='.', work_dir=self.work_dir)
+      # 打开失败
+      if not result:
+        QMessageBox.critical(self, '异常', '打开抓包数据预览html失败！')
+
     # 匹配菜单 action 类型
     def file_menu_action(action):
       action_name = action.text()
@@ -159,6 +165,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         open_work_dir()
       elif action_name == '导出静态资源':
         self.output_static()
+      elif action_name == '查看抓包数据':
+        open_preview_html()
 
     menu_bar = self.menuBar()
     file_menu = menu_bar.addMenu('文件')
@@ -166,6 +174,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     file_menu.addAction('更换工作目录')
     file_menu.addAction('打开工作目录')
     file_menu.addAction('导出静态资源')
+    file_menu.addAction('查看抓包数据')
     file_menu.triggered[QAction].connect(file_menu_action)
 
   # 绑定窗口事件
@@ -184,12 +193,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def use_history_checkbox_click():
       self.use_history = not self.use_history
-
-    def data_preview_button_click():
-      result = open_mitmproxy_preview_html(root_dir='.', work_dir=self.work_dir)
-      # 打开失败
-      if not result:
-        QMessageBox.critical(self, '异常', '打开抓包数据预览html失败！')
 
     def cache_checkbox_click():
       self.cache = not self.cache
@@ -223,8 +226,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 抓包是否采用追加模式
     self.useHistoryCheckBox.setChecked(self.use_history)
     self.useHistoryCheckBox.clicked.connect(use_history_checkbox_click)
-    # 打开抓包数据预览html
-    self.dataPreviewButton.clicked.connect(data_preview_button_click)
     # 压缩静态资源按钮
     self.compressCheckBox.setChecked(self.compress_image)
     self.compressCheckBox.clicked.connect(compress_image_button_click)
@@ -357,7 +358,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.catchServerPortSpinBox.setDisabled(disabled)
     self.useHistoryCheckBox.setDisabled(disabled)
     self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
-    self.dataPreviewButton.setDisabled(disabled)
+    self.set_file_menu_disabled(action_name='查看抓包数据', disabled=disabled)
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
 

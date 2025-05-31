@@ -4,10 +4,10 @@ from PyQt5.QtWidgets import QApplication, QMessageBox
 import sys
 import multiprocessing
 from lib.splash import StartSplash
-from module.app_client import MainWindow
+from qt_win.app import MainWindow
 
 
-def exception_handler(exception_type, value, traceback):
+def exception_handler(exception_type, value):
   """全局异常处理器"""
   # 显示异常信息的对话框
   QMessageBox.critical(None, "程序异常", f"发生异常：{value}")
