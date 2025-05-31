@@ -18,8 +18,8 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
 
   def __init__(self, work_dir=DEFAULT_WORK_DIR):
     super().__init__()
-    self.work_dir = work_dir
-    self.output_dir = r'{}{}'.format(self.work_dir, OUTPUT_DIR)
+    self.work_dir = os.path.abspath(work_dir)
+    self.output_dir = os.path.abspath(r'{}{}'.format(self.work_dir, OUTPUT_DIR))
     self.selected_row = -1
     # -----------------
     # 导出状态
@@ -206,7 +206,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       self.message_dialog_signal.emit('information', '提示', '导出静态资源完成！')
       # 清空列表
       self.clear_list_widget()
-      os.startfile(self.output_dir)
+      os.startfile(os.path.abspath(self.output_dir))
     else:
       self.output_status_signal.emit('READY')
       self.message_dialog_signal.emit('critical', '异常', '解析下载日志文件后，当前没有可导出的静态资源！')
