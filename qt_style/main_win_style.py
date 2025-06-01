@@ -35,7 +35,7 @@ window = '''
 
   QLineEdit{
     background-color:rgb(255, 248, 225);
-    border-radius:8px;
+    border-radius:6px;
     border:none;
     padding:2px 8px;
   }

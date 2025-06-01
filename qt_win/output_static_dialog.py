@@ -35,6 +35,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
 
   def init(self):
     self.browseLineEdit.setText(self.output_dir)
+    self.browseLineEdit.setCursorPosition(0)
     self.browseLineEdit.setToolTip(self.output_dir)
     self.add_events()
 
@@ -154,6 +155,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
 
     if directory:
       self.browseLineEdit.setText(directory)
+      self.browseLineEdit.setCursorPosition(0)
       self.browseLineEdit.setToolTip(directory)
       self.output_dir = directory
 

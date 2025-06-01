@@ -151,6 +151,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 更换工作目录后，检查目录文件
         self.work_dir = directory
         self.serverWorkDirLineEdit.setText(self.work_dir)
+        self.serverWorkDirLineEdit.setCursorPosition(0)
         self.serverWorkDirLineEdit.setToolTip(self.work_dir)
         # 更新工作目录历史记录
         HISTORY_CONFIG_MANAGER.set(key='work_dir', value=self.work_dir)
@@ -243,6 +244,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 选择服务的工作目录
     self.serverWorkDirLineEdit.setText(self.work_dir)
+    self.serverWorkDirLineEdit.setCursorPosition(0)
     self.serverWorkDirLineEdit.setToolTip(self.work_dir)
 
   # 更新文件菜单中按钮的禁用状态

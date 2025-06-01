@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(580, 279)
+        Dialog.resize(580, 289)
         font = QtGui.QFont()
         font.setPointSize(9)
         Dialog.setFont(font)
@@ -43,7 +43,7 @@ class Ui_Dialog(object):
         self.outputPushButton.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.outputPushButton.setObjectName("outputPushButton")
         self.downloadLogListWidget = QtWidgets.QListWidget(Dialog)
-        self.downloadLogListWidget.setGeometry(QtCore.QRect(20, 70, 431, 191))
+        self.downloadLogListWidget.setGeometry(QtCore.QRect(20, 70, 431, 201))
         font = QtGui.QFont()
         font.setPointSize(10)
         self.downloadLogListWidget.setFont(font)
