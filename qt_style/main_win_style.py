@@ -9,7 +9,7 @@ window = '''
   }
   
   QMenuBar::item {
-    padding:4px 10px;
+    padding:3px 8px;
     border-radius:4px;
   }
   
@@ -45,7 +45,7 @@ window = '''
   #serverButton
   {
     background-color:rgb(250, 250, 250);
-    border-radius:10px;
+    border-radius:6px;
     border:1px solid skyblue;
     padding:4px 8px;
     cursor:pointer;

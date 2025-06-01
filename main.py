@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtCore import Qt
 
 import sys
 import multiprocessing
@@ -17,6 +19,8 @@ def exception_handler(exception_type, value):
 if __name__ == '__main__':
   # 防止窗口开进程新打开个 GUI 窗口
   multiprocessing.freeze_support()
+  # 禁止屏幕设置了缩放导致显示不一致
+  QGuiApplication.setAttribute(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
   app = QApplication(sys.argv)
   # 全局异常捕获
   sys.excepthook = exception_handler
