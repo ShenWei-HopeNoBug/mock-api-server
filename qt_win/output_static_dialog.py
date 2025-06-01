@@ -8,6 +8,8 @@ from config.work_file import (DEFAULT_WORK_DIR, DOWNLOAD_DIR, OUTPUT_DIR)
 from lib.download_lib import (get_output_data_list, output_static_files)
 from lib.decorate import create_thread
 
+from qt_style import output_static_win_style
+
 
 # 导出静态资源弹窗
 class OutputStaticDialog(QDialog, Ui_Dialog):
@@ -28,16 +30,22 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     # DISABLED：禁用状态
     # -----------------
     self.output_status = 'DISABLED'
+    self.init_ui()
     self.init()
 
   def init(self):
-    self.setupUi(self)
-    # 隐藏帮助问号按钮
-    self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
-    self.setWindowTitle('导出静态资源')
     self.browseLineEdit.setText(self.output_dir)
     self.browseLineEdit.setToolTip(self.output_dir)
     self.add_events()
+
+  def init_ui(self):
+    self.setupUi(self)
+    self.setFixedSize(self.width(), self.height())
+    self.setWindowOpacity(0.95)
+    self.setStyleSheet(output_static_win_style.window)
+    # 隐藏帮助问号按钮
+    self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
+    self.setWindowTitle('导出静态资源')
 
   def add_events(self):
     # 点击导出按钮
@@ -132,6 +140,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
   # 清空列表
   def clear_list_widget(self):
     self.downloadLogListWidget.clear()
+    self.downloadLogListWidget.clearSelection()
     self.set_select_row(-1)
     self.output_status_signal.emit('DISABLED')
 
@@ -184,6 +193,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.downloadLogListWidget.takeItem(self.selected_row)
     self.set_select_row(-1)
     log_path_list = self.get_download_log_path_list()
+    self.downloadLogListWidget.clearSelection()
     if not len(log_path_list):
       self.output_status_signal.emit('DISABLED')
 

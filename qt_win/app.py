@@ -21,6 +21,8 @@ from config.work_file import DEFAULT_WORK_DIR
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
 import ENV
 
+from qt_style import main_win_style
+
 
 # mock 服务进程启动
 def server_process_start(server_config: dict):
@@ -126,6 +128,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
     self.setWindowTitle('mock server {}'.format(globals.version))
+    self.setWindowOpacity(0.95)
+    self.setStyleSheet(main_win_style.window)
 
   # 渲染菜单栏
   def render_menu_bar(self):

@@ -54,6 +54,7 @@ class Ui_Dialog(object):
         font = QtGui.QFont()
         font.setPointSize(12)
         self.browsePushButton.setFont(font)
+        self.browsePushButton.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.browsePushButton.setObjectName("browsePushButton")
         self.browseLineEdit = QtWidgets.QLineEdit(Dialog)
         self.browseLineEdit.setEnabled(False)
@@ -69,6 +70,7 @@ class Ui_Dialog(object):
         font = QtGui.QFont()
         font.setPointSize(12)
         self.clearPushButton.setFont(font)
+        self.clearPushButton.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self.clearPushButton.setObjectName("clearPushButton")
 
         self.retranslateUi(Dialog)
