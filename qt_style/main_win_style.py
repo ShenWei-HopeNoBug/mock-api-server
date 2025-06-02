@@ -48,7 +48,6 @@ window = '''
     border-radius:6px;
     border:1px solid skyblue;
     padding:4px 8px;
-    cursor:pointer;
   }
 
   #catchServerButton:hover,
