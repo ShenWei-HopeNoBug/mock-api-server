@@ -5,12 +5,22 @@ from PyQt5.QtCore import Qt
 import time
 from lib.decorate import create_thread
 
+splash_style = '''
+  QSplashScreen{
+    background-color:rgb(255, 224, 178);
+    font-size:12px;
+  }
+'''
+
+
 # 启动动画
 class StartSplash:
   def __init__(self):
     self.splash = QSplashScreen()
     self.percent = 0
     self.finished = False
+
+    self.splash.setStyleSheet(splash_style)
 
   def show(self):
     self.splash.show()

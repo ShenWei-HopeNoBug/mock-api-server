@@ -85,6 +85,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.message_dialog_signal.connect(self.show_message_dialog)
 
     # 数据初始化
+    self.clearPushButton.setDisabled(True)
     self.output_status_signal.emit(self.output_status)
     self.set_select_row(-1)
 
@@ -144,6 +145,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.downloadLogListWidget.clearSelection()
     self.set_select_row(-1)
     self.output_status_signal.emit('DISABLED')
+    self.clearPushButton.setDisabled(True)
 
   # 选择导出目录
   def select_output_dir(self):
@@ -186,6 +188,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     # 更新显示
     self.downloadLogListWidget.scrollToBottom()
     self.output_status_signal.emit('READY')
+    self.clearPushButton.setDisabled(False)
 
   def delete(self):
     # 没有选中项，跳过
@@ -198,6 +201,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.downloadLogListWidget.clearSelection()
     if not len(log_path_list):
       self.output_status_signal.emit('DISABLED')
+      self.clearPushButton.setDisabled(True)
 
   # 导出静态资源
   @create_thread

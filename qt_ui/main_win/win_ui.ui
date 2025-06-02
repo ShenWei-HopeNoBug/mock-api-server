@@ -474,6 +474,12 @@
       <property name="text">
        <string>以追加模式抓取</string>
       </property>
+      <property name="iconSize">
+       <size>
+        <width>10</width>
+        <height>10</height>
+       </size>
+      </property>
      </widget>
     </item>
    </layout>
@@ -483,7 +489,7 @@
     <rect>
      <x>30</x>
      <y>200</y>
-     <width>160</width>
+     <width>201</width>
      <height>41</height>
     </rect>
    </property>
@@ -506,6 +512,12 @@
       </property>
       <property name="text">
        <string>下载静态资源自动压缩图片</string>
+      </property>
+      <property name="iconSize">
+       <size>
+        <width>10</width>
+        <height>10</height>
+       </size>
       </property>
      </widget>
     </item>
@@ -539,6 +551,12 @@
       </property>
       <property name="text">
        <string>缓存模式启动</string>
+      </property>
+      <property name="iconSize">
+       <size>
+        <width>10</width>
+        <height>10</height>
+       </size>
       </property>
      </widget>
     </item>

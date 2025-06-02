@@ -140,22 +140,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
       os.startfile(os.path.abspath(self.work_dir))
 
-    # 选择工作目录
-    def select_work_dir():
-      directory = QFileDialog.getExistingDirectory(
-        self,
-        caption='选择工作目录',
-        directory=r'./',
-      )
-      if directory and self.check_and_create_work_files(directory):
-        # 更换工作目录后，检查目录文件
-        self.work_dir = directory
-        self.serverWorkDirLineEdit.setText(self.work_dir)
-        self.serverWorkDirLineEdit.setCursorPosition(0)
-        self.serverWorkDirLineEdit.setToolTip(self.work_dir)
-        # 更新工作目录历史记录
-        HISTORY_CONFIG_MANAGER.set(key='work_dir', value=self.work_dir)
-
     def open_preview_html():
       result = open_mitmproxy_preview_html(root_dir='.', work_dir=self.work_dir)
       # 打开失败
@@ -166,7 +150,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def file_menu_action(action):
       action_name = action.text()
       if action_name == '更换工作目录':
-        select_work_dir()
+        self.select_work_dir()
       elif action_name == '打开工作目录':
         open_work_dir()
       elif action_name == '导出静态资源':
@@ -272,6 +256,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       QMessageBox.critical(self, title or '提示', message)
     else:
       QMessageBox.information(self, title or '异常', message)
+
+  # 选择工作目录
+  def select_work_dir(self):
+    directory = QFileDialog.getExistingDirectory(
+      self,
+      caption='选择工作目录',
+      directory=r'./',
+    )
+    if directory and self.check_and_create_work_files(directory):
+      # 更换工作目录后，检查目录文件
+      self.work_dir = directory
+      self.serverWorkDirLineEdit.setText(self.work_dir)
+      self.serverWorkDirLineEdit.setCursorPosition(0)
+      self.serverWorkDirLineEdit.setToolTip(self.work_dir)
+      # 更新工作目录历史记录
+      HISTORY_CONFIG_MANAGER.set(key='work_dir', value=self.work_dir)
 
   # mock 服务启动状态变化
   def server_status_change(self, text: str):
@@ -409,7 +409,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 导出静态资源
   def output_static(self):
     output_dialog = OutputStaticDialog(work_dir=self.work_dir)
-    output_dialog.exec()
+    output_dialog.exec_()
 
   # 启动抓包服务
   @create_thread
