@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QAction)
 
 from qt_win.output_static_dialog import OutputStaticDialog
 from qt_win.about_dialog import AboutDialog
+from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
 
 import os
 import time
@@ -19,7 +20,7 @@ from lib.utils_lib import check_local_connection
 from lib.work_file_lib import (check_work_files, create_work_files)
 from lib.app_lib import open_mitmproxy_preview_html
 from config.work_file import DEFAULT_WORK_DIR
-from config.menu import (FILE, HELP)
+from config.menu import (FILE, EDIT, HELP)
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
 import ENV
 
@@ -129,7 +130,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def init_ui(self):
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
-    self.setWindowTitle('mock server {}'.format(globals.version))
+    self.setWindowTitle('Mock Server {}'.format(globals.version))
     self.setWindowOpacity(0.95)
     self.setStyleSheet(main_win_style.window)
 
@@ -176,15 +177,31 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     file_menu.triggered[QAction].connect(file_menu_action)
 
+    # ---------------------
+    # 编辑菜单相关初始化
+    # ---------------------
+    def edit_menu_action(action):
+      action_name = action.text()
+      if action_name == EDIT.MITMPROXY_EDIT:
+        mitmproxy_config_dialog = MitmproxyConfigDialog()
+        mitmproxy_config_dialog.exec_()
+
+    edit_menu = menu_bar.addMenu(EDIT.MENU_NAME)
+    # 批量添加菜单项
+    for name in EDIT.ACTION_NAME_LIST:
+      edit_menu.addAction(name)
+
+    edit_menu.triggered[QAction].connect(edit_menu_action)
+
+    # ---------------------
+    # 帮助菜单相关初始化
+    # ---------------------
     def help_menu_action(action):
       action_name = action.text()
       if action_name == HELP.ABOUT:
         about_dialog = AboutDialog()
         about_dialog.exec_()
 
-    # ---------------------
-    # 帮助菜单相关初始化
-    # ---------------------
     help_menu = menu_bar.addMenu(HELP.MENU_NAME)
     # 批量添加菜单项
     for name in HELP.ACTION_NAME_LIST:
