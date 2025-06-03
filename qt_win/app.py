@@ -23,7 +23,7 @@ from config.menu import (FILE, HELP)
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
 import ENV
 
-from qt_style import main_win_style
+from qt_ui.main_win import main_win_style
 
 
 # mock 服务进程启动

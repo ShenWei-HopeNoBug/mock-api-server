@@ -4,7 +4,8 @@ from PyQt5.QtCore import Qt
 from qt_ui.about_win.win_ui import Ui_Dialog
 import ENV
 
-from qt_style import about_win_style
+from qt_ui.about_win import about_win_style
+
 
 # 应用信息弹窗
 class AboutDialog(QDialog, Ui_Dialog):

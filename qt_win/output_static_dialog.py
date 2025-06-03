@@ -8,7 +8,7 @@ from config.work_file import (DEFAULT_WORK_DIR, DOWNLOAD_DIR, OUTPUT_DIR)
 from lib.download_lib import (get_output_data_list, output_static_files)
 from lib.decorate import create_thread
 
-from qt_style import output_static_win_style
+from qt_ui.output_static_win import output_static_win_style
 
 
 # 导出静态资源弹窗
