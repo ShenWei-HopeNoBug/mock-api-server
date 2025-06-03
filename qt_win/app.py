@@ -18,6 +18,7 @@ from lib.utils_lib import check_local_connection
 from lib.work_file_lib import (check_work_files, create_work_files)
 from lib.app_lib import open_mitmproxy_preview_html
 from config.work_file import DEFAULT_WORK_DIR
+from config.MENU import FILE
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
 import ENV
 
@@ -149,22 +150,25 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 匹配菜单 action 类型
     def file_menu_action(action):
       action_name = action.text()
-      if action_name == '更换工作目录':
+      if action_name == FILE.CHANGE_WORK_DIR:
+        # 更换工作目录
         self.select_work_dir()
-      elif action_name == '打开工作目录':
+      elif action_name == FILE.OPEN_WORK_DIR:
+        # 打开工作目录
         open_work_dir()
-      elif action_name == '导出静态资源':
+      elif action_name == FILE.OUTPUT_STATIC_FILE:
+        # 导出静态资源
         self.output_static()
-      elif action_name == '查看抓包数据':
+      elif action_name == FILE.MITMPROXY_DATA_PREVIEW:
+        # 查看抓包数据
         open_preview_html()
 
     menu_bar = self.menuBar()
-    file_menu = menu_bar.addMenu('文件')
+    file_menu = menu_bar.addMenu(FILE.MENU_NAME)
     self.file_menu = file_menu
-    file_menu.addAction('更换工作目录')
-    file_menu.addAction('打开工作目录')
-    file_menu.addAction('导出静态资源')
-    file_menu.addAction('查看抓包数据')
+    # 批量添加菜单项
+    for name in FILE.MENU_ITEM_LIST:
+      file_menu.addAction(name)
     file_menu.triggered[QAction].connect(file_menu_action)
 
   # 绑定窗口事件
@@ -306,7 +310,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.responseDelaySpinBox.setDisabled(disabled)
     self.staticLoadSpeedSpinBox.setDisabled(disabled)
     self.cacheCheckBox.setDisabled(disabled)
-    self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
+    self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
     # mock 服务启动时禁止启动抓包服务
     self.catchServerButton.setDisabled(disabled)
 
@@ -332,7 +336,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticDownloadButton.setText(button_text)
     self.staticDownloadButton.setDisabled(download_btn_disabled)
     self.compressCheckBox.setDisabled(disabled)
-    self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
+    self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
 
   # 抓包服务启动状态变化
   def mitmproxy_server_status_change(self, text: str):
@@ -364,8 +368,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     self.catchServerPortSpinBox.setDisabled(disabled)
     self.useHistoryCheckBox.setDisabled(disabled)
-    self.set_file_menu_disabled(action_name='更换工作目录', disabled=disabled)
-    self.set_file_menu_disabled(action_name='查看抓包数据', disabled=disabled)
+    self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
+    self.set_file_menu_disabled(action_name=FILE.MITMPROXY_DATA_PREVIEW, disabled=disabled)
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
 

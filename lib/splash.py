@@ -23,8 +23,8 @@ class StartSplash:
     self.splash.setStyleSheet(splash_style)
 
   def show(self):
-    self.splash.show()
     self.show_percent(self.percent)
+    self.splash.show()
     self.start_percent_timer()
 
   def finish(self, win):
