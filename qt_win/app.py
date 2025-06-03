@@ -18,7 +18,7 @@ from lib.utils_lib import check_local_connection
 from lib.work_file_lib import (check_work_files, create_work_files)
 from lib.app_lib import open_mitmproxy_preview_html
 from config.work_file import DEFAULT_WORK_DIR
-from config.MENU import FILE
+from config.menu import (FILE, HELP)
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
 import ENV
 
@@ -164,12 +164,35 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         open_preview_html()
 
     menu_bar = self.menuBar()
+    # ---------------------
+    # 文件菜单相关初始化
+    # ---------------------
     file_menu = menu_bar.addMenu(FILE.MENU_NAME)
     self.file_menu = file_menu
     # 批量添加菜单项
-    for name in FILE.MENU_ITEM_LIST:
+    for name in FILE.ACTION_NAME_LIST:
       file_menu.addAction(name)
+
     file_menu.triggered[QAction].connect(file_menu_action)
+
+    def help_menu_action(action):
+      action_name = action.text()
+      if action_name == HELP.ABOUT:
+        QMessageBox.information(
+          self,
+          '应用信息',
+          '版本号：{}'.format(ENV.VERSION)
+        )
+
+    # ---------------------
+    # 帮助菜单相关初始化
+    # ---------------------
+    help_menu = menu_bar.addMenu(HELP.MENU_NAME)
+    # 批量添加菜单项
+    for name in HELP.ACTION_NAME_LIST:
+      help_menu.addAction(name)
+
+    help_menu.triggered[QAction].connect(help_menu_action)
 
   # 绑定窗口事件
   def add_events(self):
@@ -442,7 +465,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       "port": self.catch_server_port,
       "work_dir": self.work_dir,
       "use_history": self.use_history,
-      "mitmproxy_log": ENV.mitmproxy_log,
+      "mitmproxy_log": ENV.MITMPROXY_LOG,
     }
 
     server_process = Process(

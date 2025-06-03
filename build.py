@@ -7,10 +7,13 @@ from lib.utils_lib import create_timestamp
 
 
 # 设置环境变量
-def set_env_params(mitmproxy_log=False):
+def set_env_params(mitmproxy_log=True, version=globals.version):
   with open('./ENV.py', 'w', encoding='utf-8') as fl:
-    data = 'mitmproxy_log = {}\n'.format(mitmproxy_log)
-    print('写入环境变量：', data)
+    data = '# -*- coding: utf-8 -*-\nMITMPROXY_LOG = {}\nVERSION = \'{}\'\n'.format(
+      mitmproxy_log,
+      version,
+    )
+    print('写入环境变量：\n', data)
     fl.write(data)
 
 
@@ -26,6 +29,8 @@ def app_build(window=False, timestamp=''):
   version = globals.version
   win_ext = '.win' if window else ''
   time_ext = '.{}'.format(timestamp) if timestamp else ''
+  # 版本tag
+  app_version_tag = '{}-{}'.format(version, timestamp) if timestamp else version
   app_name = 'mockServer{}{}-{}'.format(win_ext, time_ext, version)
   args = [
     "pyinstaller",
@@ -39,7 +44,7 @@ def app_build(window=False, timestamp=''):
     args.append("-w")
 
   # 设置下环境变量
-  set_env_params(mitmproxy_log=window)
+  set_env_params(mitmproxy_log=window, version=app_version_tag)
 
   # 开始打包
   subprocess.run(args)
@@ -55,8 +60,8 @@ def app_build(window=False, timestamp=''):
     shutil.rmtree(build_tmp_dir)
     print('删除文件夹：{}'.format(build_tmp_dir))
 
-  # 恢复到默认状态
-  set_env_params(mitmproxy_log=True)
+  # 环境变量恢复到默认状态
+  set_env_params()
 
   return {
     "app_name": app_name,
@@ -97,5 +102,7 @@ def batch_build():
 if __name__ == '__main__':
   # 批量打包
   batch_build()
+
   # 调试打包
-  # app_build(window=True)
+  # current = create_timestamp('%Y%m%d%H%M%S')
+  # app_build(window=True, timestamp=current)
