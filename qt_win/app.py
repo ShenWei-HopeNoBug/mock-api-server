@@ -4,6 +4,7 @@ from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QAction)
 
 from qt_win.output_static_dialog import OutputStaticDialog
+from qt_win.about_dialog import AboutDialog
 
 import os
 import time
@@ -178,11 +179,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def help_menu_action(action):
       action_name = action.text()
       if action_name == HELP.ABOUT:
-        QMessageBox.information(
-          self,
-          '应用信息',
-          '版本号：{}'.format(ENV.VERSION)
-        )
+        about_dialog = AboutDialog()
+        about_dialog.exec_()
 
     # ---------------------
     # 帮助菜单相关初始化
