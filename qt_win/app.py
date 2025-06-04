@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QAction)
 from qt_win.output_static_dialog import OutputStaticDialog
 from qt_win.about_dialog import AboutDialog
 from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
+from qt_win.server_config_dialog import ServerConfigDialog
 
 import os
 import time
@@ -183,8 +184,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def edit_menu_action(action):
       action_name = action.text()
       if action_name == EDIT.MITMPROXY_EDIT:
-        mitmproxy_config_dialog = MitmproxyConfigDialog()
+        mitmproxy_config_dialog = MitmproxyConfigDialog(work_dir=self.work_dir)
         mitmproxy_config_dialog.exec_()
+      elif action_name == EDIT.SERVER_EDIT:
+        server_config_dialog = ServerConfigDialog(work_dir=self.work_dir)
+        server_config_dialog.exec_()
 
     edit_menu = menu_bar.addMenu(EDIT.MENU_NAME)
     # 批量添加菜单项

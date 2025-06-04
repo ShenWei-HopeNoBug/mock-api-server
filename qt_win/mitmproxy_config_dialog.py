@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import QDialog, QMessageBox
 from PyQt5.QtCore import Qt
 
 import os
+import copy
 from lib.utils_lib import ConfigFileManager
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, MITMPROXY_CONFIG_PATH)
 from qt_win.text_input_dialog import TextInputDialog
@@ -17,8 +18,8 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
     super().__init__()
     # 当前配置文件地址
     mitmproxy_config_path = os.path.join(r'{}{}'.format(work_dir, MITMPROXY_CONFIG_PATH))
-    init_config = WORK_FILE_DICT.get('MITMPROXY_CONFIG')
-    init_config['path'] = mitmproxy_config_path
+    mitmproxy_config = WORK_FILE_DICT.get('MITMPROXY_CONFIG', {})
+    init_config = copy.deepcopy(mitmproxy_config.get("default", {}))
     mitmproxy_config_manager = ConfigFileManager(
       path=mitmproxy_config_path,
       config=init_config,
