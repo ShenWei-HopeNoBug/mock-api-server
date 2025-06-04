@@ -38,7 +38,10 @@ def get_output_data_list(log_path: str, work_dir: str = '.'):
 
 
 @error_catch(error_msg='导出静态资源失败', error_return=[])
-def output_static_files(output_dir='./output', output_list=[]):
+def output_static_files(output_dir='./output', output_list=None):
+  if output_list is None:
+    output_list = []
+
   if not len(output_list):
     return
 

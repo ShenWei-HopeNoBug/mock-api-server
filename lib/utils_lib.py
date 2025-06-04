@@ -147,9 +147,9 @@ def compress_image(input_path, output_path, quality=80):
 
 # 配置文件管理器
 class ConfigFileManager:
-  def __init__(self, path: str, config: dict = {}):
+  def __init__(self, path: str, config: dict = None):
     self.path = path
-    self.config = copy.deepcopy(config)
+    self.config = copy.deepcopy(config or {})
 
   def init(self, replace: bool = False):
     work_dir = os.path.dirname(self.path)

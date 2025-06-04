@@ -27,7 +27,9 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
 
     # 抓包配置文件读写管理器
     self.mitmproxy_config_manager = mitmproxy_config_manager
+    # http_path 列表选中行
     self.http_path_select_row: int = -1
+    # static_path 列表选中行
     self.static_path_select_row: int = -1
     self.edit_text = ''
 
@@ -43,8 +45,8 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
     # 隐藏帮助问号按钮
     self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
     self.setWindowTitle('抓包配置')
-    self.httpPathLabel.setToolTip('常规http请求链接中如果包含配置字符，该请求就会被抓取')
-    self.staticPathLabel.setToolTip('静态资源请求链接中如果包含配置字符，该请求就会被抓取')
+    self.httpPathLabel.setToolTip('常规http请求链接中如果包含配置字符串，该请求就会被抓取')
+    self.staticPathLabel.setToolTip('静态资源请求链接中如果包含配置字符串，该请求就会被抓取')
 
   def init(self):
     self.refresh_http_path_list()
@@ -85,6 +87,7 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
     index = self.staticPathListWidget.selectedIndexes()[0].row()
     self.static_path_select_row = index
 
+  # 设置编辑文本数据
   def set_edit_text(self, text: str = ''):
     # 去除左右两边的空白字符
     self.edit_text = text.strip()
