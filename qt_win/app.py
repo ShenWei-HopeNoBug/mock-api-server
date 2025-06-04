@@ -110,6 +110,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.cache = False
     # 文件菜单对象
     self.file_menu = None
+    # 编辑菜单对象
+    self.edit_menu = None
 
     self.init_ui()
     self.render_menu_bar()
@@ -191,6 +193,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         server_config_dialog.exec_()
 
     edit_menu = menu_bar.addMenu(EDIT.MENU_NAME)
+    self.edit_menu = edit_menu
     # 批量添加菜单项
     for name in EDIT.ACTION_NAME_LIST:
       edit_menu.addAction(name)
@@ -293,6 +296,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if target:
       target.setEnabled(not disabled)
 
+  # 更新编辑菜单中按钮的禁用状态
+  @error_catch(error_msg='更新【文件】菜单子按钮禁用状态失败')
+  def set_edit_menu_disabled(self, action_name: str = '', disabled: bool = False):
+    if not self.edit_menu:
+      return
+
+    actions = self.edit_menu.actions()
+    target = None
+    for action in actions:
+      if action.text() == action_name:
+        target = action
+        break
+
+    if target:
+      target.setEnabled(not disabled)
+
   # 展示提示弹窗
   def show_message_dialog(self, dialog_type='critical', title='', message: str = ''):
     if not message:
@@ -353,6 +372,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticLoadSpeedSpinBox.setDisabled(disabled)
     self.cacheCheckBox.setDisabled(disabled)
     self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
+    self.set_edit_menu_disabled(action_name=EDIT.SERVER_EDIT, disabled=disabled)
     # mock 服务启动时禁止启动抓包服务
     self.catchServerButton.setDisabled(disabled)
 
@@ -412,6 +432,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.useHistoryCheckBox.setDisabled(disabled)
     self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
     self.set_file_menu_disabled(action_name=FILE.MITMPROXY_DATA_PREVIEW, disabled=disabled)
+    self.set_edit_menu_disabled(action_name=EDIT.MITMPROXY_EDIT, disabled=disabled)
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
 

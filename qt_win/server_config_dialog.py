@@ -61,20 +61,24 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     self.deleteFileTypePushButton.clicked.connect(self.delete_file_type)
     self.deleteStaticRoutePushButton.clicked.connect(self.delete_static_route)
 
+  # 刷新文件类型列表
   def refresh_file_type_list(self):
     include_files = self.server_config_manager.get_list(key='include_files')
     self.fileTypeListWidget.clear()
     self.fileTypeListWidget.addItems(include_files)
 
+  # 刷新静态资源路由列表
   def refresh_static_route_list(self):
     static_match_route = self.server_config_manager.get_list(key='static_match_route')
     self.staticRouteListWidget.clear()
     self.staticRouteListWidget.addItems(static_match_route)
 
+  # 选中文件类型
   def file_type_select(self):
     index = self.fileTypeListWidget.selectedIndexes()[0].row()
     self.file_type_select_row = index
 
+  # 选中静态资源路由
   def static_route_select(self):
     index = self.staticRouteListWidget.selectedIndexes()[0].row()
     self.static_route_select_row = index
