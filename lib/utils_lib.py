@@ -164,7 +164,7 @@ class ConfigFileManager:
       fl.write(JsonFormat.dumps(copy.deepcopy(self.config)))
 
   @error_catch(error_msg='查找变量失败！', error_return=None)
-  def get(self, key: str):
+  def get(self, key: str) -> any:
     if not key:
       return None
 
@@ -186,6 +186,80 @@ class ConfigFileManager:
 
     with open(self.path, 'w', encoding='utf-8') as fl:
       fl.write(JsonFormat.dumps(dict_data))
+
+  @error_catch(error_msg='列表数据 get 失败', error_return=[])
+  def get_list(self, key: str) -> list:
+    list_data = self.get(key=key)
+    # 数据类型校验
+    if not type(list_data) is list:
+      return []
+
+    return list_data
+
+  # 为 list 类型的数据 append 新数据，返回操作是否成功状态
+  @error_catch(error_msg='列表数据 append 失败', error_return=False)
+  def append_list_value(self, key: str, value: any, check_repeat=True) -> bool:
+    list_data = self.get(key=key)
+    # 数据类型校验
+    if not type(list_data) is list:
+      return False
+
+    # 检查数据是否重复
+    list_set = set(list_data)
+    if check_repeat and value in list_set:
+      return False
+
+    list_data.append(value)
+    self.set(key=key, value=list_data)
+    return True
+
+  # 为 list 类型的数据更新指定 index 数据，返回操作是否成功状态
+  @error_catch(error_msg='列表数据 update 失败', error_return=False)
+  def update_list_value(self, key: str, value: any, index: int = -1, check_repeat=True) -> bool:
+    list_data = self.get(key=key)
+    # 数据类型校验
+    if not type(list_data) is list:
+      return False
+
+    # 索引范围校验
+    if index < 0 or index >= len(list_data):
+      return False
+
+    # 检查数据是否重复
+    list_set = set(list_data)
+    if check_repeat and value in list_set:
+      return False
+
+    list_data[index] = value
+    self.set(key=key, value=list_data)
+    return True
+
+  # 为 list 类型的数据删除指定 index 数据，返回操作是否成功状态
+  @error_catch(error_msg='列表数据 delete 失败', error_return=False)
+  def delete_list_value(self, key: str, index: int = -1) -> bool:
+    list_data = self.get(key=key)
+    # 数据类型校验
+    if not type(list_data) is list:
+      return False
+
+    # 索引范围校验
+    if index < 0 or index >= len(list_data):
+      return False
+
+    del list_data[index]
+    self.set(key=key, value=list_data)
+    return True
+
+  # 清空指定 key 的 list 类型的数据
+  @error_catch(error_msg='列表数据 clear 失败', error_return=False)
+  def clear_list_value(self, key: str) -> bool:
+    list_data = self.get(key=key)
+    # 数据类型校验
+    if not type(list_data) is list:
+      return False
+
+    self.set(key=key, value=[])
+    return True
 
 
 # 校验链接是否满足匹配条件

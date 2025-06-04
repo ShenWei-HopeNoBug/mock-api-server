@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 window = '''
-#Dialog{
-  background-color:rgb(255, 224, 178);
-}
+  #Dialog{
+    background-color:rgb(255, 224, 178);
+  }
 '''

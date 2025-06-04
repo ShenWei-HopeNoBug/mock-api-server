@@ -4,26 +4,19 @@ window = '''
     background-color:rgb(255, 224, 178);
   }
   
-  QListWidget{
+  QTextEdit{
     border-radius:6px;
     background-color:rgb(255, 248, 225);
     border:none;
+    padding:4px;
   }
   
-  QListWidget::item{
-    background-color:transparent;
-    color:rgb(121,112,52);
-    border-radius:4px;
-    padding:0 2px;
-  }
-  
-  QListWidget::item:hover{
-    border-bottom:1px solid rgb(121,112,52);
-  }
-  
-  QListWidget::item:selected{
-    border-bottom:1px solid rgb(121,112,52);
-    color:rgb(255, 112, 67);
+  #confirmPushButton
+  {
+    background-color:rgb(250, 250, 250);
+    border-radius:6px;
+    border:1px solid skyblue;
+    padding:4px 8px;
   }
   
   QScrollBar:vertical {
@@ -76,34 +69,14 @@ window = '''
     background: none;
   }
   
-  #addHttpPathPushButton,
-  #editHttpPathPushButton,
-  #deleteHttpPathPushButton,
-  #addStaticPathPushButton,
-  #deleteStaticPathPushButton
-  {
-    background-color:rgb(250, 250, 250);
-    border-radius:6px;
-    border:1px solid skyblue;
-    padding:4px 8px;
-  }
-
-  #addHttpPathPushButton:hover,
-  #editHttpPathPushButton:hover,
-  #deleteHttpPathPushButton:hover,
-  #addStaticPathPushButton:hover,
-  #deleteStaticPathPushButton:hover
+  #confirmPushButton:hover
   {
     color:white;
     background-color:rgb(97, 97, 97);
     border-width:0;
   }
-
-  #addHttpPathPushButton:disabled,
-  #editHttpPathPushButton:disabled,
-  #deleteHttpPathPushButton:disabled,
-  #addStaticPathPushButton:disabled,
-  #deleteStaticPathPushButton:disabled
+  
+  #confirmPushButton:disabled
   {
     border:none;
   }
