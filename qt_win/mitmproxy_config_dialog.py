@@ -139,7 +139,7 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
     text_input_dialog = TextInputDialog(text=current_text)
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
     text_input_dialog.exec_()
-    if len(self.edit_text):
+    if len(self.edit_text) and (not current_text == self.edit_text):
       result = self.mitmproxy_config_manager.update_list_value(
         key='include_path',
         value=self.edit_text,
@@ -165,7 +165,7 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
     text_input_dialog = TextInputDialog(text=current_text)
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
     text_input_dialog.exec_()
-    if len(self.edit_text):
+    if len(self.edit_text) and (not current_text == self.edit_text):
       result = self.mitmproxy_config_manager.update_list_value(
         key='static_include_path',
         value=self.edit_text,
