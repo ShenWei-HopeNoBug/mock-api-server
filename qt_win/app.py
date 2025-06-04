@@ -386,7 +386,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 正在停止下载
     elif text == 'STOP_WAIT':
       download_btn_disabled = True
-      disabled = False
+      disabled = True
       button_text = '正在停止...'
     # 初始化状态
     else:
@@ -399,6 +399,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticDownloadButton.setDisabled(download_btn_disabled)
     self.compressCheckBox.setDisabled(disabled)
     self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
+    self.set_edit_menu_disabled(action_name=EDIT.SERVER_EDIT, disabled=disabled)
 
   # 抓包服务启动状态变化
   def mitmproxy_server_status_change(self, text: str):
