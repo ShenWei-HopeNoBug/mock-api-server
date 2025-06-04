@@ -80,6 +80,7 @@ window = '''
   #editFileTypePushButton,
   #deleteFileTypePushButton,
   #addStaticRoutePushButton,
+  #editStaticRoutePushButton,
   #deleteStaticRoutePushButton
   {
     background-color:rgb(250, 250, 250);
@@ -92,6 +93,7 @@ window = '''
   #editFileTypePushButton:hover,
   #deleteFileTypePushButton:hover,
   #addStaticRoutePushButton:hover,
+  #editStaticRoutePushButton:hover,
   #deleteStaticRoutePushButton:hover
   {
     color:white;
@@ -103,6 +105,7 @@ window = '''
   #editFileTypePushButton:disabled,
   #deleteFileTypePushButton:disabled,
   #addStaticRoutePushButton:disabled,
+  #editStaticRoutePushButton:disabled,
   #deleteStaticRoutePushButton:disabled
   {
     border:none;

@@ -95,7 +95,7 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
 
   # 添加 http_path
   def add_http_path(self):
-    text_input_dialog = TextInputDialog()
+    text_input_dialog = TextInputDialog(title='新增')
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
     text_input_dialog.exec_()
     if len(self.edit_text):
@@ -114,7 +114,7 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
 
   # 添加 static_path
   def add_static_path(self):
-    text_input_dialog = TextInputDialog()
+    text_input_dialog = TextInputDialog(title='新增')
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
     text_input_dialog.exec_()
     if len(self.edit_text):
@@ -137,7 +137,7 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
       return
 
     current_text = self.httpPathListWidget.item(self.http_path_select_row).text()
-    text_input_dialog = TextInputDialog(text=current_text)
+    text_input_dialog = TextInputDialog(text=current_text, title='编辑')
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
     text_input_dialog.exec_()
     if len(self.edit_text) and (not current_text == self.edit_text):
@@ -163,7 +163,7 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
       return
 
     current_text = self.staticPathListWidget.item(self.static_path_select_row).text()
-    text_input_dialog = TextInputDialog(text=current_text)
+    text_input_dialog = TextInputDialog(text=current_text, title='编辑')
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
     text_input_dialog.exec_()
     if len(self.edit_text) and (not current_text == self.edit_text):

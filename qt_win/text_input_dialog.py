@@ -8,12 +8,12 @@ from qt_ui.text_input_win import text_input_win_style
 
 
 class TextInputDialog(QDialog, Ui_Dialog):
-
   confirm_signal = pyqtSignal(str)
 
-  def __init__(self, text=''):
+  def __init__(self, text='', title=''):
     super().__init__()
     self.text = text
+    self.title = title
 
     self.init_ui()
     self.add_events()
@@ -28,7 +28,7 @@ class TextInputDialog(QDialog, Ui_Dialog):
     self.setStyleSheet(text_input_win_style.window)
     # 隐藏帮助问号按钮
     self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
-    self.setWindowTitle('编辑')
+    self.setWindowTitle(self.title)
 
   def add_events(self):
     self.confirmPushButton.clicked.connect(self.confirm)

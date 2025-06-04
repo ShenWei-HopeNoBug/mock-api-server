@@ -4,9 +4,11 @@ from PyQt5.QtCore import Qt
 
 import os
 import copy
+import re
 from lib.utils_lib import ConfigFileManager
 from qt_ui.server_config_win.win_ui import Ui_Dialog
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, MOCK_SERVER_CONFIG_PATH)
+from config.route import (INNER_ROUTE_LIST)
 from qt_win.text_input_dialog import TextInputDialog
 
 from qt_ui.server_config_win import server_config_win_style
@@ -88,41 +90,89 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     # 去除左右两边的空白字符
     self.edit_text = text.strip()
 
-  # 添加 file_type
-  def add_file_type(self):
-    text_input_dialog = TextInputDialog()
-    text_input_dialog.confirm_signal.connect(self.set_edit_text)
-    text_input_dialog.exec_()
-    if len(self.edit_text):
-      result = self.server_config_manager.append_list_value(
-        key='include_files',
-        value=self.edit_text,
+  # 检查文件类型文本合法性
+  def check_file_type_valid(self, text=''):
+    valid = bool(re.match(r'^\.[a-zA-Z0-9]+$', text))
+    if not valid:
+      QMessageBox.critical(
+        self,
+        '异常',
+        '请输入标准的文件扩展名文本（扩展名字符可包含大小写字母和数字），如：\n .jpg, .png',
       )
 
-      if result:
-        self.fileTypeListWidget.addItem(self.edit_text)
-        self.fileTypeListWidget.scrollToBottom()
-      else:
-        QMessageBox.critical(self, '异常', '新增失败!')
+    return valid
+
+  # 检查静态资源路由文本合法性
+  def check_static_route_valid(self, route=''):
+    valid = bool(re.match(r'^/[a-zA-Z0-9_-]+$', route))
+    if not valid:
+      QMessageBox.critical(
+        self,
+        '异常',
+        '请输入指定格式的路由（路由字符可包含大小写字母、数字、下划线和中划线），如：\n /test，/test2, /my_path',
+      )
+
+    inner_route_set = set(INNER_ROUTE_LIST)
+    if route in inner_route_set:
+      valid = False
+      QMessageBox.critical(
+        self,
+        '异常',
+        '该路由名已被应用内部服务占用，请不要使用以下路由进行命名：\n{}'.format('，'.join(INNER_ROUTE_LIST)),
+      )
+
+    return valid
+
+  # 添加 file_type
+  def add_file_type(self):
+    text_input_dialog = TextInputDialog(title='新增')
+    text_input_dialog.confirm_signal.connect(self.set_edit_text)
+    text_input_dialog.exec_()
+    # 检查编辑内容合法性
+    if (
+        not len(self.edit_text) or
+        not self.check_file_type_valid(self.edit_text)
+    ):
+      self.edit_text = ''
+      return
+
+    result = self.server_config_manager.append_list_value(
+      key='include_files',
+      value=self.edit_text,
+    )
+
+    if result:
+      self.fileTypeListWidget.addItem(self.edit_text)
+      self.fileTypeListWidget.scrollToBottom()
+    else:
+      QMessageBox.critical(self, '异常', '新增失败!')
 
     self.edit_text = ''
 
   # 添加 static_route
   def add_static_route(self):
-    text_input_dialog = TextInputDialog()
+    text_input_dialog = TextInputDialog(title='新增')
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
     text_input_dialog.exec_()
-    if len(self.edit_text):
-      result = self.server_config_manager.append_list_value(
-        key='static_match_route',
-        value=self.edit_text,
-      )
 
-      if result:
-        self.staticRouteListWidget.addItem(self.edit_text)
-        self.staticRouteListWidget.scrollToBottom()
-      else:
-        QMessageBox.critical(self, '异常', '新增失败!')
+    # 检查编辑内容合法性
+    if (
+        not len(self.edit_text) or
+        not self.check_static_route_valid(self.edit_text)
+    ):
+      self.edit_text = ''
+      return
+
+    result = self.server_config_manager.append_list_value(
+      key='static_match_route',
+      value=self.edit_text,
+    )
+
+    if result:
+      self.staticRouteListWidget.addItem(self.edit_text)
+      self.staticRouteListWidget.scrollToBottom()
+    else:
+      QMessageBox.critical(self, '异常', '新增失败!')
 
     self.edit_text = ''
 
@@ -132,23 +182,31 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       return
 
     current_text = self.fileTypeListWidget.item(self.file_type_select_row).text()
-    text_input_dialog = TextInputDialog(text=current_text)
+    text_input_dialog = TextInputDialog(text=current_text, title='编辑')
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
     text_input_dialog.exec_()
-    if len(self.edit_text) and (not current_text == self.edit_text):
-      result = self.server_config_manager.update_list_value(
-        key='include_files',
-        value=self.edit_text,
-        index=self.file_type_select_row
-      )
+    # 检查编辑内容合法性
+    if (
+        not len(self.edit_text) or
+        current_text == self.edit_text or
+        not self.check_file_type_valid(self.edit_text)
+    ):
+      self.edit_text = ''
+      return
 
-      if result:
-        # 清空选区
-        self.fileTypeListWidget.clearSelection()
-        self.file_type_select_row = -1
-        self.refresh_file_type_list()
-      else:
-        QMessageBox.critical(self, '异常', '更新失败!')
+    result = self.server_config_manager.update_list_value(
+      key='include_files',
+      value=self.edit_text,
+      index=self.file_type_select_row
+    )
+
+    if result:
+      # 清空选区
+      self.fileTypeListWidget.clearSelection()
+      self.file_type_select_row = -1
+      self.refresh_file_type_list()
+    else:
+      QMessageBox.critical(self, '异常', '更新失败!')
 
     self.edit_text = ''
 
@@ -158,23 +216,31 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       return
 
     current_text = self.staticRouteListWidget.item(self.static_route_select_row).text()
-    text_input_dialog = TextInputDialog(text=current_text)
+    text_input_dialog = TextInputDialog(text=current_text, title='编辑')
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
     text_input_dialog.exec_()
-    if len(self.edit_text) and (not current_text == self.edit_text):
-      result = self.server_config_manager.update_list_value(
-        key='static_match_route',
-        value=self.edit_text,
-        index=self.static_route_select_row
-      )
+    # 检查编辑内容合法性
+    if (
+        not len(self.edit_text) or
+        current_text == self.edit_text or
+        not self.check_static_route_valid(self.edit_text)
+    ):
+      self.edit_text = ''
+      return
 
-      if result:
-        # 清空选区
-        self.staticRouteListWidget.clearSelection()
-        self.static_route_select_row = -1
-        self.refresh_static_route_list()
-      else:
-        QMessageBox.critical(self, '异常', '更新失败!')
+    result = self.server_config_manager.update_list_value(
+      key='static_match_route',
+      value=self.edit_text,
+      index=self.static_route_select_row
+    )
+
+    if result:
+      # 清空选区
+      self.staticRouteListWidget.clearSelection()
+      self.static_route_select_row = -1
+      self.refresh_static_route_list()
+    else:
+      QMessageBox.critical(self, '异常', '更新失败!')
 
     self.edit_text = ''
 

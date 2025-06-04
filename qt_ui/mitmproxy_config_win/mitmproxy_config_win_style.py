@@ -80,6 +80,7 @@ window = '''
   #editHttpPathPushButton,
   #deleteHttpPathPushButton,
   #addStaticPathPushButton,
+  #editStaticPathPushButton,
   #deleteStaticPathPushButton
   {
     background-color:rgb(250, 250, 250);
@@ -92,6 +93,7 @@ window = '''
   #editHttpPathPushButton:hover,
   #deleteHttpPathPushButton:hover,
   #addStaticPathPushButton:hover,
+  #editStaticPathPushButton:hover,
   #deleteStaticPathPushButton:hover
   {
     color:white;
@@ -103,6 +105,7 @@ window = '''
   #editHttpPathPushButton:disabled,
   #deleteHttpPathPushButton:disabled,
   #addStaticPathPushButton:disabled,
+  #editStaticPathPushButton:disabled,
   #deleteStaticPathPushButton:disabled
   {
     border:none;
