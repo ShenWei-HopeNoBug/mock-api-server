@@ -19,7 +19,7 @@ from multiprocessing import Process
 from lib.decorate import create_thread, error_catch
 from lib.utils_lib import check_local_connection
 from lib.work_file_lib import (check_work_files, create_work_files)
-from lib.app_lib import open_mitmproxy_preview_html
+from lib.app_lib import (open_mitmproxy_preview_html, open_operation_manual_html)
 from config.work_file import DEFAULT_WORK_DIR
 from config.menu import (FILE, EDIT, HELP)
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
@@ -205,7 +205,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # ---------------------
     def help_menu_action(action):
       action_name = action.text()
-      if action_name == HELP.ABOUT:
+      if action_name == HELP.OPERATION_MANUAL:
+        open_operation_manual_html()
+      elif action_name == HELP.ABOUT:
         about_dialog = AboutDialog()
         about_dialog.exec_()
 

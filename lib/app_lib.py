@@ -73,3 +73,12 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
   webbrowser.open(os.path.abspath(preview_html))
 
   return True
+
+# 打开操作手册
+@error_catch(error_msg='打开操作手册html失败', error_return=False)
+def open_operation_manual_html(root_dir='.'):
+  operation_manual_html = r'{}/web/apps/document/index.html'.format(root_dir)
+  if not os.path.exists(operation_manual_html):
+    return False
+  webbrowser.open(os.path.abspath(operation_manual_html))
+  return True
