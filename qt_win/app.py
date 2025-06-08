@@ -406,6 +406,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.compressCheckBox.setDisabled(disabled)
     self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
     self.set_edit_menu_disabled(action_name=EDIT.SERVER_EDIT, disabled=disabled)
+    self.set_edit_menu_disabled(action_name=EDIT.DOWNLOAD_EDIT, disabled=disabled)
 
   # 抓包服务启动状态变化
   def mitmproxy_server_status_change(self, text: str):
