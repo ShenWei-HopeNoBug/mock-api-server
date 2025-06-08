@@ -10,8 +10,8 @@ from qt_ui.text_input_win import text_input_win_style
 class TextInputDialog(QDialog, Ui_Dialog):
   confirm_signal = pyqtSignal(str)
 
-  def __init__(self, text='', title=''):
-    super().__init__()
+  def __init__(self, parent = None, text='', title=''):
+    super(TextInputDialog, self).__init__(parent)
     self.text = text
     self.title = title
 
