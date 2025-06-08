@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import QWidget
+from PyQt5.QtWidgets import QWidget, QMessageBox
 
 import copy
 from lib.decorate import error_catch
@@ -28,6 +28,18 @@ class ListEditModule(QWidget, Ui_Form):
 
   # 绑定事件
   def add_events(self):
+    def clear():
+      reply = QMessageBox.question(
+        self,
+        '消息',
+        '确认要清空列表数据？',
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.No,
+      )
+
+      if reply == QMessageBox.Yes:
+        self.clear()
+
     def add():
       self.add()
 
@@ -37,6 +49,7 @@ class ListEditModule(QWidget, Ui_Form):
     def delete():
       self.delete()
 
+    self.clearPushButton.clicked.connect(clear)
     self.addPushButton.clicked.connect(add)
     self.editPushButton.clicked.connect(edit)
     self.deletePushButton.clicked.connect(delete)
@@ -53,6 +66,7 @@ class ListEditModule(QWidget, Ui_Form):
     self.listWidget.clearSelection()
     self.select_row = -1
     self.refresh_list_weight()
+    self.update_disabled()
 
   # 刷新列表展示
   def refresh_list_weight(self):
@@ -62,9 +76,24 @@ class ListEditModule(QWidget, Ui_Form):
   def select(self):
     index = self.listWidget.selectedIndexes()[0].row()
     self.select_row = index
+    self.update_disabled()
 
   def get_list(self):
     return copy.deepcopy(self.list)
+
+  # 更新禁用状态
+  def update_disabled(self):
+    if len(self.list) == 0:
+      self.addPushButton.setDisabled(False)
+      self.editPushButton.setDisabled(True)
+      self.deletePushButton.setDisabled(True)
+      self.clearPushButton.setDisabled(True)
+      return
+
+    disabled = self.select_row == -1
+    self.editPushButton.setDisabled(disabled)
+    self.deletePushButton.setDisabled(disabled)
+    self.clearPushButton.setDisabled(False)
 
   # 设置编辑文本数据
   def set_edit_text(self, text: str = ''):
@@ -80,6 +109,11 @@ class ListEditModule(QWidget, Ui_Form):
       current_list: list = None,
   ) -> bool:
     return True
+
+  # 清空数据
+  def clear(self):
+    self.list = []
+    self.refresh()
 
   @error_catch(error_msg='新增失败', error_return=False)
   def add(self) -> bool:
@@ -109,6 +143,7 @@ class ListEditModule(QWidget, Ui_Form):
     self.list.append(self.edit_text)
     self.listWidget.addItem(self.edit_text)
     self.edit_text = ''
+    self.update_disabled()
     return True
 
   @error_catch(error_msg='编辑失败', error_return=False)

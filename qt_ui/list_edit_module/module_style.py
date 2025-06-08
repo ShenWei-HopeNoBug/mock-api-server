@@ -72,6 +72,7 @@ window = '''
     background: none;
   }
 
+  #clearPushButton,
   #addPushButton,
   #editPushButton,
   #deletePushButton
@@ -82,6 +83,7 @@ window = '''
     padding:4px 8px;
   }
 
+  #clearPushButton:hover,
   #addPushButton:hover,
   #editPushButton:hover,
   #deletePushButton:hover
@@ -91,6 +93,7 @@ window = '''
     border-width:0;
   }
 
+  #clearPushButton:disabled,
   #addPushButton:disabled,
   #editPushButton:disabled,
   #deletePushButton:disabled

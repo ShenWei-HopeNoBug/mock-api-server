@@ -104,17 +104,17 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     file_type_edit_weight = FileTypeListModule(
       self,
       init_list=include_files,
-      label_text='常规http请求过滤条件：',
+      label_text='静态资源包含文件类型(比如 .png)：',
     )
-    file_type_edit_weight.listLabel.setToolTip('静态资源包含文件类型(比如 .png)')
+    file_type_edit_weight.listLabel.setToolTip('启动服务时会解析mock数据中已配置的文件类型静态资源链接，将其转换成本地可访问的链接地址')
 
     # static_path 编辑模组
     static_route_edit_weight = StaticRouteListModule(
       self,
       init_list=static_match_route,
-      label_text='静态资源请求过滤条件：',
+      label_text='动态匹配静态资源路由：',
     )
-    static_route_edit_weight.listLabel.setToolTip('动态匹配静态资源路由')
+    static_route_edit_weight.listLabel.setToolTip('向mock服务请求的静态资源链接中包含配置的路由，会匹配已有的静态资源文件进行返回')
 
     widget = QWidget(self)
     widget.setGeometry(QRect(10, 0, 500, 400))

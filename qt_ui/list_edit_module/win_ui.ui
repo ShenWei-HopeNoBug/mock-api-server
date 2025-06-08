@@ -41,7 +41,7 @@
    <property name="geometry">
     <rect>
      <x>420</x>
-     <y>80</y>
+     <y>120</y>
      <width>71</width>
      <height>30</height>
     </rect>
@@ -83,7 +83,7 @@
    <property name="geometry">
     <rect>
      <x>420</x>
-     <y>120</y>
+     <y>160</y>
      <width>71</width>
      <height>30</height>
     </rect>
@@ -110,7 +110,7 @@
    <property name="geometry">
     <rect>
      <x>420</x>
-     <y>40</y>
+     <y>80</y>
      <width>71</width>
      <height>30</height>
     </rect>
@@ -131,6 +131,33 @@
    </property>
    <property name="text">
     <string>新增</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="clearPushButton">
+   <property name="geometry">
+    <rect>
+     <x>420</x>
+     <y>40</y>
+     <width>71</width>
+     <height>30</height>
+    </rect>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>0</width>
+     <height>30</height>
+    </size>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>10</pointsize>
+    </font>
+   </property>
+   <property name="cursor">
+    <cursorShape>PointingHandCursor</cursorShape>
+   </property>
+   <property name="text">
+    <string>清空</string>
    </property>
   </widget>
  </widget>
