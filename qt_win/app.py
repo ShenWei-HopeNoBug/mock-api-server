@@ -7,6 +7,7 @@ from qt_win.output_static_dialog import OutputStaticDialog
 from qt_win.about_dialog import AboutDialog
 from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
 from qt_win.server_config_dialog import ServerConfigDialog
+from qt_win.download_config_dialog import DownloadConfigDialog
 
 import os
 import time
@@ -188,6 +189,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       if action_name == EDIT.MITMPROXY_EDIT:
         mitmproxy_config_dialog = MitmproxyConfigDialog(work_dir=self.work_dir)
         mitmproxy_config_dialog.exec_()
+      elif action_name == EDIT.DOWNLOAD_EDIT:
+        download_dialog = DownloadConfigDialog(work_dir=self.work_dir)
+        download_dialog.exec_()
       elif action_name == EDIT.SERVER_EDIT:
         server_config_dialog = ServerConfigDialog(work_dir=self.work_dir)
         server_config_dialog.exec_()

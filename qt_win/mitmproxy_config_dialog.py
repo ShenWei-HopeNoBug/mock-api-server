@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import QWidget, QDialog, QVBoxLayout, QLayout
+from PyQt5.QtWidgets import QWidget, QDialog, QVBoxLayout
 from PyQt5.QtCore import Qt, QRect
 
 import os

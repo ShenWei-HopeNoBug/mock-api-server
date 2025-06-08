@@ -5,6 +5,7 @@ import time
 import os
 from config.work_file import (
   MOCK_SERVER_CONFIG_PATH,
+  DOWNLOAD_CONFIG_PATH,
   API_CACHE_DATA_PATH,
   STATIC_DIR,
   DOWNLOAD_DIR,
@@ -45,8 +46,10 @@ class MockServer:
     self.port = port
     # 静态资源相关配置
     self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
-    # 包含的静态资源文件类型
+    # 启动服务时解析的静态资源文件类型
     self.include_files = []
+    # 下载时包含的静态资源文件类型
+    self.download_include_files = []
     # 动态匹配静态资源请求的路由
     self.static_match_route = []
     # 全局接口响应延时
@@ -68,8 +71,9 @@ class MockServer:
   # 加载 mock 服务配置
   def load_mock_server_config(self):
     mock_server_config_path = r'{}{}'.format(self.work_dir, MOCK_SERVER_CONFIG_PATH)
+    download_config_path = r'{}{}'.format(self.work_dir, DOWNLOAD_CONFIG_PATH)
 
-    # 读取包含的静态资源文件类型
+    # 读取服务配置
     with open(mock_server_config_path, 'r', encoding='utf-8') as fl:
       mock_server_config = json.loads(fl.read())
       include_files = mock_server_config.get('include_files', [])
@@ -96,6 +100,12 @@ class MockServer:
 
       self.static_match_route = route_list
 
+    # 读取下载配置
+    with open(download_config_path, 'r', encoding='utf-8') as fl:
+      download_config = json.loads(fl.read())
+      include_files = download_config.get('include_files', [])
+      self.download_include_files = list(set(include_files))
+
   # 下载静态资源
   def download_static(self, compress=True):
     print('>' * 10, '开始检查和下载静态资源...')
@@ -107,7 +117,7 @@ class MockServer:
     # 静态资源链接列表
     assets_list = []
     # 提取 response 静态资源链接
-    assets_reg = self.__get_static_match_regexp()
+    assets_reg = self.__get_static_match_regexp(self.download_include_files)
     for row_data in mock_api_data_list:
       response = row_data.get('response', '')
       assets = assets_reg.findall(response)
@@ -241,7 +251,7 @@ class MockServer:
 
   # 创建并保存 api_dict
   def create_api_dict(self):
-    assets_reg = self.__get_static_match_regexp()
+    assets_reg = self.__get_static_match_regexp(self.include_files)
     # 区分是否延时两种静态资源的路由
     assets_route = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
     # 静态资源 base_url
@@ -436,6 +446,9 @@ class MockServer:
     return create_md5('{}{}'.format(method, params))
 
   # 获取静态资源匹配正则对象
-  def __get_static_match_regexp(self):
-    pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(self.include_files))
+  @staticmethod
+  def __get_static_match_regexp(include_files: list):
+    if type(include_files) != list:
+      include_files = []
+    pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(include_files))
     return re.compile(pattern, flags=re.IGNORECASE)

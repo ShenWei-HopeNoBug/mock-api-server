@@ -18,6 +18,8 @@ DEFAULT_WORK_DIR = './server'
 CONFIG_DIR = r'/config'
 # 抓包配置文件路径
 MITMPROXY_CONFIG_PATH = r'{}/mitmproxy_config.json'.format(CONFIG_DIR)
+# 下载配置文件路径
+DOWNLOAD_CONFIG_PATH = r'{}/download_config.json'.format(CONFIG_DIR)
 # mock服务配置文件路径
 MOCK_SERVER_CONFIG_PATH = r'{}/mock_server_config.json'.format(CONFIG_DIR)
 
@@ -96,6 +98,12 @@ WORK_FILE_DICT = {
     "default": {
       "include_path": ["www.baidu.com"],
       "static_include_path": []
+    }
+  },
+  "DOWNLOAD_CONFIG": {
+    "path": DOWNLOAD_CONFIG_PATH,
+    "default": {
+      "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
     }
   },
   # ---------------------------------------------------
