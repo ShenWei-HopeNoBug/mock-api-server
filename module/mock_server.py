@@ -343,12 +343,13 @@ class MockServer:
 
     # 动态匹配静态资源
     def static_match(path):
+      route_path = '/' + path
       # 非文件请求，跳过
-      if not is_file_request(path):
+      if not is_file_request(route_path):
         return
 
       # 文件名
-      file_name = path.split('/')[-1]
+      file_name = route_path.split('/')[-1]
       file_path = os.path.abspath(r'{}{}/{}'.format(self.work_dir, self.static_url_path, file_name))
 
       if not os.path.exists(file_path):
