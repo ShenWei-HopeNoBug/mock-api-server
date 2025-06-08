@@ -78,7 +78,7 @@ class ListEditModule(QWidget, Ui_Form):
       old_text: str = '',
       is_edit: bool = False,
       current_list: list = None,
-  ):
+  ) -> bool:
     return True
 
   @error_catch(error_msg='新增失败', error_return=False)

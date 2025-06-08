@@ -70,7 +70,6 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
     layout = QVBoxLayout(widget)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
-    layout.setSizeConstraint(QLayout.SetMaximumSize)
     layout.addWidget(http_path_edit_weight)
     layout.addWidget(static_path_edit_weight)
     self.http_path_edit_weight = http_path_edit_weight
