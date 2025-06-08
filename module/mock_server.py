@@ -109,6 +109,9 @@ class MockServer:
   # 下载静态资源
   def download_static(self, compress=True):
     print('>' * 10, '开始检查和下载静态资源...')
+    # 没有配置要下载的文件类型，直接退出
+    if not len(self.download_include_files):
+      return
 
     # mock 数据列表（包括抓包数据和自定义数据）
     mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
@@ -289,8 +292,9 @@ class MockServer:
       # 创建 api 映射表
       if request_key not in api_dict:
         api_dict[request_key] = {}
-
-      response = assets_reg.sub(assets_replace_method, response)
+      # 替换静态资源链接
+      if len(self.include_files):
+        response = assets_reg.sub(assets_replace_method, response)
       api_dict[request_key][response_key] = json.loads(response)
 
     # 写入生成的 api 映射数据
