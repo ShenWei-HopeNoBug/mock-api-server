@@ -5,9 +5,9 @@ from time import sleep
 from mitmproxy.options import Options
 from mitmproxy.tools.dump import DumpMaster
 from multiprocessing import Process
-from request_catch import RequestRecorder
-from decorate import error_catch
-import global_var
+from module.request_catch import RequestRecorder
+from lib.decorate import error_catch
+from lib.system_lib import GLOBALS_CONFIG_MANAGER
 
 
 # 启动抓包服务task
@@ -36,7 +36,7 @@ async def mitmproxy_task(mitmproxy_config: dict):
   await master.run()
 
   # 主循环退出，重置下抓包结束信号
-  global_var.update_global_var(key='mitmproxy_stop_signal', value=False)
+  GLOBALS_CONFIG_MANAGER.set(key='mitmproxy_stop_signal', value=False)
   print('mitmproxy 主循环结束！')
 
 
