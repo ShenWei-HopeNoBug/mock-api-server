@@ -199,7 +199,7 @@ class MockServer:
       print('{}/{} 正在下载：{}'.format(i + 1, assets_length, asset))
       # 下载静态资源
       try:
-        response = requests.get(asset, timeout=30)
+        response = requests.get(asset, timeout=120)
         if response.status_code != 200:
           print('下载失败：{}'.format(asset))
           # 保存下载日志
