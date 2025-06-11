@@ -98,9 +98,11 @@ class RequestRecorder:
     request_content_type = flow.request.headers.get('content-type') or ''
     if method == 'POST':
       if 'application/x-www-form-urlencoded' in request_content_type:
-        params = flow.request.form
+        params = JsonFormat.format_dict_to_json_string(dict(flow.request.urlencoded_form or {}))
       elif 'application/json' in request_content_type:
         params = flow.request.get_text()
+      elif 'multipart/form-data' in request_content_type:
+        print('content-type 为 multipart/form-data，请求参数不作保存：\n{}'.format(url))
     elif method == 'GET':
       params = JsonFormat.format_dict_to_json_string(dict(flow.request.query.copy()))
 

@@ -410,7 +410,7 @@ class MockServer:
       request_content_type = request.headers.get('content-type') or ''
       if method == 'POST':
         if 'application/x-www-form-urlencoded' in request_content_type:
-          params = request.form
+          params = JsonFormat.format_dict_to_json_string(request.form or {})
         elif 'application/json' in request_content_type:
           params = JsonFormat.format_json_string(request.get_data(as_text=True))
       elif method == 'GET':
