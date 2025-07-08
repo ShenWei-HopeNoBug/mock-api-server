@@ -1,33 +1,24 @@
 # -*- coding: utf-8 -*-
 import re
-import requests
 import time
 import os
 from config.work_file import (
   MOCK_SERVER_CONFIG_PATH,
-  DOWNLOAD_CONFIG_PATH,
   API_CACHE_DATA_PATH,
   STATIC_DIR,
-  DOWNLOAD_DIR,
 )
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread
-from lib import server_lib
 from lib.work_file_lib import create_work_files
-from lib.system_lib import GLOBALS_CONFIG_MANAGER
 from lib.app_lib import get_mock_api_data_list
-from lib.decorate import error_catch
 from lib.utils_lib import (
   JsonFormat,
   create_md5,
   remove_url_domain,
   remove_url_query,
-  check_and_create_dir,
   find_connection_process,
-  compress_image,
   get_ip_address,
   is_file_request,
-  create_timestamp,
 )
 
 import json
@@ -48,8 +39,6 @@ class MockServer:
     self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
     # 启动服务时解析的静态资源文件类型
     self.include_files = []
-    # 下载时包含的静态资源文件类型
-    self.download_include_files = []
     # 动态匹配静态资源请求的路由
     self.static_match_route = []
     # 全局接口响应延时
@@ -71,7 +60,6 @@ class MockServer:
   # 加载 mock 服务配置
   def load_mock_server_config(self):
     mock_server_config_path = r'{}{}'.format(self.work_dir, MOCK_SERVER_CONFIG_PATH)
-    download_config_path = r'{}{}'.format(self.work_dir, DOWNLOAD_CONFIG_PATH)
 
     # 读取服务配置
     with open(mock_server_config_path, 'r', encoding='utf-8') as fl:
@@ -99,158 +87,6 @@ class MockServer:
         route_list.extend(STATIC_DELAY_ROUTE)
 
       self.static_match_route = route_list
-
-    # 读取下载配置
-    with open(download_config_path, 'r', encoding='utf-8') as fl:
-      download_config = json.loads(fl.read())
-      include_files = download_config.get('include_files', [])
-      self.download_include_files = list(set(include_files))
-
-  # 下载静态资源
-  def download_static(self, compress=True):
-    print('>' * 10, '开始检查和下载静态资源...')
-    # 没有配置要下载的文件类型，直接退出
-    if not len(self.download_include_files):
-      return
-
-    # mock 数据列表（包括抓包数据和自定义数据）
-    mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
-    static_data_list = server_lib.get_static_data_list(work_dir=self.work_dir)
-
-    # 静态资源链接列表
-    assets_list = []
-    # 提取 response 静态资源链接
-    assets_reg = self.__get_static_match_regexp(self.download_include_files)
-    for row_data in mock_api_data_list:
-      response = row_data.get('response', '')
-      assets = assets_reg.findall(response)
-      assets_list.extend(assets)
-
-    # 添加静态资源链接
-    for row_data in static_data_list:
-      url = row_data.get('url', '')
-      assets_list.append(url)
-
-    # 去重
-    assets_list = list(set(assets_list))
-
-    # 静态资源目录
-    assets_dir = '{}{}'.format(self.work_dir, self.static_url_path)
-    # 创建静态资源文件夹
-    check_and_create_dir(assets_dir)
-
-    download_assets = []
-    # 检查需要下载的静态资源文件
-    for asset in assets_list:
-      client_exit = GLOBALS_CONFIG_MANAGER.get(key='client_exit')
-      download_exit = GLOBALS_CONFIG_MANAGER.get(key='download_exit')
-      # 程序已经全局退出或退出下载，退出
-      if client_exit or download_exit:
-        return
-
-      file_name = asset.split('/')[-1]
-
-      # 拼接图片存放地址和名字
-      assets_path = '{}/{}'.format(assets_dir, file_name)
-      if not os.path.exists(assets_path):
-        download_assets.append(asset)
-
-    # 静态资源列表为空
-    if not len(download_assets):
-      print('没有需要下载的静态资源！')
-      return
-
-    download_log_path = '{}{}/{}.json'.format(
-      self.work_dir,
-      DOWNLOAD_DIR,
-      create_timestamp(),
-    )
-
-    # 下载日志
-    download_log = []
-
-    # 写入下载日志
-    @error_catch(error_msg='写入下载日志失败')
-    def white_download_log():
-      # 没有内容不写入
-      if not len(download_log):
-        return
-
-      with open(download_log_path, 'w', encoding='utf-8') as log_file:
-        log_file.write(JsonFormat.dumps(download_log))
-
-    assets_length = len(download_assets)
-    for i, asset in enumerate(download_assets):
-      client_exit = GLOBALS_CONFIG_MANAGER.get(key='client_exit')
-      download_exit = GLOBALS_CONFIG_MANAGER.get(key='download_exit')
-      # 程序已经全局退出或退出下载，停止下载处理
-      if client_exit or download_exit:
-        return
-
-      file_name = asset.split('/')[-1]
-
-      # 拼接图片存放地址和名字
-      assets_path = '{}/{}'.format(assets_dir, file_name)
-
-      # 校验下载的文件是否已经存在
-      if os.path.exists(assets_path):
-        continue
-
-      print('{}/{} 正在下载：{}'.format(i + 1, assets_length, asset))
-      # 下载静态资源
-      try:
-        response = requests.get(asset, timeout=120)
-        if response.status_code != 200:
-          print('下载失败：{}'.format(asset))
-          # 保存下载日志
-          download_log.append({
-            "url": asset,
-            "save_path": assets_path,
-            "file_name": file_name,
-            "success": True,
-            "message": "下载失败! STATUS_CODE:{}".format(response.status_code),
-          })
-          white_download_log()
-          continue
-        assets_data = response.content
-
-        # 将文件写入指定位置
-        with open(assets_path, 'wb') as fl:
-          fl.write(assets_data)
-
-        # 压缩下载图片
-        if compress:
-          compress_image(
-            input_path=assets_path,
-            output_path=assets_path,
-            quality=80
-          )
-
-        # 保存下载日志
-        download_log.append({
-          "url": asset,
-          "save_path": assets_path,
-          "file_name": file_name,
-          "success": True,
-          "message": ""
-        })
-
-        time.sleep(0.8)
-      except Exception as e:
-        print('下载静态资源出错！', e)
-        # 保存下载日志
-        download_log.append({
-          "url": asset,
-          "save_path": assets_path,
-          "file_name": file_name,
-          "success": True,
-          "message": "下载报错! ERROR:{}".format(e),
-        })
-
-      # 写入日志
-      white_download_log()
-
-    print('下载静态资源完毕！')
 
   # 创建并保存 api_dict
   def create_api_dict(self):
