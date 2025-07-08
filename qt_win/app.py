@@ -21,7 +21,8 @@ from lib.decorate import create_thread, error_catch
 from lib.utils_lib import check_local_connection
 from lib.work_file_lib import (check_work_files, create_work_files)
 from lib.app_lib import (open_mitmproxy_preview_html, open_operation_manual_html)
-from config.work_file import DEFAULT_WORK_DIR
+from lib.download_lib import download_server_static
+from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
 from config.menu import (FILE, EDIT, HELP)
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
 import ENV
@@ -556,10 +557,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       time.sleep(0.5)
       return
 
-    server = MockServer(work_dir=self.work_dir, port=self.server_port)
     self.downloading_signal.emit('DOWNLOAD')
     GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
-    server.download_static(compress=self.compress_image)
+    download_server_static(
+      work_dir=self.work_dir,
+      static_url_path=STATIC_DIR,
+      compress=self.compress_image
+    )
     # 下载任务结束后切换按钮显示
     GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
     time.sleep(0.5)

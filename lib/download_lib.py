@@ -180,7 +180,7 @@ def get_download_ready_assets(work_dir='.', static_url_path=STATIC_DIR) -> list:
 
 # 写入下载日志
 @error_catch(error_msg='写入下载日志失败')
-def white_download_log(work_dir='.', download_log=None):
+def white_download_log(work_dir='.', download_log=None, log_name='log'):
   if type(download_log) != list:
     download_log = []
 
@@ -192,16 +192,16 @@ def white_download_log(work_dir='.', download_log=None):
   download_log_path = '{}{}/{}.json'.format(
     work_dir,
     DOWNLOAD_DIR,
-    create_timestamp(),
+    log_name,
   )
 
   with open(download_log_path, 'w', encoding='utf-8') as fl:
     fl.write(JsonFormat.dumps(download_log))
 
 
-# 下载静态资源
-@error_catch(error_msg='下载静态资源失败')
-def download_static(work_dir='.', static_url_path=STATIC_DIR, compress=True):
+# 下载mock服务需要静态资源
+@error_catch(error_msg='下载 Mock Server 静态资源失败')
+def download_server_static(work_dir='.', static_url_path=STATIC_DIR, compress=True):
   print('>' * 10, '开始检查和下载静态资源...')
   # 待下载静态资源列表
   download_assets = get_download_ready_assets(
@@ -219,6 +219,15 @@ def download_static(work_dir='.', static_url_path=STATIC_DIR, compress=True):
 
   # 下载日志
   download_log = []
+  log_name = create_timestamp()
+
+  # 写入日志
+  def white_log():
+    white_download_log(
+      work_dir=work_dir,
+      download_log=download_log,
+      log_name=log_name,
+    )
 
   assets_length = len(download_assets)
   for i, asset in enumerate(download_assets):
@@ -228,8 +237,8 @@ def download_static(work_dir='.', static_url_path=STATIC_DIR, compress=True):
 
     file_name = asset.split('/')[-1]
 
-    # 拼接图片存放地址和名字
-    assets_path = '{}/{}'.format(assets_dir, file_name)
+    # 保存图片的地址
+    assets_path = os.path.abspath('{}/{}'.format(assets_dir, file_name))
 
     # 校验下载的文件是否已经存在
     if os.path.exists(assets_path):
@@ -246,10 +255,10 @@ def download_static(work_dir='.', static_url_path=STATIC_DIR, compress=True):
           "url": asset,
           "save_path": assets_path,
           "file_name": file_name,
-          "success": True,
+          "success": False,
           "message": "下载失败! STATUS_CODE:{}".format(response.status_code),
         })
-        white_download_log(work_dir=work_dir, download_log=download_log)
+        white_log()
         continue
 
       assets_data = response.content
@@ -287,7 +296,6 @@ def download_static(work_dir='.', static_url_path=STATIC_DIR, compress=True):
         "message": "下载报错! ERROR:{}".format(e),
       })
 
-    # 写入日志
-    white_download_log(work_dir=work_dir, download_log=download_log)
+    white_log()
 
   print('下载静态资源完毕！')
