@@ -102,6 +102,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # STOP_WAIT：正在停止
     # -----------------
     self.server_status: str = 'READY'
+    # 下载详情
+    self.download_detail: dict = {}
     # 服务端口号
     self.server_port = 5000
     # 接口响应延时
@@ -389,7 +391,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if text == 'DOWNLOAD':
       download_btn_disabled = False
       disabled = True
-      button_text = '停止资源下载'
+      current = self.download_detail.get('current', 0)
+      total = self.download_detail.get('total', 0)
+      if current and total:
+        button_text = '停止下载({}/{})'.format(current, total)
+      else:
+        button_text = '停止下载'
     # 正在停止下载
     elif text == 'STOP_WAIT':
       download_btn_disabled = True
@@ -547,6 +554,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     time.sleep(3)
     self.mitmproxy_server_status_signal.emit('READY')
 
+  # 更新下载详情
+  def update_download_detail(self, detail: dict):
+    if type(detail) != dict:
+      detail = {}
+    self.download_detail = detail
+    # 更新下下载按钮显示
+    self.downloading_signal.emit(self.download_status)
+
   # 下载静态资源
   @create_thread
   def download_static(self):
@@ -559,15 +574,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     self.downloading_signal.emit('DOWNLOAD')
     GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
+    # 清空下载详情数据
+    self.download_detail = {}
+    # 开始下载
     download_server_static(
       work_dir=self.work_dir,
       static_url_path=STATIC_DIR,
-      compress=self.compress_image
+      compress=self.compress_image,
+      callback=self.update_download_detail,
     )
     # 下载任务结束后切换按钮显示
     GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
     time.sleep(0.5)
     self.downloading_signal.emit('READY')
+    # 清空下载详情数据
+    self.download_detail = {}
 
   # 启动mock服务
   @create_thread

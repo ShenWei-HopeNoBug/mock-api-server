@@ -201,7 +201,12 @@ def white_download_log(work_dir='.', download_log=None, log_name='log'):
 
 # 下载mock服务需要静态资源
 @error_catch(error_msg='下载 Mock Server 静态资源失败')
-def download_server_static(work_dir='.', static_url_path=STATIC_DIR, compress=True):
+def download_server_static(
+    work_dir='.',
+    static_url_path=STATIC_DIR,
+    compress=True,
+    callback=None,
+):
   print('>' * 10, '开始检查和下载静态资源...')
   # 待下载静态资源列表
   download_assets = get_download_ready_assets(
@@ -245,6 +250,13 @@ def download_server_static(work_dir='.', static_url_path=STATIC_DIR, compress=Tr
       continue
 
     print('{}/{} 正在下载：{}'.format(i + 1, assets_length, asset))
+    # 调用回调
+    if callable(callback):
+      callback({
+        "current": i + 1,
+        "total": assets_length,
+        "asset": asset,
+      })
     # 下载静态资源
     try:
       response = requests.get(asset, timeout=120)
