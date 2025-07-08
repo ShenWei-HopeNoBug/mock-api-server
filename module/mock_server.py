@@ -9,6 +9,7 @@ from config.work_file import (
 )
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread
+from lib.download_lib import get_static_match_regexp
 from lib.work_file_lib import create_work_files
 from lib.app_lib import get_mock_api_data_list
 from lib.utils_lib import (
@@ -90,7 +91,7 @@ class MockServer:
 
   # 创建并保存 api_dict
   def create_api_dict(self):
-    assets_reg = self.__get_static_match_regexp(self.include_files)
+    assets_reg = get_static_match_regexp(self.include_files)
     # 区分是否延时两种静态资源的路由
     assets_route = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
     # 静态资源 base_url
@@ -285,11 +286,3 @@ class MockServer:
   @staticmethod
   def __get_response_dict_key(method, params):
     return create_md5('{}{}'.format(method, params))
-
-  # 获取静态资源匹配正则对象
-  @staticmethod
-  def __get_static_match_regexp(include_files: list):
-    if type(include_files) != list:
-      include_files = []
-    pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(include_files))
-    return re.compile(pattern, flags=re.IGNORECASE)
