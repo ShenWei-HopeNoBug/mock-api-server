@@ -1,0 +1,94 @@
+# -*- coding: utf-8 -*-
+import sys
+import math
+import json
+
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtCore import QUrl
+from PyQt5.QtWebChannel import QWebChannel
+from lib.TInteractObject import TInteractObj
+from lib.decorate import create_thread
+from lib.app_lib import get_mock_api_data_list
+
+
+class MitmproxyDataEditDialog(QMainWindow):
+  def __init__(self, work_dir='.'):
+    super().__init__()
+    self.work_dir = work_dir
+    self.webview: QWebEngineView or None = None
+    self.web_channel: QWebChannel or None = None
+    self.interact_obj: TInteractObj or None = None
+
+    self.init()
+
+  def init(self):
+    self.setWindowTitle("抓包数据管理")
+    primary_screen = QApplication.primaryScreen()
+    primary_screen_size = primary_screen.size()
+    primary_width = primary_screen_size.width()
+    primary_height = primary_screen_size.height()
+    width = 1920
+    height = 1080
+    x0 = math.floor((primary_width - width) * 0.5)
+    y0 = math.floor((primary_height - height) * 0.5)
+    # 初始化缩放比例
+    zoom = primary_width / width
+
+    # 定位到屏幕中心
+    self.setGeometry(x0, y0, width, height)
+
+    def receive(message: str):
+      self.receive(message)
+
+    # 创建 QWebEngineView 实例
+    webview = QWebEngineView()
+    current_page = webview.page()
+    interact_obj = TInteractObj()
+    interact_obj.js2qt_signal.connect(receive)
+    web_channel = QWebChannel(current_page)
+    # 注册信号传递对象
+    web_channel.registerObject('interactObj', interact_obj)
+
+    self.webview = webview
+    self.web_channel = web_channel
+    self.interact_obj = interact_obj
+
+    # web_path = os.path.abspath("./web/apps/dataPreview/index.html")
+    # webview.setUrl(QUrl.fromLocalFile(web_path))
+    current_page.setZoomFactor(zoom)
+    current_page.setWebChannel(web_channel)
+    current_page.load(QUrl('http://10.9.148.123:5173/apps/dataManager/index.html'))
+
+    self.setCentralWidget(webview)
+
+  @create_thread
+  def receive(self, message: str):
+    print('receive', message)
+    event_dict: dict = json.loads(message)
+
+    msg_type = event_dict.get('type')
+    name = event_dict.get('name')
+    action_id = event_dict.get('action_id')
+    if msg_type == 'request' and name == 'get_mock_data':
+      # 预览数据列表
+      preview_list = get_mock_api_data_list(work_dir=self.work_dir)
+      self.send_qt2js_msg({
+        "type": msg_type,
+        "name": name,
+        "data": {
+          "list": preview_list
+        },
+        "action_id": action_id or '',
+      })
+
+  @create_thread
+  def send_qt2js_msg(self, data: dict):
+    self.interact_obj.send_qt2js_dict_msg(data)
+
+
+if __name__ == '__main__':
+  app = QApplication(sys.argv)
+  window = MitmproxyDataEditDialog(work_dir='B:\project\pycharm\mock-api-server\server')
+  window.show()
+  sys.exit(app.exec_())
