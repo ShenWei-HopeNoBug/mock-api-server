@@ -123,6 +123,27 @@ def add_user_api_data(work_dir='.', add_data=None) -> bool:
   return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
 
 
+@error_catch(error_msg='删除 user api 数据失败', error_return=False)
+def delete_user_api_data(work_dir='.', delete_id: str = '') -> bool:
+  if type(delete_id) != str or not delete_id:
+    return False
+
+  user_api_list = get_user_api_data_list(work_dir=work_dir)
+  index = -1
+  # 查找待更新数据
+  for i, user_api in enumerate(user_api_list):
+    api_id = user_api.get('id', '')
+    if api_id == delete_id:
+      index = i
+      break
+
+  if index == -1:
+    return False
+
+  del user_api_list[index]
+  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
+
+
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
 def get_mock_api_data_list(work_dir='.'):
   api_list = get_mitmproxy_api_data_list(work_dir=work_dir)

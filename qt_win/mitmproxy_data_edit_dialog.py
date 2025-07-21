@@ -14,6 +14,7 @@ from lib.app_lib import (
   fix_user_api_data,
   update_user_api_data,
   add_user_api_data,
+  delete_user_api_data,
 )
 
 
@@ -115,6 +116,11 @@ class MitmproxyDataEditDialog(QMainWindow):
     elif name == 'add_mock_data':
       add_data = event.get('params')
       success = add_user_api_data(work_dir=self.work_dir, add_data=add_data)
+      send_response(success)
+    elif name == 'delete_mock_data':
+      params = event.get('params', {})
+      delete_id = params.get('id')
+      success = delete_user_api_data(work_dir=self.work_dir, delete_id=delete_id)
       send_response(success)
 
 
