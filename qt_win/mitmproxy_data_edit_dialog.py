@@ -72,7 +72,7 @@ class MitmproxyDataEditDialog(QDialog):
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
     web_path = os.path.abspath("./web/apps/dataManager/index.html")
-    webview.setUrl(QUrl.fromLocalFile(web_path))
+    current_page.load(QUrl.fromLocalFile(web_path))
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
