@@ -8,6 +8,7 @@ from qt_win.about_dialog import AboutDialog
 from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
 from qt_win.server_config_dialog import ServerConfigDialog
 from qt_win.download_config_dialog import DownloadConfigDialog
+from qt_win.mitmproxy_data_edit_dialog import MitmproxyDataEditDialog
 
 import os
 import time
@@ -198,6 +199,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       elif action_name == EDIT.SERVER_EDIT:
         server_config_dialog = ServerConfigDialog(work_dir=self.work_dir)
         server_config_dialog.exec_()
+      elif action_name == EDIT.MITMPROXY_DATA_EDIT:
+        mitmproxy_data_dialog = MitmproxyDataEditDialog(work_dir=self.work_dir)
 
     edit_menu = menu_bar.addMenu(EDIT.MENU_NAME)
     self.edit_menu = edit_menu

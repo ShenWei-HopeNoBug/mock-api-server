@@ -8,8 +8,8 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
-from lib.decorate import create_thread
-from lib.app_lib import get_mock_api_data_list
+from lib.decorate import (create_thread, error_catch)
+from lib.app_lib import (get_mock_api_data_list, fix_mitmproxy_data)
 
 
 class MitmproxyDataEditDialog(QMainWindow):
@@ -63,28 +63,46 @@ class MitmproxyDataEditDialog(QMainWindow):
     self.setCentralWidget(webview)
 
   @create_thread
+  @error_catch(error_msg='处理web接受信息异常')
   def receive(self, message: str):
     print('receive', message)
     event_dict: dict = json.loads(message)
 
     msg_type = event_dict.get('type')
-    name = event_dict.get('name')
-    action_id = event_dict.get('action_id')
-    if msg_type == 'request' and name == 'get_mock_data':
-      # 预览数据列表
-      preview_list = get_mock_api_data_list(work_dir=self.work_dir)
-      self.send_qt2js_msg({
+    if msg_type == 'request':
+      self._request(event_dict)
+
+  @create_thread
+  def send_qt2js_dict_msg(self, data: dict):
+    self.interact_obj.send_qt2js_dict_msg(data)
+
+  # 处理 web 发出的请求相关事件
+  def _request(self, event: dict):
+    msg_type = event.get('type')
+    name = event.get('name')
+    action_id = event.get('action_id')
+    if msg_type != 'request':
+      return
+
+    def send_response(data: any = None):
+      self.send_qt2js_dict_msg({
         "type": msg_type,
         "name": name,
-        "data": {
-          "list": preview_list
-        },
+        "data": data,
         "action_id": action_id or '',
       })
 
-  @create_thread
-  def send_qt2js_msg(self, data: dict):
-    self.interact_obj.send_qt2js_dict_msg(data)
+    # 请求所有 mock 数据
+    if name == 'get_mock_data':
+      # 预览数据列表
+      preview_list = get_mock_api_data_list(work_dir=self.work_dir)
+      send_response({
+        "list": preview_list
+      })
+    # 尝试修复 mock 的异常数据
+    elif name == 'fix_mock_data':
+      success = fix_mitmproxy_data(work_dir=self.work_dir)
+      send_response(success)
 
 
 if __name__ == '__main__':

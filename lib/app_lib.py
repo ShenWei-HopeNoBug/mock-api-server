@@ -3,6 +3,8 @@ import os
 import webbrowser
 import pandas as pd
 import json
+import uuid
+
 from lib.decorate import error_catch
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 from lib.utils_lib import JsonFormat
@@ -42,6 +44,23 @@ def get_user_api_data_list(work_dir='.'):
     return user_api_list
 
 
+@error_catch(error_msg='保存 user api 数据失败', error_return=False)
+def save_user_api_data_list(work_dir='.', user_api_list=None) -> bool:
+  # 入参校验
+  if type(user_api_list) != list:
+    return False
+
+  user_data_path = '{}{}'.format(work_dir, USER_API_DATA_PATH)
+  if not os.path.exists(user_data_path):
+    return False
+
+  with open(user_data_path, 'w', encoding='utf-8') as fl:
+    data = JsonFormat.format_dict_to_json_string(user_api_list)
+    fl.write(data)
+
+  return True
+
+
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
 def get_mock_api_data_list(work_dir='.'):
   api_list = get_mitmproxy_api_data_list(work_dir=work_dir)
@@ -74,6 +93,7 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
 
   return True
 
+
 # 打开操作手册
 @error_catch(error_msg='打开操作手册html失败', error_return=False)
 def open_operation_manual_html(root_dir='.'):
@@ -82,3 +102,14 @@ def open_operation_manual_html(root_dir='.'):
     return False
   webbrowser.open(os.path.abspath(operation_manual_html))
   return True
+
+
+# 修复异常的抓包数据
+@error_catch(error_msg='修复异常抓包数据失败', error_return=False)
+def fix_mitmproxy_data(work_dir='.') -> bool:
+  user_api_list = get_user_api_data_list(work_dir=work_dir)
+  for user_api in user_api_list:
+    api_id: str = user_api.get('id', str(uuid.uuid4()))
+    user_api["id"] = api_id
+
+  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
