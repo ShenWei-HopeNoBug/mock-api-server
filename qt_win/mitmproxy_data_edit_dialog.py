@@ -9,7 +9,7 @@ from PyQt5.QtCore import QUrl
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
-from lib.app_lib import (get_mock_api_data_list, fix_mitmproxy_data)
+from lib.app_lib import (get_mock_api_data_list, fix_user_api_data, update_user_api_data)
 
 
 class MitmproxyDataEditDialog(QMainWindow):
@@ -101,7 +101,11 @@ class MitmproxyDataEditDialog(QMainWindow):
       })
     # 尝试修复 mock 的异常数据
     elif name == 'fix_mock_data':
-      success = fix_mitmproxy_data(work_dir=self.work_dir)
+      success = fix_user_api_data(work_dir=self.work_dir)
+      send_response(success)
+    elif name == 'edit_mock_data':
+      update_data = event.get('params')
+      success = update_user_api_data(work_dir=self.work_dir, update_data=update_data)
       send_response(success)
 
 

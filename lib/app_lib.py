@@ -10,24 +10,32 @@ from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 from lib.utils_lib import JsonFormat
 
 
+# 生成数据的 uuid
+def generate_uuid() -> str:
+  name = '{}-{}'.format(uuid.uuid4(), uuid.uuid1())
+  return str(uuid.uuid5(uuid.NAMESPACE_DNS, name))
+
+
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
 def get_mitmproxy_api_data_list(work_dir='.'):
   api_list = []
   # 数据源地址
   mitmproxy_data_path = '{}{}'.format(work_dir, MITMPROXY_DATA_PATH)
+  if not os.path.exists(mitmproxy_data_path):
+    return []
   # 读取抓包数据
-  if os.path.exists(mitmproxy_data_path):
-    data = pd.read_json(mitmproxy_data_path)
+  data = pd.read_json(mitmproxy_data_path)
 
-    # 行遍历
-    for row_index, row_data in data.iterrows():
-      api_list.append({
-        "type": row_data.get('type'),
-        "url": row_data.get('url'),
-        "method": row_data.get('method'),
-        "params": row_data.get('params'),
-        "response": row_data.get('response'),
-      })
+  # 行遍历
+  for row_index, row_data in data.iterrows():
+    api_list.append({
+      "id": row_data.get('id', ''),
+      "type": row_data.get('type'),
+      "url": row_data.get('url'),
+      "method": row_data.get('method'),
+      "params": row_data.get('params'),
+      "response": row_data.get('response'),
+    })
 
   return api_list
 
@@ -59,6 +67,42 @@ def save_user_api_data_list(work_dir='.', user_api_list=None) -> bool:
     fl.write(data)
 
   return True
+
+
+@error_catch(error_msg='更新 user api 数据失败', error_return=False)
+def update_user_api_data(work_dir='.', update_data=None) -> bool:
+  # 入参校验
+  if type(update_data) != dict:
+    return False
+
+  update_id = update_data.get('id', '')
+  if not update_id:
+    return False
+
+  user_api_list = get_user_api_data_list(work_dir)
+  index = -1
+  # 查找待更新数据
+  for i, user_api in enumerate(user_api_list):
+    o_id = user_api.get('id', '')
+    if update_id == o_id:
+      index = i
+      break
+
+  if index == -1:
+    return False
+
+  o_data = user_api_list[index]
+  user_api_list[index] = {
+    "id": o_data.get('id'),
+    "type": update_data.get('type') or o_data.get('type'),
+    "url": update_data.get('url') or o_data.get('url'),
+    "method": update_data.get('method') or o_data.get('method'),
+    "params": update_data.get('params') or o_data.get('params'),
+    "response": update_data.get('response') or o_data.get('response'),
+  }
+
+  # 更新数据
+  return save_user_api_data_list(work_dir, user_api_list)
 
 
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
@@ -106,10 +150,17 @@ def open_operation_manual_html(root_dir='.'):
 
 # 修复异常的抓包数据
 @error_catch(error_msg='修复异常抓包数据失败', error_return=False)
-def fix_mitmproxy_data(work_dir='.') -> bool:
+def fix_user_api_data(work_dir='.') -> bool:
   user_api_list = get_user_api_data_list(work_dir=work_dir)
+  update_list = []
   for user_api in user_api_list:
-    api_id: str = user_api.get('id', str(uuid.uuid4()))
-    user_api["id"] = api_id
+    update_list.append({
+      "id": user_api.get('id', generate_uuid()),
+      "type": user_api.get('type'),
+      "url": user_api.get('url'),
+      "method": user_api.get('method'),
+      "params": user_api.get('params'),
+      "response": user_api.get('response'),
+    })
 
-  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
+  return save_user_api_data_list(work_dir=work_dir, user_api_list=update_list)
