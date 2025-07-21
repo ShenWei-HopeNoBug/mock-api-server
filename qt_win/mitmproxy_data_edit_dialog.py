@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-import sys
 import math
 import json
+import os
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog
+from PyQt5.QtWidgets import QApplication, QDialog, QVBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import QUrl
+from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
@@ -18,7 +18,7 @@ from lib.app_lib import (
 )
 
 
-class MitmproxyDataEditDialog(QMainWindow):
+class MitmproxyDataEditDialog(QDialog):
   def __init__(self, work_dir='.'):
     super().__init__()
     self.work_dir = work_dir
@@ -30,16 +30,25 @@ class MitmproxyDataEditDialog(QMainWindow):
 
   def init(self):
     self.setWindowTitle("抓包数据管理")
+    self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
     primary_screen = QApplication.primaryScreen()
     primary_screen_size = primary_screen.size()
     primary_width = primary_screen_size.width()
     primary_height = primary_screen_size.height()
+    vw = primary_width
+    vh = primary_height - 160
     width = 1920
     height = 1080
+    zoom = 1
+    if width <= vw:
+      height = min(height, vh)
+      zoom = vw / width
+    else:
+      width = vw
+      height = vh
+
     x0 = math.floor((primary_width - width) * 0.5)
     y0 = math.floor((primary_height - height) * 0.5)
-    # 初始化缩放比例
-    zoom = primary_width / width
 
     # 定位到屏幕中心
     self.setGeometry(x0, y0, width, height)
@@ -60,18 +69,20 @@ class MitmproxyDataEditDialog(QMainWindow):
     self.web_channel = web_channel
     self.interact_obj = interact_obj
 
-    # web_path = os.path.abspath("./web/apps/dataPreview/index.html")
-    # webview.setUrl(QUrl.fromLocalFile(web_path))
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    current_page.load(QUrl('http://10.9.148.123:5173/apps/dataManager/index.html'))
+    web_path = os.path.abspath("./web/apps/dataManager/index.html")
+    webview.setUrl(QUrl.fromLocalFile(web_path))
 
-    self.setCentralWidget(webview)
+    layout = QVBoxLayout()
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
+    layout.addWidget(self.webview)
+    self.setLayout(layout)
 
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
   def receive(self, message: str):
-    print('receive', message)
     event_dict: dict = json.loads(message)
 
     msg_type = event_dict.get('type')
@@ -122,10 +133,3 @@ class MitmproxyDataEditDialog(QMainWindow):
       delete_id = params.get('id')
       success = delete_user_api_data(work_dir=self.work_dir, delete_id=delete_id)
       send_response(success)
-
-
-if __name__ == '__main__':
-  app = QApplication(sys.argv)
-  window = MitmproxyDataEditDialog(work_dir='B:\project\pycharm\mock-api-server\server')
-  window.show()
-  sys.exit(app.exec_())
