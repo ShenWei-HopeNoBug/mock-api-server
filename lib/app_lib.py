@@ -79,7 +79,7 @@ def update_user_api_data(work_dir='.', update_data=None) -> bool:
   if not update_id:
     return False
 
-  user_api_list = get_user_api_data_list(work_dir)
+  user_api_list = get_user_api_data_list(work_dir=work_dir)
   index = -1
   # 查找待更新数据
   for i, user_api in enumerate(user_api_list):
@@ -102,7 +102,25 @@ def update_user_api_data(work_dir='.', update_data=None) -> bool:
   }
 
   # 更新数据
-  return save_user_api_data_list(work_dir, user_api_list)
+  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
+
+
+@error_catch(error_msg='新增 user api 数据失败', error_return=False)
+def add_user_api_data(work_dir='.', add_data=None) -> bool:
+  if type(add_data) != dict:
+    return False
+
+  user_api_list = get_user_api_data_list(work_dir=work_dir)
+  data = {
+    "id": generate_uuid(),
+    "type": add_data.get('type', 'USER'),
+    "url": add_data.get('url', ''),
+    "method": add_data.get('method', 'GET'),
+    "params": add_data.get('params', JsonFormat.format_dict_to_json_string({})),
+    "response": add_data.get('response', JsonFormat.format_dict_to_json_string({})),
+  }
+  user_api_list.append(data)
+  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
 
 
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
