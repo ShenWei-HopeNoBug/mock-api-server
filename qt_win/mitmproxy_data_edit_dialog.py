@@ -10,7 +10,7 @@ from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.app_lib import (
-  get_mock_api_data_list,
+  get_user_api_data_list,
   fix_user_api_data,
   update_user_api_data,
   add_user_api_data,
@@ -112,7 +112,7 @@ class MitmproxyDataEditDialog(QDialog):
     # 请求所有 mock 数据
     if name == 'get_mock_data':
       # 预览数据列表
-      preview_list = get_mock_api_data_list(work_dir=self.work_dir)
+      preview_list = get_user_api_data_list(work_dir=self.work_dir)
       send_response({
         "list": preview_list
       })
