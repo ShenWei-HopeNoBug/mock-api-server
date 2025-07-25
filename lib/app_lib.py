@@ -5,6 +5,7 @@ import pandas as pd
 import json
 import uuid
 
+from PyQt5.QtWidgets import QMenu
 from lib.decorate import error_catch
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 from lib.utils_lib import JsonFormat
@@ -203,3 +204,32 @@ def fix_user_api_data(work_dir='.') -> bool:
     })
 
   return save_user_api_data_list(work_dir=work_dir, user_api_list=update_list)
+
+
+# 批量设置菜单元素禁用状态
+@error_catch(error_msg='批量设置菜单元素禁用状态失败')
+def set_menu_item_disabled(menu: QMenu, disable_list: list):
+  if not menu or not len(disable_list):
+    return
+
+  # 构造菜单元素禁用状态字典
+  disable_dict: dict = {}
+  action_set = set()
+  for config in disable_list:
+    action_name = config.get('action_name', '')
+    disabled = config.get('disabled', False)
+    if action_name:
+      action_set.add(action_name)
+      disable_dict[action_name] = disabled
+
+  actions = menu.actions()
+  for action in actions:
+    if not len(action_set):
+      return
+
+    action_name = action.text()
+    # 设置匹配到的菜单的禁用状态
+    if action_name in action_set:
+      disabled = disable_dict.get(action_name, False)
+      action.setEnabled(not disabled)
+      action_set.remove(action_name)

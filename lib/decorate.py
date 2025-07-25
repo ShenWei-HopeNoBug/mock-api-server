@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import threading
+import datetime
 
 
 # 异常捕获
@@ -12,7 +13,8 @@ def error_catch(error_msg='', error_return=None, print_error_msg=True):
         # 判断是否要打印日志
         if print_error_msg:
           message = error_msg or 'Error'
-          print('{}：{}'.format(message, e))
+          current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+          print('[{}] ERROR {}：{}'.format(current_time, message, e))
         return error_return
 
     return wrapper

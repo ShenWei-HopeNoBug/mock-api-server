@@ -21,7 +21,11 @@ from multiprocessing import Process
 from lib.decorate import create_thread, error_catch
 from lib.utils_lib import check_local_connection
 from lib.work_file_lib import (check_work_files, create_work_files)
-from lib.app_lib import (open_mitmproxy_preview_html, open_operation_manual_html)
+from lib.app_lib import (
+  open_mitmproxy_preview_html,
+  open_operation_manual_html,
+  set_menu_item_disabled,
+)
 from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
 from config.menu import (FILE, EDIT, HELP)
@@ -293,38 +297,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverWorkDirLineEdit.setCursorPosition(0)
     self.serverWorkDirLineEdit.setToolTip(self.work_dir)
 
-  # 更新文件菜单中按钮的禁用状态
-  @error_catch(error_msg='更新【文件】菜单子按钮禁用状态失败')
-  def set_file_menu_disabled(self, action_name: str = '', disabled: bool = False):
-    if not self.file_menu:
-      return
-
-    actions = self.file_menu.actions()
-    target = None
-    for action in actions:
-      if action.text() == action_name:
-        target = action
-        break
-
-    if target:
-      target.setEnabled(not disabled)
-
-  # 更新编辑菜单中按钮的禁用状态
-  @error_catch(error_msg='更新【文件】菜单子按钮禁用状态失败')
-  def set_edit_menu_disabled(self, action_name: str = '', disabled: bool = False):
-    if not self.edit_menu:
-      return
-
-    actions = self.edit_menu.actions()
-    target = None
-    for action in actions:
-      if action.text() == action_name:
-        target = action
-        break
-
-    if target:
-      target.setEnabled(not disabled)
-
   # 展示提示弹窗
   def show_message_dialog(self, dialog_type='critical', title='', message: str = ''):
     if not message:
@@ -384,8 +356,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.responseDelaySpinBox.setDisabled(disabled)
     self.staticLoadSpeedSpinBox.setDisabled(disabled)
     self.cacheCheckBox.setDisabled(disabled)
-    self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
-    self.set_edit_menu_disabled(action_name=EDIT.SERVER_EDIT, disabled=disabled)
+    set_menu_item_disabled(self.file_menu, [
+      {"action_name": FILE.CHANGE_WORK_DIR, "disabled": disabled},
+    ])
+    set_menu_item_disabled(self.edit_menu, [
+      {"action_name": EDIT.SERVER_EDIT, "disabled": disabled},
+    ])
     # mock 服务启动时禁止启动抓包服务
     self.catchServerButton.setDisabled(disabled)
 
@@ -416,9 +392,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticDownloadButton.setText(button_text)
     self.staticDownloadButton.setDisabled(download_btn_disabled)
     self.compressCheckBox.setDisabled(disabled)
-    self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
-    self.set_edit_menu_disabled(action_name=EDIT.SERVER_EDIT, disabled=disabled)
-    self.set_edit_menu_disabled(action_name=EDIT.DOWNLOAD_EDIT, disabled=disabled)
+
+    set_menu_item_disabled(self.file_menu, [
+      {"action_name": FILE.CHANGE_WORK_DIR, "disabled": disabled},
+    ])
+    set_menu_item_disabled(self.edit_menu, [
+      {"action_name": EDIT.SERVER_EDIT, "disabled": disabled},
+      {"action_name": EDIT.DOWNLOAD_EDIT, "disabled": disabled},
+    ])
 
   # 抓包服务启动状态变化
   def mitmproxy_server_status_change(self, text: str):
@@ -450,10 +431,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     self.catchServerPortSpinBox.setDisabled(disabled)
     self.useHistoryCheckBox.setDisabled(disabled)
-    self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
-    self.set_file_menu_disabled(action_name=FILE.MITMPROXY_DATA_PREVIEW, disabled=disabled)
-    self.set_edit_menu_disabled(action_name=EDIT.MITMPROXY_EDIT, disabled=disabled)
-    self.set_edit_menu_disabled(action_name=EDIT.MITMPROXY_DATA_EDIT, disabled=disabled)
+
+    set_menu_item_disabled(self.file_menu, [
+      {"action_name": FILE.CHANGE_WORK_DIR, "disabled": disabled},
+      {"action_name": FILE.MITMPROXY_DATA_PREVIEW, "disabled": disabled},
+    ])
+    set_menu_item_disabled(self.edit_menu, [
+      {"action_name": EDIT.MITMPROXY_EDIT, "disabled": disabled},
+      {"action_name": EDIT.MITMPROXY_DATA_EDIT, "disabled": disabled},
+    ])
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
 
