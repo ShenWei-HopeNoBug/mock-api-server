@@ -36,7 +36,7 @@ class MitmproxyDataEditDialog(QDialog):
     primary_width = primary_screen_size.width()
     primary_height = primary_screen_size.height()
     vw = primary_width
-    vh = primary_height - 160
+    vh = primary_height - 240
     width = 1920
     height = 1080
     zoom = 1
@@ -47,6 +47,7 @@ class MitmproxyDataEditDialog(QDialog):
       width = vw
       height = vh
 
+    width = width - 240
     x0 = math.floor((primary_width - width) * 0.5)
     y0 = math.floor((primary_height - height) * 0.5)
 

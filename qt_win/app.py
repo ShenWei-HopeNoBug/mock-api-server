@@ -24,6 +24,7 @@ from lib.work_file_lib import (check_work_files, create_work_files)
 from lib.app_lib import (
   open_mitmproxy_preview_html,
   open_operation_manual_html,
+  set_menu_config,
   set_menu_item_disabled,
 )
 from lib.download_lib import download_server_static
@@ -148,6 +149,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 渲染菜单栏
   def render_menu_bar(self):
+    menu_bar = self.menuBar()
+
+    # ---------------------
+    # 文件菜单相关初始化
+    # ---------------------
     # 打开工作目录
     def open_work_dir():
       if not os.path.exists(self.work_dir):
@@ -161,77 +167,55 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       if not result:
         QMessageBox.critical(self, '异常', '打开抓包数据预览html失败！')
 
-    # 匹配菜单 action 类型
-    def file_menu_action(action):
-      action_name = action.text()
-      if action_name == FILE.CHANGE_WORK_DIR:
-        # 更换工作目录
-        self.select_work_dir()
-      elif action_name == FILE.OPEN_WORK_DIR:
-        # 打开工作目录
-        open_work_dir()
-      elif action_name == FILE.OUTPUT_STATIC_FILE:
-        # 导出静态资源
-        self.output_static()
-      elif action_name == FILE.MITMPROXY_DATA_PREVIEW:
-        # 查看抓包数据
-        open_preview_html()
-
-    menu_bar = self.menuBar()
-    # ---------------------
-    # 文件菜单相关初始化
-    # ---------------------
     file_menu = menu_bar.addMenu(FILE.MENU_NAME)
     self.file_menu = file_menu
-    # 批量添加菜单项
-    for name in FILE.ACTION_NAME_LIST:
-      file_menu.addAction(name)
-
-    file_menu.triggered[QAction].connect(file_menu_action)
+    set_menu_config(file_menu, [
+      {"name": FILE.CHANGE_WORK_DIR, "callback": self.select_work_dir},
+      {"name": FILE.OPEN_WORK_DIR, "callback": open_work_dir},
+      {"name": FILE.OUTPUT_STATIC_FILE, "callback": self.output_static},
+      {"name": FILE.MITMPROXY_DATA_PREVIEW, "callback": open_preview_html},
+    ])
 
     # ---------------------
     # 编辑菜单相关初始化
     # ---------------------
-    def edit_menu_action(action):
-      action_name = action.text()
-      if action_name == EDIT.MITMPROXY_EDIT:
-        mitmproxy_config_dialog = MitmproxyConfigDialog(work_dir=self.work_dir)
-        mitmproxy_config_dialog.exec_()
-      elif action_name == EDIT.DOWNLOAD_EDIT:
-        download_dialog = DownloadConfigDialog(work_dir=self.work_dir)
-        download_dialog.exec_()
-      elif action_name == EDIT.SERVER_EDIT:
-        server_config_dialog = ServerConfigDialog(work_dir=self.work_dir)
-        server_config_dialog.exec_()
-      elif action_name == EDIT.MITMPROXY_DATA_EDIT:
-        mitmproxy_data_dialog = MitmproxyDataEditDialog(work_dir=self.work_dir)
-        mitmproxy_data_dialog.exec_()
+    def open_mitmproxy_config_dialog():
+      mitmproxy_config_dialog = MitmproxyConfigDialog(work_dir=self.work_dir)
+      mitmproxy_config_dialog.exec_()
+
+    def open_download_dialog():
+      download_dialog = DownloadConfigDialog(work_dir=self.work_dir)
+      download_dialog.exec_()
+
+    def open_server_config_dialog():
+      server_config_dialog = ServerConfigDialog(work_dir=self.work_dir)
+      server_config_dialog.exec_()
+
+    def open_mitmproxy_data_edit_dialog():
+      mitmproxy_data_dialog = MitmproxyDataEditDialog(work_dir=self.work_dir)
+      mitmproxy_data_dialog.exec_()
 
     edit_menu = menu_bar.addMenu(EDIT.MENU_NAME)
     self.edit_menu = edit_menu
-    # 批量添加菜单项
-    for name in EDIT.ACTION_NAME_LIST:
-      edit_menu.addAction(name)
-
-    edit_menu.triggered[QAction].connect(edit_menu_action)
+    set_menu_config(edit_menu, [
+      {"name": EDIT.MITMPROXY_EDIT, "callback": open_mitmproxy_config_dialog},
+      {"name": EDIT.DOWNLOAD_EDIT, "callback": open_download_dialog},
+      {"name": EDIT.SERVER_EDIT, "callback": open_server_config_dialog},
+      {"name": EDIT.MITMPROXY_DATA_EDIT, "callback": open_mitmproxy_data_edit_dialog},
+    ])
 
     # ---------------------
     # 帮助菜单相关初始化
     # ---------------------
-    def help_menu_action(action):
-      action_name = action.text()
-      if action_name == HELP.OPERATION_MANUAL:
-        open_operation_manual_html()
-      elif action_name == HELP.ABOUT:
-        about_dialog = AboutDialog()
-        about_dialog.exec_()
+    def open_about_dialog():
+      about_dialog = AboutDialog()
+      about_dialog.exec_()
 
     help_menu = menu_bar.addMenu(HELP.MENU_NAME)
-    # 批量添加菜单项
-    for name in HELP.ACTION_NAME_LIST:
-      help_menu.addAction(name)
-
-    help_menu.triggered[QAction].connect(help_menu_action)
+    set_menu_config(help_menu, [
+      {"name": HELP.OPERATION_MANUAL, "callback": open_operation_manual_html},
+      {"name": HELP.ABOUT, "callback": open_about_dialog},
+    ])
 
   # 绑定窗口事件
   def add_events(self):

@@ -5,7 +5,7 @@ import pandas as pd
 import json
 import uuid
 
-from PyQt5.QtWidgets import QMenu
+from PyQt5.QtWidgets import QMenu, QAction
 from lib.decorate import error_catch
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 from lib.utils_lib import JsonFormat
@@ -204,6 +204,25 @@ def fix_user_api_data(work_dir='.') -> bool:
     })
 
   return save_user_api_data_list(work_dir=work_dir, user_api_list=update_list)
+
+
+@error_catch(error_msg='批量设置菜单元素配置失败')
+def set_menu_config(menu: QMenu, config_list: list):
+  def menu_action_callback(action: QAction):
+    action_name = action.text()
+    for conf in config_list:
+      callback = conf.get('callback')
+      name = conf.get('name', '')
+      if name == action_name:
+        if callable(callback):
+          callback()
+        return
+
+  for config in config_list:
+    menu_name = config.get('name', '')
+    menu.addAction(menu_name)
+
+  menu.triggered[QAction].connect(menu_action_callback)
 
 
 # 批量设置菜单元素禁用状态
