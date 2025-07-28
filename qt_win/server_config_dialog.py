@@ -1,70 +1,15 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import QDialog, QMessageBox, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QDialog, QWidget, QVBoxLayout
 from PyQt5.QtCore import Qt, QRect
 
 import os
 import copy
-import re
 from lib.utils_lib import ConfigFileManager
 from qt_ui.server_config_win.win_ui import Ui_Dialog
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, MOCK_SERVER_CONFIG_PATH)
-from config.route import (INNER_ROUTE_LIST)
-from qt_ui.list_edit_module.module import ListEditModule
+from qt_ui.server_config_win.module import (FileTypeListModule, StaticRouteListModule)
 
 from qt_ui.server_config_win import server_config_win_style
-
-
-class FileTypeListModule(ListEditModule):
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-
-  def check_edit_valid(
-      self,
-      text: str = '',
-      old_text: str = '',
-      is_edit: bool = False,
-      current_list: list = None,
-  ):
-    valid = bool(re.match(r'^\.[a-zA-Z0-9]+$', text))
-    if not valid:
-      QMessageBox.critical(
-        self,
-        '异常',
-        '请输入标准的文件扩展名文本（扩展名字符可包含大小写字母和数字），如：\n .jpg, .png',
-      )
-
-    return valid
-
-
-class StaticRouteListModule(ListEditModule):
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-
-  def check_edit_valid(
-      self,
-      text: str = '',
-      old_text: str = '',
-      is_edit: bool = False,
-      current_list: list = None,
-  ) -> bool:
-    valid: bool = bool(re.match(r'^/[a-zA-Z0-9_-]+$', text))
-    if not valid:
-      QMessageBox.critical(
-        self,
-        '异常',
-        '请输入指定格式的路由（路由字符可包含大小写字母、数字、下划线和中划线），如：\n /test，/test2, /my_path',
-      )
-
-    inner_route_set = set(INNER_ROUTE_LIST)
-    if text in inner_route_set:
-      valid = False
-      QMessageBox.critical(
-        self,
-        '异常',
-        '该路由名已被应用内部服务占用，请不要使用以下路由进行命名：\n{}'.format('，'.join(INNER_ROUTE_LIST)),
-      )
-
-    return valid
 
 
 class ServerConfigDialog(QDialog, Ui_Dialog):
@@ -81,9 +26,9 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     server_config_manager.init(replace=False)
 
     # 服务配置文件读写管理器
-    self.server_config_manager = server_config_manager
-    self.file_type_edit_weight = None
-    self.static_route_edit_weight = None
+    self.server_config_manager: ConfigFileManager = server_config_manager
+    self.file_type_edit_weight: FileTypeListModule or None = None
+    self.static_route_edit_weight: StaticRouteListModule or None = None
 
     self.init_ui()
     self.add_events()
@@ -106,7 +51,9 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       init_list=include_files,
       label_text='静态资源包含文件类型(比如 .png)：',
     )
-    file_type_edit_weight.listLabel.setToolTip('启动服务时会解析mock数据中已配置的文件类型静态资源链接，将其转换成本地可访问的链接地址')
+    file_type_edit_weight.listLabel.setToolTip(
+      '启动服务时会解析mock数据中已配置的文件类型静态资源链接，将其转换成本地可访问的链接地址',
+    )
 
     # static_path 编辑模组
     static_route_edit_weight = StaticRouteListModule(
@@ -114,7 +61,9 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       init_list=static_match_route,
       label_text='动态匹配静态资源路由：',
     )
-    static_route_edit_weight.listLabel.setToolTip('向mock服务请求的静态资源链接中包含配置的路由，会匹配已有的静态资源文件进行返回')
+    static_route_edit_weight.listLabel.setToolTip(
+      '向mock服务请求的静态资源链接中包含配置的路由，会匹配已有的静态资源文件进行返回',
+    )
 
     widget = QWidget(self)
     widget.setGeometry(QRect(10, 0, 500, 400))
