@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 window = '''
-  #Dialog{
+  #Dialog
+  {
     background-color:rgb(255, 224, 178);
   }
 
@@ -22,5 +23,10 @@ window = '''
   #confirmPushButton:disabled
   {
     border:none;
+  }
+  
+  #paramsMatchGroupBox
+  {
+    border:0;
   }
 '''
