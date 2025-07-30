@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import re
 import time
 import os
 from config.work_file import (
@@ -130,7 +129,7 @@ class MockServer:
       # 响应数据查询键名
       response_key = self.__get_response_dict_key(
         method,
-        JsonFormat.format_json_string(params),
+        self.__get_params_json_string(params),
       )
 
       # 创建 api 映射表
@@ -250,15 +249,15 @@ class MockServer:
       if request_key not in api_dict:
         return
 
-      params = JsonFormat.dumps({})
+      params = self.__get_params_json_string({})
       request_content_type = request.headers.get('content-type') or ''
       if method == 'POST':
         if 'application/x-www-form-urlencoded' in request_content_type:
-          params = JsonFormat.dumps(request.form or {})
+          params = self.__get_params_json_string(request.form or {})
         elif 'application/json' in request_content_type:
-          params = JsonFormat.format_json_string(request.get_data(as_text=True))
+          params = self.__get_params_json_string(request.get_data(as_text=True))
       elif method == 'GET':
-        params = JsonFormat.dumps(dict(request.args or {}))
+        params = self.__get_params_json_string(dict(request.args or {}))
 
       response_key = self.__get_response_dict_key(method, params)
 
@@ -289,7 +288,25 @@ class MockServer:
       print('正在关闭 mock server 进程! port={}'.format(self.port), proc)
       proc.terminate()
 
+  # 获取接口传参的 json 字符串
+  def __get_params_json_string(self, params: dict or str) -> str:
+    # 精确匹配模式下，对字典的 key 进行排序
+    if type(params) == dict:
+      # 传参数据为字典类型
+      if self.http_params_match_mode == SERVER.HTTP_PARAMS_EXACT_MATCH:
+        return JsonFormat.sort_dumps(params)
+      else:
+        return JsonFormat.dumps(params)
+    elif type(params) == str:
+      # 传参数据为字符串类型
+      if self.http_params_match_mode == SERVER.HTTP_PARAMS_EXACT_MATCH:
+        return JsonFormat.format_and_sort_json_string(params)
+      else:
+        return JsonFormat.format_json_string(params)
+    else:
+      return params
+
   # 获取响应数据映射表键名
   @staticmethod
-  def __get_response_dict_key(method, params):
+  def __get_response_dict_key(method: str, params: str):
     return create_md5('{}{}'.format(method, params))
