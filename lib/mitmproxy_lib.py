@@ -13,7 +13,7 @@ from lib.utils_lib import (
 def save_response_to_cache(record: dict, cache: dict) -> None:
   url = record.get('url', '')
   method = record.get('method', '')
-  params = record.get('params', JsonFormat.format_dict_to_json_string({}))
+  params = record.get('params', JsonFormat.dumps({}))
 
   secret_key = r'{}{}'.format(method, params)
   md5_key = create_md5(secret_key)

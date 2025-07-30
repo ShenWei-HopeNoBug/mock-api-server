@@ -93,8 +93,10 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     params_match_mode: int = self.server_config_manager.get(key='http_params_match_mode')
     if params_match_mode == SERVER.HTTP_PARAMS_EXACT_MATCH:
       self.paramsExactMatchRadioButton.setChecked(True)
+      self.params_match_mode = SERVER.HTTP_PARAMS_EXACT_MATCH
     else:
       self.paramsSimpleMatchRadioButton.setChecked(True)
+      self.params_match_mode = SERVER.HTTP_PARAMS_SIMPLE_MATCH
 
     self.confirmPushButton.clicked.connect(self.confirm)
     params_match_button_group = QButtonGroup(self)
@@ -118,8 +120,8 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
 
   def confirm(self):
     self.server_config_manager.set(
-      key='include_files',
-      value=self.params_match_mode or SERVER.HTTP_PARAMS_SIMPLE_MATCH,
+      key='http_params_match_mode',
+      value=self.params_match_mode,
     )
     self.server_config_manager.set(
       key='include_files',

@@ -7,6 +7,7 @@ from config.work_file import (
   API_CACHE_DATA_PATH,
   STATIC_DIR,
 )
+from config.enum import SERVER
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread
 from lib.download_lib import get_static_match_regexp
@@ -46,6 +47,8 @@ class MockServer:
     self.response_delay = response_delay
     # 全局静态资源请求加载速率
     self.static_load_speed = static_load_speed
+    # http 请求参数匹配模式
+    self.http_params_match_mode: int = SERVER.HTTP_PARAMS_SIMPLE_MATCH
 
     # -------------------
     # 初始化
@@ -67,6 +70,10 @@ class MockServer:
       mock_server_config = json.loads(fl.read())
       include_files = mock_server_config.get('include_files', [])
       self.include_files = list(set(include_files))
+      self.http_params_match_mode = mock_server_config.get(
+        'http_params_match_mode',
+        SERVER.HTTP_PARAMS_SIMPLE_MATCH,
+      )
 
       static_match_route = mock_server_config.get('static_match_route', [])
       static_match_route = list(set(static_match_route))
@@ -136,7 +143,7 @@ class MockServer:
 
     # 写入生成的 api 映射数据
     with open(self.api_cache_path, 'w', encoding='utf-8') as fl:
-      fl.write(JsonFormat.format_dict_to_json_string(api_dict))
+      fl.write(JsonFormat.dumps(api_dict))
 
     return api_dict
 
@@ -243,15 +250,15 @@ class MockServer:
       if request_key not in api_dict:
         return
 
-      params = JsonFormat.format_dict_to_json_string({})
+      params = JsonFormat.dumps({})
       request_content_type = request.headers.get('content-type') or ''
       if method == 'POST':
         if 'application/x-www-form-urlencoded' in request_content_type:
-          params = JsonFormat.format_dict_to_json_string(request.form or {})
+          params = JsonFormat.dumps(request.form or {})
         elif 'application/json' in request_content_type:
           params = JsonFormat.format_json_string(request.get_data(as_text=True))
       elif method == 'GET':
-        params = JsonFormat.format_dict_to_json_string(dict(request.args or {}))
+        params = JsonFormat.dumps(dict(request.args or {}))
 
       response_key = self.__get_response_dict_key(method, params)
 

@@ -64,7 +64,7 @@ def save_user_api_data_list(work_dir='.', user_api_list=None) -> bool:
     return False
 
   with open(user_data_path, 'w', encoding='utf-8') as fl:
-    data = JsonFormat.format_dict_to_json_string(user_api_list)
+    data = JsonFormat.dumps(user_api_list)
     fl.write(data)
 
   return True
@@ -117,8 +117,8 @@ def add_user_api_data(work_dir='.', add_data=None) -> bool:
     "type": add_data.get('type', 'USER'),
     "url": add_data.get('url', ''),
     "method": add_data.get('method', 'GET'),
-    "params": add_data.get('params', JsonFormat.format_dict_to_json_string({})),
-    "response": add_data.get('response', JsonFormat.format_dict_to_json_string({})),
+    "params": add_data.get('params', JsonFormat.dumps({})),
+    "response": add_data.get('response', JsonFormat.dumps({})),
   }
   user_api_list.append(data)
   return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
@@ -165,7 +165,7 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
     return False
   with open(web_mitmproxy_output_file, 'w', encoding='utf-8') as fl:
     content = "window.MITMPROXY_OUTPUT = {};\n".format(
-      JsonFormat.format_dict_to_json_string(preview_list),
+      JsonFormat.dumps(preview_list),
     )
     fl.write(content)
 

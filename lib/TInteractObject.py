@@ -23,4 +23,4 @@ class TInteractObj(QObject):
     if type(data) != dict:
       return
 
-    self.send_qt2js_msg(JsonFormat.format_dict_to_json_string(data))
+    self.send_qt2js_msg(JsonFormat.dumps(data))

@@ -64,25 +64,32 @@ def is_file_request(url=''):
 
 
 class JsonFormat:
+  # 将数据格式化为标准的 json string
+  @staticmethod
+  def dumps(data: dict or list) -> str:
+    return json.dumps(data, ensure_ascii=False)
+
   # 格式化 json string 数据(业务映射)
   @staticmethod
-  def format_json_string(json_string):
-    return json.dumps(json.loads(json_string), ensure_ascii=False)
+  def format_json_string(json_string: str):
+    return JsonFormat.dumps(json.loads(json_string))
 
   # 格式化 dict 数据(业务映射)
   @staticmethod
-  def format_dict(dict_data):
-    return json.loads(json.dumps(dict_data, ensure_ascii=False))
+  def format_dict(dict_data: dict) -> dict:
+    return json.loads(JsonFormat.dumps(dict_data))
 
-  # 将字典转化成标准的 json string 数据(业务映射)
   @staticmethod
-  def format_dict_to_json_string(dict_data):
-    return json.dumps(dict_data, ensure_ascii=False)
+  def sort_dumps(data: dict or list) -> str:
+    return json.dumps(data, ensure_ascii=False, sort_keys=True)
 
-  # 将数据格式化为标准的 json string
   @staticmethod
-  def dumps(data):
-    return json.dumps(data, ensure_ascii=False)
+  def format_and_sort_json_string(json_string: str) -> str:
+    return JsonFormat.sort_dumps(json.loads(json_string))
+
+  @staticmethod
+  def format_and_sort_dict(dict_data: dict) -> dict:
+    return json.loads(JsonFormat.sort_dumps(dict_data))
 
 
 # 找到监听指定 ip 和 端口号网络服务的进程列表
