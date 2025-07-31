@@ -6,6 +6,7 @@ from config.work_file import (
   API_CACHE_DATA_PATH,
   STATIC_DIR,
 )
+from config.default import (DEFAULT_HTTP_PARAMS_MATCH_MODE)
 from config.enum import SERVER
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread
@@ -47,7 +48,7 @@ class MockServer:
     # 全局静态资源请求加载速率
     self.static_load_speed = static_load_speed
     # http 请求参数匹配模式
-    self.http_params_match_mode: int = SERVER.HTTP_PARAMS_SIMPLE_MATCH
+    self.http_params_match_mode: int = DEFAULT_HTTP_PARAMS_MATCH_MODE
 
     # -------------------
     # 初始化
@@ -71,7 +72,7 @@ class MockServer:
       self.include_files = list(set(include_files))
       self.http_params_match_mode = mock_server_config.get(
         'http_params_match_mode',
-        SERVER.HTTP_PARAMS_SIMPLE_MATCH,
+        DEFAULT_HTTP_PARAMS_MATCH_MODE,
       )
 
       static_match_route = mock_server_config.get('static_match_route', [])

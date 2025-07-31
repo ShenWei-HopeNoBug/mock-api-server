@@ -8,6 +8,7 @@ from lib.utils_lib import ConfigFileManager
 from qt_ui.server_config_win.win_ui import Ui_Dialog
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, MOCK_SERVER_CONFIG_PATH)
 from config.enum import SERVER
+from config.default import DEFAULT_HTTP_PARAMS_MATCH_MODE
 from qt_ui.server_config_win.module import (FileTypeListModule, StaticRouteListModule)
 
 from qt_ui.server_config_win import server_config_win_style
@@ -42,7 +43,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     self.file_type_edit_weight: FileTypeListModule or None = None
     self.static_route_edit_weight: StaticRouteListModule or None = None
     self.params_match_button_group: QButtonGroup or None = None
-    self.params_match_mode: int = SERVER.HTTP_PARAMS_SIMPLE_MATCH
+    self.params_match_mode: int = DEFAULT_HTTP_PARAMS_MATCH_MODE
 
     self.init_ui()
     self.add_events()
@@ -113,7 +114,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       params_match_id = sender.checkedId()
       self.params_match_mode = PARAMS_MATCH_MODE_DICT.get(
         str(params_match_id),
-        SERVER.HTTP_PARAMS_SIMPLE_MATCH,
+        DEFAULT_HTTP_PARAMS_MATCH_MODE,
       )
 
     params_match_button_group.buttonClicked.connect(radio_button_clicked)

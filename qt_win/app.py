@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QAction)
+from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QMenu)
 
 from qt_win.output_static_dialog import OutputStaticDialog
 from qt_win.about_dialog import AboutDialog
@@ -58,15 +58,15 @@ def server_process_start(server_config: dict):
 # app 主窗口
 class MainWindow(QMainWindow, Ui_MainWindow):
   # 抓包服务运行信号
-  mitmproxy_server_status_signal = pyqtSignal(str)
+  mitmproxy_server_status_signal: pyqtSignal = pyqtSignal(str)
   # 是否追加抓包信号
-  use_history_signal = pyqtSignal(bool)
+  use_history_signal: pyqtSignal = pyqtSignal(bool)
   # 下载静态资源信号
-  downloading_signal = pyqtSignal(str)
+  downloading_signal: pyqtSignal = pyqtSignal(str)
   # mock 服务运行信号
-  server_status_signal = pyqtSignal(str)
+  server_status_signal: pyqtSignal = pyqtSignal(str)
   # 提示弹窗信号
-  message_dialog_signal = pyqtSignal(str, str, str)
+  message_dialog_signal: pyqtSignal = pyqtSignal(str, str, str)
 
   def __init__(self):
     super().__init__()
@@ -80,7 +80,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 服务工作目录
     self.work_dir = os.path.abspath(work_dir)
     # 抓包服务端口号
-    self.catch_server_port = 8080
+    self.catch_server_port: int = 8080
     # -----------------
     # 抓包服务运行状态
     # READY：待运行
@@ -111,17 +111,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 下载详情
     self.download_detail: dict = {}
     # 服务端口号
-    self.server_port = 5000
+    self.server_port: int = 5000
     # 接口响应延时
-    self.response_delay = 0
+    self.response_delay: int = 0
     # 静态资源请求加载速率
-    self.static_load_speed = 0
+    self.static_load_speed: int = 0
     # 是否以缓存模式启动服务
     self.cache = False
     # 文件菜单对象
-    self.file_menu = None
+    self.file_menu: QMenu or None = None
     # 编辑菜单对象
-    self.edit_menu = None
+    self.edit_menu: QMenu or None = None
 
     self.init_ui()
     self.render_menu_bar()

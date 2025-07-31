@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-from config.enum import SERVER
+from config.default import (
+  DEFAULT_DOWNLOAD_TIMEOUT,
+  DEFAULT_HTTP_PARAMS_MATCH_MODE,
+)
 
 # -------------------------------------------------------------
 # APP系统文件工作目录
@@ -100,10 +103,16 @@ WORK_FILE_DICT = {
       "static_include_path": []
     }
   },
+  # ---------------------------------------------------
+  # 下载配置
+  # include_files: 要匹配的静态资源链接扩展名列表
+  # download_timeout: 下载超时时间（s）
+  # ---------------------------------------------------
   "DOWNLOAD_CONFIG": {
     "path": DOWNLOAD_CONFIG_PATH,
     "default": {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
+      "download_timeout": DEFAULT_DOWNLOAD_TIMEOUT,
     }
   },
   # ---------------------------------------------------
@@ -117,7 +126,7 @@ WORK_FILE_DICT = {
     "default": {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
       "static_match_route": [],
-      "http_params_match_mode": SERVER.HTTP_PARAMS_SIMPLE_MATCH,
+      "http_params_match_mode": DEFAULT_HTTP_PARAMS_MATCH_MODE,
     }
   },
   "MITMPROXY_DATA": {

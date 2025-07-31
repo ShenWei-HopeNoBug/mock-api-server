@@ -10,6 +10,7 @@ from config.work_file import (
   STATIC_DIR,
   DOWNLOAD_DIR,
 )
+from config.default import (DEFAULT_DOWNLOAD_TIMEOUT)
 from lib.decorate import error_catch
 from lib.utils_lib import (
   check_and_create_dir,
@@ -202,9 +203,9 @@ def white_download_log(work_dir='.', download_log=None, log_name='log'):
 # 下载mock服务需要静态资源
 @error_catch(error_msg='下载 Mock Server 静态资源失败')
 def download_server_static(
-    work_dir='.',
-    static_url_path=STATIC_DIR,
-    compress=True,
+    work_dir: str = '.',
+    static_url_path: str = STATIC_DIR,
+    compress: bool = True,
     callback=None,
 ):
   print('>' * 10, '开始检查和下载静态资源...')
@@ -235,6 +236,11 @@ def download_server_static(
     )
 
   assets_length = len(download_assets)
+
+  download_config = get_download_config(work_dir=work_dir)
+  # 基准下载超时时间
+  base_timeout = download_config.get('download_timeout', DEFAULT_DOWNLOAD_TIMEOUT)
+
   for i, asset in enumerate(download_assets):
     # 检查是否退出下载
     if is_exit_download():
@@ -259,7 +265,7 @@ def download_server_static(
       })
     # 下载静态资源
     try:
-      response = requests.get(asset, timeout=120)
+      response = requests.get(asset, timeout=base_timeout)
       if response.status_code != 200:
         print('下载失败：{}'.format(asset))
         # 保存下载日志
