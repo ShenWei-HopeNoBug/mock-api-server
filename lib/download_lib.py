@@ -13,7 +13,7 @@ from config.work_file import (
   DOWNLOAD_DIR,
 )
 from config.enum import DOWNLOAD
-from config.default import (DEFAULT_DOWNLOAD_CONNECT_TIMEOUT)
+from config.default import (DEFAULT_DOWNLOAD_CONNECT_TIMEOUT, DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT)
 from lib.decorate import error_catch
 from lib.utils_lib import (
   check_and_create_dir,
@@ -265,7 +265,7 @@ class DownloadDetailManager:
     # 超出连接失败最大次数，直接把超时时间设置为超小值，方便过无法下载的资源
     if connect_error_count >= DOWNLOAD.CONNECT_ERROR_MAX_LIMIT:
       return 1
-    
+
     # 超出连接失败限制次数，直接把超时时间设置成最小值
     if connect_error_count >= DOWNLOAD.CONNECT_ERROR_LIMIT:
       return DOWNLOAD.MIN_CONNECT_TIMEOUT
@@ -328,6 +328,7 @@ def download_server_static(
   download_config = get_download_config(work_dir=work_dir)
   # 基准下载超时时间
   base_timeout = download_config.get('download_timeout', DEFAULT_DOWNLOAD_CONNECT_TIMEOUT)
+  auto_adjust_timeout = download_config.get('auto_adjust_timeout', DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT)
   # 下载详情管理器
   download_detail_manager = DownloadDetailManager(timeout=base_timeout)
 
@@ -354,7 +355,7 @@ def download_server_static(
       })
     # 下载静态资源
     try:
-      connect_timeout = download_detail_manager.get_timeout(url=asset)
+      connect_timeout = download_detail_manager.get_timeout(url=asset) if auto_adjust_timeout else base_timeout
       print('正在下载：{}/{} CONNECT_TIMEOUT：{}s URL：{}'.format(i + 1, assets_length, connect_timeout, asset))
       response = requests.get(asset, timeout=(connect_timeout, DOWNLOAD.READ_TIMEOUT))
       if response.status_code != 200:
@@ -371,7 +372,8 @@ def download_server_static(
         continue
 
       # 更新下载详情
-      download_detail_manager.update_detail(url=asset, connect_error=False)
+      if auto_adjust_timeout:
+        download_detail_manager.update_detail(url=asset, connect_error=False)
 
       # 将文件写入指定位置
       assets_data = response.content
@@ -399,7 +401,8 @@ def download_server_static(
     except ConnectionError as e:
       print('下载静态资源连接异常！', e)
       # 更新下载详情
-      download_detail_manager.update_detail(url=asset, connect_error=True)
+      if auto_adjust_timeout:
+        download_detail_manager.update_detail(url=asset, connect_error=True)
       # 保存下载日志
       download_log.append({
         "url": asset,

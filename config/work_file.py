@@ -2,6 +2,7 @@
 from config.default import (
   DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
   DEFAULT_HTTP_PARAMS_MATCH_MODE,
+  DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT,
 )
 
 # -------------------------------------------------------------
@@ -106,13 +107,15 @@ WORK_FILE_DICT = {
   # ---------------------------------------------------
   # 下载配置
   # include_files: 要匹配的静态资源链接扩展名列表
-  # download_timeout: 下载超时时间（s）
+  # download_timeout: 下载连接超时时间（s）
+  # auto_adjust_timeout: 下载中是否自动调整连接超时时间
   # ---------------------------------------------------
   "DOWNLOAD_CONFIG": {
     "path": DOWNLOAD_CONFIG_PATH,
     "default": {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
       "download_timeout": DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
+      "auto_adjust_timeout": DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT,
     }
   },
   # ---------------------------------------------------

@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt, QRect
 
 import os
 import copy
-from config.default import DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
+from config.default import (DEFAULT_DOWNLOAD_CONNECT_TIMEOUT, DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT)
 from config.enum import DOWNLOAD
 from lib.utils_lib import (ConfigFileManager, limit_num_range)
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
@@ -33,6 +33,7 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     # file_type 编辑模组
     self.file_type_edit_weight: FileTypeListModule or None = None
     self.download_timeout: int = DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
+    self.auto_adjust_timeout: bool = DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT
 
     self.init_ui()
     self.add_events()
@@ -58,6 +59,12 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     self.timeoutSpinBox.setMaximum(DOWNLOAD.MAX_CONNECT_TIMEOUT)
     self.timeoutSpinBox.setValue(init_timeout)
 
+    auto_adjust_timeout = self.download_config_manager.get(key='auto_adjust_timeout')
+    if type(auto_adjust_timeout) != bool:
+      auto_adjust_timeout = DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT
+    self.auto_adjust_timeout = auto_adjust_timeout
+    self.autoAdjustTimeoutCheckBox.setChecked(auto_adjust_timeout)
+
     # 列表初始化数据
     include_path = self.download_config_manager.get_list(key='include_files')
 
@@ -82,12 +89,20 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     def timeout_input_change(value):
       self.download_timeout = value
 
+    def auto_adjust_timeout_change(value):
+      self.auto_adjust_timeout = value
+
     self.timeoutSpinBox.valueChanged.connect(timeout_input_change)
+    self.autoAdjustTimeoutCheckBox.clicked.connect(auto_adjust_timeout_change)
 
   def confirm(self):
     self.download_config_manager.set(
       key='download_timeout',
       value=self.download_timeout or DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
+    )
+    self.download_config_manager.set(
+      key='auto_adjust_timeout',
+      value=self.auto_adjust_timeout,
     )
     self.download_config_manager.set(
       key='include_files',
