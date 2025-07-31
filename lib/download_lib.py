@@ -4,12 +4,15 @@ import json
 import shutil
 import re
 import time
+import math
 import requests
+from requests.exceptions import ConnectionError
 from config.work_file import (
   DOWNLOAD_CONFIG_PATH,
   STATIC_DIR,
   DOWNLOAD_DIR,
 )
+from config.enum import DOWNLOAD
 from config.default import (DEFAULT_DOWNLOAD_TIMEOUT)
 from lib.decorate import error_catch
 from lib.utils_lib import (
@@ -17,6 +20,9 @@ from lib.utils_lib import (
   create_timestamp,
   JsonFormat,
   compress_image,
+  get_url_domain,
+  create_md5,
+  limit_num_range,
 )
 from lib.app_lib import get_mock_api_data_list
 from lib import server_lib
@@ -200,6 +206,84 @@ def white_download_log(work_dir='.', download_log=None, log_name='log'):
     fl.write(JsonFormat.dumps(download_log))
 
 
+class DownloadDetailManager:
+  def __init__(self, timeout: int = DEFAULT_DOWNLOAD_TIMEOUT):
+    # 基准下载超时时间
+    self.timeout: int = limit_num_range(
+      num=timeout,
+      min_limit=DOWNLOAD.MIN_CONNECT_TIMEOUT,
+      max_limit=DOWNLOAD.MAX_CONNECT_TIMEOUT,
+    )
+
+    # 下载详情
+    self.detail: dict = {}
+
+  def update_detail(self, url: str = '', connect_error: bool = False):
+    domain = get_url_domain(url)
+    if not domain:
+      return
+
+    search_key = create_md5(domain)
+
+    if search_key not in self.detail:
+      add_connect_error_count = 1 if connect_error else 0
+      self.detail[search_key] = {
+        "domain": domain,
+        "connect_error_count": add_connect_error_count,
+        "timeout": self.__compute_timeout(connect_error_count=add_connect_error_count),
+      }
+      return
+
+    domain_detail: dict = self.detail.get(search_key, {})
+    connect_error_count = domain_detail.get('connect_error_count', 0)
+    # 如果这次没超时，清空连续超时次数
+    connect_error_count = 0 if not connect_error else (connect_error_count + 1)
+
+    domain_detail['connect_error_count'] = connect_error_count
+    domain_detail['timeout'] = self.__compute_timeout(connect_error_count=connect_error_count)
+    self.detail[search_key] = domain_detail
+
+  def get_timeout(self, url: str = ''):
+    @error_catch(error_msg='获取连接超时时间失败', error_return=self.timeout)
+    def callback():
+      domain = get_url_domain(url)
+      if not domain:
+        return self.timeout
+
+      # 没查到记录，返回配置值
+      search_key = create_md5(domain)
+      if search_key not in self.detail:
+        return self.timeout
+
+      # 返回记录的超时值
+      domain_detail: dict = self.detail.get(search_key, {})
+      return domain_detail.get('timeout', self.timeout)
+
+    return callback()
+
+  def __compute_timeout(self, connect_error_count: int = 0):
+    # 超出最大连接失败次数，直接把超时时间设置成最小值
+    if connect_error_count >= 3:
+      return DOWNLOAD.MIN_CONNECT_TIMEOUT
+
+    # 当前配置超时时间小于动态调整最小超时时间，直接取配置的超时时间
+    if self.timeout <= DOWNLOAD.DYNAMIC_MIN_CONNECT_TIMEOUT:
+      return self.timeout
+
+    count: int = 0
+    timeout: int = self.timeout
+    # 每链接失败一次超时时间就变为原来的一半
+    while count < connect_error_count:
+      timeout = math.floor(timeout / 2)
+      count += 1
+
+    return limit_num_range(
+      num=timeout,
+      min_limit=DOWNLOAD.DYNAMIC_MIN_CONNECT_TIMEOUT,
+      max_limit=DOWNLOAD.MAX_CONNECT_TIMEOUT,
+    )
+
+
 # 下载mock服务需要静态资源
 @error_catch(error_msg='下载 Mock Server 静态资源失败')
 def download_server_static(
@@ -224,7 +308,7 @@ def download_server_static(
   assets_dir = '{}{}'.format(work_dir, static_url_path)
 
   # 下载日志
-  download_log = []
+  download_log: list = []
   log_name = create_timestamp()
 
   # 写入日志
@@ -240,6 +324,8 @@ def download_server_static(
   download_config = get_download_config(work_dir=work_dir)
   # 基准下载超时时间
   base_timeout = download_config.get('download_timeout', DEFAULT_DOWNLOAD_TIMEOUT)
+  # 下载详情管理器
+  download_detail_manager = DownloadDetailManager(timeout=base_timeout)
 
   for i, asset in enumerate(download_assets):
     # 检查是否退出下载
@@ -255,7 +341,6 @@ def download_server_static(
     if os.path.exists(assets_path):
       continue
 
-    print('{}/{} 正在下载：{}'.format(i + 1, assets_length, asset))
     # 调用回调
     if callable(callback):
       callback({
@@ -265,7 +350,9 @@ def download_server_static(
       })
     # 下载静态资源
     try:
-      response = requests.get(asset, timeout=base_timeout)
+      connect_timeout = download_detail_manager.get_timeout(url=asset)
+      print('正在下载：{}/{} CONNECT_TIMEOUT：{}s URL：{}'.format(i + 1, assets_length, connect_timeout, asset))
+      response = requests.get(asset, timeout=(connect_timeout, DOWNLOAD.READ_TIMEOUT))
       if response.status_code != 200:
         print('下载失败：{}'.format(asset))
         # 保存下载日志
@@ -279,9 +366,11 @@ def download_server_static(
         white_log()
         continue
 
-      assets_data = response.content
+      # 更新下载详情
+      download_detail_manager.update_detail(url=asset, connect_error=False)
 
       # 将文件写入指定位置
+      assets_data = response.content
       with open(assets_path, 'wb') as fl:
         fl.write(assets_data)
 
@@ -303,6 +392,18 @@ def download_server_static(
       })
 
       time.sleep(0.8)
+    except ConnectionError as e:
+      print('下载静态资源连接异常！', e)
+      # 更新下载详情
+      download_detail_manager.update_detail(url=asset, connect_error=True)
+      # 保存下载日志
+      download_log.append({
+        "url": asset,
+        "save_path": assets_path,
+        "file_name": file_name,
+        "success": True,
+        "message": "下载连接异常! ConnectionError:{}".format(e),
+      })
     except Exception as e:
       print('下载静态资源出错！', e)
       # 保存下载日志

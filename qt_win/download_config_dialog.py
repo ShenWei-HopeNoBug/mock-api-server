@@ -5,7 +5,8 @@ from PyQt5.QtCore import Qt, QRect
 import os
 import copy
 from config.default import DEFAULT_DOWNLOAD_TIMEOUT
-from lib.utils_lib import ConfigFileManager
+from config.enum import DOWNLOAD
+from lib.utils_lib import (ConfigFileManager, limit_num_range)
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 from qt_ui.download_config_win.win_ui import Ui_Dialog
 
@@ -47,8 +48,15 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
 
     # 初始化超时时间
     download_timeout: int = self.download_config_manager.get(key='download_timeout') or DEFAULT_DOWNLOAD_TIMEOUT
-    self.download_timeout = download_timeout
-    self.timeoutSpinBox.setValue(download_timeout)
+    init_timeout: int = limit_num_range(
+      num=download_timeout,
+      min_limit=DOWNLOAD.MIN_CONNECT_TIMEOUT,
+      max_limit=DOWNLOAD.MAX_CONNECT_TIMEOUT,
+    )
+    self.download_timeout = init_timeout
+    self.timeoutSpinBox.setMinimum(DOWNLOAD.MIN_CONNECT_TIMEOUT)
+    self.timeoutSpinBox.setMaximum(DOWNLOAD.MAX_CONNECT_TIMEOUT)
+    self.timeoutSpinBox.setValue(init_timeout)
 
     # 列表初始化数据
     include_path = self.download_config_manager.get_list(key='include_files')

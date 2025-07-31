@@ -12,6 +12,20 @@ from lib.decorate import error_catch
 import datetime
 
 
+# 限制数值范围
+def limit_num_range(
+    num: int or float,
+    min_limit: int or float,
+    max_limit: int or float
+) -> int or float:
+  if num > max_limit:
+    return max_limit
+  elif num < min_limit:
+    return min_limit
+  else:
+    return num
+
+
 # 获取本机 ip 地址
 def get_ip_address():
   # 获取主机名
@@ -31,8 +45,14 @@ def create_timestamp(time_format: str = '%Y%m%d%H%M%S'):
   return datetime.datetime.now().strftime(time_format)
 
 
+# 获取链接的域名
+def get_url_domain(url: str = ''):
+  domain = urlparse(url).netloc
+  return domain
+
+
 # 去掉链接里面的域名
-def remove_url_domain(url=''):
+def remove_url_domain(url: str = ''):
   parse_data = urlparse(url)
   return parse_data.path
 
