@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from config.default import (
-  DEFAULT_DOWNLOAD_TIMEOUT,
+  DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
   DEFAULT_HTTP_PARAMS_MATCH_MODE,
 )
 
@@ -112,7 +112,7 @@ WORK_FILE_DICT = {
     "path": DOWNLOAD_CONFIG_PATH,
     "default": {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
-      "download_timeout": DEFAULT_DOWNLOAD_TIMEOUT,
+      "download_timeout": DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
     }
   },
   # ---------------------------------------------------

@@ -13,7 +13,7 @@ from config.work_file import (
   DOWNLOAD_DIR,
 )
 from config.enum import DOWNLOAD
-from config.default import (DEFAULT_DOWNLOAD_TIMEOUT)
+from config.default import (DEFAULT_DOWNLOAD_CONNECT_TIMEOUT)
 from lib.decorate import error_catch
 from lib.utils_lib import (
   check_and_create_dir,
@@ -207,7 +207,7 @@ def white_download_log(work_dir='.', download_log=None, log_name='log'):
 
 
 class DownloadDetailManager:
-  def __init__(self, timeout: int = DEFAULT_DOWNLOAD_TIMEOUT):
+  def __init__(self, timeout: int = DEFAULT_DOWNLOAD_CONNECT_TIMEOUT):
     # 基准下载超时时间
     self.timeout: int = limit_num_range(
       num=timeout,
@@ -262,8 +262,12 @@ class DownloadDetailManager:
     return callback()
 
   def __compute_timeout(self, connect_error_count: int = 0):
-    # 超出最大连接失败次数，直接把超时时间设置成最小值
-    if connect_error_count >= 3:
+    # 超出连接失败最大次数，直接把超时时间设置为超小值，方便过无法下载的资源
+    if connect_error_count >= DOWNLOAD.CONNECT_ERROR_MAX_LIMIT:
+      return 1
+    
+    # 超出连接失败限制次数，直接把超时时间设置成最小值
+    if connect_error_count >= DOWNLOAD.CONNECT_ERROR_LIMIT:
       return DOWNLOAD.MIN_CONNECT_TIMEOUT
 
     # 当前配置超时时间小于动态调整最小超时时间，直接取配置的超时时间
@@ -323,7 +327,7 @@ def download_server_static(
 
   download_config = get_download_config(work_dir=work_dir)
   # 基准下载超时时间
-  base_timeout = download_config.get('download_timeout', DEFAULT_DOWNLOAD_TIMEOUT)
+  base_timeout = download_config.get('download_timeout', DEFAULT_DOWNLOAD_CONNECT_TIMEOUT)
   # 下载详情管理器
   download_detail_manager = DownloadDetailManager(timeout=base_timeout)
 

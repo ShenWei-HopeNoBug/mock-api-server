@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt, QRect
 
 import os
 import copy
-from config.default import DEFAULT_DOWNLOAD_TIMEOUT
+from config.default import DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
 from config.enum import DOWNLOAD
 from lib.utils_lib import (ConfigFileManager, limit_num_range)
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
@@ -32,7 +32,7 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     self.download_config_manager: ConfigFileManager = download_config_manager
     # file_type 编辑模组
     self.file_type_edit_weight: FileTypeListModule or None = None
-    self.download_timeout: int = DEFAULT_DOWNLOAD_TIMEOUT
+    self.download_timeout: int = DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
 
     self.init_ui()
     self.add_events()
@@ -47,7 +47,7 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     self.setWindowTitle('下载配置')
 
     # 初始化超时时间
-    download_timeout: int = self.download_config_manager.get(key='download_timeout') or DEFAULT_DOWNLOAD_TIMEOUT
+    download_timeout: int = self.download_config_manager.get(key='download_timeout') or DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
     init_timeout: int = limit_num_range(
       num=download_timeout,
       min_limit=DOWNLOAD.MIN_CONNECT_TIMEOUT,
@@ -87,7 +87,7 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
   def confirm(self):
     self.download_config_manager.set(
       key='download_timeout',
-      value=self.download_timeout or DEFAULT_DOWNLOAD_TIMEOUT,
+      value=self.download_timeout or DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
     )
     self.download_config_manager.set(
       key='include_files',
