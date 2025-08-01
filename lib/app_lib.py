@@ -12,7 +12,7 @@ from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field)
 
 
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
-def get_mitmproxy_api_data_list(work_dir='.'):
+def get_mitmproxy_api_data_list(work_dir='.', reverse = False):
   api_list = []
   # 数据源地址
   mitmproxy_data_path = '{}{}'.format(work_dir, MITMPROXY_DATA_PATH)
@@ -26,11 +26,15 @@ def get_mitmproxy_api_data_list(work_dir='.'):
     record = fix_dict_field(dict_data=dict(row_data), fields=MITMPROXY_DATA_FIELDS)
     api_list.append(record)
 
+  # 是否倒序
+  if reverse:
+    api_list = api_list[::-1]
+
   return api_list
 
 
 @error_catch(error_msg='读取 user api 数据失败', error_return=[])
-def get_user_api_data_list(work_dir='.'):
+def get_user_api_data_list(work_dir='.', reverse = False):
   # 读取用户手动 mock 的接口数据
   user_data_path = '{}{}'.format(work_dir, USER_API_DATA_PATH)
   if not os.path.exists(user_data_path):
@@ -38,6 +42,9 @@ def get_user_api_data_list(work_dir='.'):
 
   with open(user_data_path, 'r', encoding='utf-8') as fl:
     user_api_list = json.loads(fl.read())
+    # 是否倒序
+    if reverse:
+      user_api_list = user_api_list[::-1]
     return user_api_list
 
 

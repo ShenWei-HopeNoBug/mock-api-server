@@ -18,7 +18,7 @@ MITMPROXY_DATA_FIELDS = [
   },
   {
     "key": "method",
-    "default_callback": lambda: "",
+    "default_callback": lambda: "GET",
   },
   {
     "key": "params",

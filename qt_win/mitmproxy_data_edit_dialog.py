@@ -11,6 +11,7 @@ from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.app_lib import (
   get_user_api_data_list,
+  get_mitmproxy_api_data_list,
   fix_user_api_data,
   update_user_api_data,
   add_user_api_data,
@@ -72,7 +73,7 @@ class MitmproxyDataEditDialog(QDialog):
 
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    web_path = os.path.abspath("./web/apps/dataManager/index.html")
+    web_path = os.path.abspath('./web/apps/dataManager/index.html')
     current_page.load(QUrl.fromLocalFile(web_path))
 
     layout = QVBoxLayout()
@@ -99,6 +100,8 @@ class MitmproxyDataEditDialog(QDialog):
     msg_type = event.get('type')
     name = event.get('name')
     action_id = event.get('action_id')
+    extra = event.get('extra', {})
+    params = event.get('params', {})
     if msg_type != 'request':
       return
 
@@ -108,29 +111,42 @@ class MitmproxyDataEditDialog(QDialog):
         "name": name,
         "data": data,
         "action_id": action_id or '',
+        "extra": extra,
       })
 
     # 请求所有 mock 数据
     if name == 'get_mock_data':
+      mock_data_type = params.get('type', '')
       # 预览数据列表
-      preview_list = get_user_api_data_list(work_dir=self.work_dir)
-      send_response({
-        "list": preview_list
-      })
+      preview_list = []
+      # 判断要返回的数据源
+      if mock_data_type == 'USER':
+        preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
+      elif mock_data_type == 'MITMPROXY':
+        preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+      else:
+        preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
+        preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+
+      send_response({"list": preview_list})
     # 尝试修复 mock 的异常数据
     elif name == 'fix_mock_data':
       success = fix_user_api_data(work_dir=self.work_dir)
       send_response(success)
+    # 编辑 mock 接口数据
     elif name == 'edit_mock_data':
-      update_data = event.get('params')
-      success = update_user_api_data(work_dir=self.work_dir, update_data=update_data)
+      success = update_user_api_data(work_dir=self.work_dir, update_data=params)
       send_response(success)
+    # 新增 mock 接口数据
     elif name == 'add_mock_data':
-      add_data = event.get('params')
-      success = add_user_api_data(work_dir=self.work_dir, add_data=add_data)
+      success = add_user_api_data(work_dir=self.work_dir, add_data=params)
       send_response(success)
+    # 删除 mock 接口数据
     elif name == 'delete_mock_data':
-      params = event.get('params', {})
       delete_id = params.get('id')
       success = delete_user_api_data(work_dir=self.work_dir, delete_id=delete_id)
+      send_response(success)
+    # 复制 mock 接口数据
+    elif name == 'copy_mock_data':
+      success = add_user_api_data(work_dir=self.work_dir, add_data=params)
       send_response(success)
