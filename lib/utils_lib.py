@@ -10,6 +10,36 @@ from PIL import Image
 import socket
 from lib.decorate import error_catch
 import datetime
+import uuid
+
+
+# 修复字典数据参数
+def fix_dict_field(dict_data: dict, fields: list) -> dict:
+  if type(dict_data) != dict:
+    return {}
+
+  record: dict = {}
+  for field in fields:
+    key = field.get('key')
+    if not key:
+      continue
+
+    default_callback = field.get('default_callback')
+    default_value = default_callback() if callable(default_callback) else None
+    value = dict_data.get(key, default_value)
+    # 键名为 id 的情况下要做进一步校验
+    if key == 'id' and (type(value) != str or not len(value)):
+      value = default_value
+
+    record[key] = value
+
+  return record
+
+
+# 生成数据的 uuid
+def generate_uuid() -> str:
+  name = '{}-{}'.format(uuid.uuid4(), uuid.uuid1())
+  return str(uuid.uuid5(uuid.NAMESPACE_DNS, name))
 
 
 # 限制数值范围

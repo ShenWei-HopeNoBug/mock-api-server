@@ -3,18 +3,12 @@ import os
 import webbrowser
 import pandas as pd
 import json
-import uuid
 
 from PyQt5.QtWidgets import QMenu, QAction
-from lib.decorate import error_catch
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
-from lib.utils_lib import JsonFormat
-
-
-# 生成数据的 uuid
-def generate_uuid() -> str:
-  name = '{}-{}'.format(uuid.uuid4(), uuid.uuid1())
-  return str(uuid.uuid5(uuid.NAMESPACE_DNS, name))
+from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS
+from lib.decorate import error_catch
+from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field)
 
 
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
@@ -29,14 +23,8 @@ def get_mitmproxy_api_data_list(work_dir='.'):
 
   # 行遍历
   for row_index, row_data in data.iterrows():
-    api_list.append({
-      "id": row_data.get('id', ''),
-      "type": row_data.get('type'),
-      "url": row_data.get('url'),
-      "method": row_data.get('method'),
-      "params": row_data.get('params'),
-      "response": row_data.get('response'),
-    })
+    record = fix_dict_field(dict_data=dict(row_data), fields=MITMPROXY_DATA_FIELDS)
+    api_list.append(record)
 
   return api_list
 

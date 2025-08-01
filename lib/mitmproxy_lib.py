@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-
 import os
 import pandas as pd
+from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS
+from lib.app_lib import get_mitmproxy_api_data_list
 from lib.utils_lib import (
   JsonFormat,
   create_md5,
@@ -30,23 +31,15 @@ def save_response_to_cache(record: dict, cache: dict) -> None:
   cache[search_key][md5_key] = record
 
 
-# 读取本地抓包数据
-@error_catch(error_msg='读取本地抓包数据异常', error_return={})
-def load_response_cache(path: str = '') -> dict:
-  # 路径检查
-  if not os.path.isfile(path):
-    print('@@load_response_cache: 缓存文件不存在！ {}'.format(path))
-    return {}
+# 读取本地抓包数据到cache
+@error_catch(error_msg='读取本地抓包数据到cache异常', error_return={})
+def load_response_cache(work_dir='.') -> dict:
+  mitmproxy_data = get_mitmproxy_api_data_list(work_dir=work_dir)
 
-  data = pd.read_json(path)
-  fieldnames = ["type", "url", "method", "params", "response"]
-  cache = {}
+  cache: dict = {}
   # 行遍历
-  for row_index, row_data in data.iterrows():
-    record = {}
-    for key in fieldnames:
-      record[key] = row_data.get(key)
-    save_response_to_cache(record, cache)
+  for row_data in mitmproxy_data:
+    save_response_to_cache(row_data, cache)
 
   return cache
 
@@ -65,7 +58,7 @@ def save_static_to_cache(record: dict, cache: dict) -> None:
 def load_static_cache(path: str = '') -> dict:
   # 路径检查
   if not os.path.isfile(path):
-    print('@@load_static_cache: 缓存文件不存在！ {}'.format(path))
+    print('@@load_static_cache: 静态资源抓包数据文件不存在！ {}'.format(path))
     return {}
 
   data = pd.read_json(path)
@@ -84,9 +77,9 @@ def load_static_cache(path: str = '') -> dict:
 # 保存抓包数据到本地
 @error_catch(error_msg='保存抓包数据到本地异常')
 def save_response(path: str, cache: dict) -> None:
-  fieldnames = ["type", "url", "method", "params", "response"]
+  field_keys = [field.get('key') for field in MITMPROXY_DATA_FIELDS]
   data = {}
-  for name in fieldnames:
+  for name in field_keys:
     data[name] = []
 
   for response_data in cache.values():
