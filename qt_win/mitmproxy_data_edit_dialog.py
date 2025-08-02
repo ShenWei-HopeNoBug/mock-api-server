@@ -65,7 +65,7 @@ class MitmproxyDataEditDialog(QDialog):
     interact_obj.js2qt_signal.connect(receive)
     web_channel = QWebChannel(current_page)
     # 注册信号传递对象
-    web_channel.registerObject('interactObj', interact_obj)
+    web_channel.registerObject('dataManager', interact_obj)
 
     self.webview = webview
     self.web_channel = web_channel
