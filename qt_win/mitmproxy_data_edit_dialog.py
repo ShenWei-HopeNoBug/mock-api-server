@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-import math
 import json
 import os
 
-from PyQt5.QtWidgets import QApplication, QDialog, QVBoxLayout
+from PyQt5.QtWidgets import QDialog, QVBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
+from lib.webview_lib import get_webview_dialog_config
 from lib.app_lib import (
   get_user_api_data_list,
   get_mitmproxy_api_data_list,
@@ -32,25 +32,12 @@ class MitmproxyDataEditDialog(QDialog):
   def init(self):
     self.setWindowTitle("抓包数据管理")
     self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
-    primary_screen = QApplication.primaryScreen()
-    primary_screen_size = primary_screen.size()
-    primary_width = primary_screen_size.width()
-    primary_height = primary_screen_size.height()
-    vw = primary_width
-    vh = primary_height - 240
-    width = 1920
-    height = 1080
-    zoom = 1
-    if width <= vw:
-      height = min(height, vh)
-      zoom = vw / width
-    else:
-      width = vw
-      height = vh
-
-    width = width - 240
-    x0 = math.floor((primary_width - width) * 0.5)
-    y0 = math.floor((primary_height - height) * 0.5)
+    webview_dialog_config: dict = get_webview_dialog_config()
+    x0 = webview_dialog_config.get('x0')
+    y0 = webview_dialog_config.get('y0')
+    width = webview_dialog_config.get('width')
+    height = webview_dialog_config.get('height')
+    zoom = webview_dialog_config.get('zoom')
 
     # 定位到屏幕中心
     self.setGeometry(x0, y0, width, height)
