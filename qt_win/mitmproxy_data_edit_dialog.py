@@ -30,7 +30,7 @@ class MitmproxyDataEditDialog(QDialog):
     self.init()
 
   def init(self):
-    self.setWindowTitle("抓包数据管理")
+    self.setWindowTitle('抓包数据管理')
     self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
     webview_dialog_config: dict = get_webview_dialog_config()
     x0 = webview_dialog_config.get('x0')

@@ -357,7 +357,10 @@ def download_server_static(
     try:
       connect_timeout = download_detail_manager.get_timeout(url=asset) if auto_adjust_timeout else base_timeout
       print('正在下载：{}/{} CONNECT_TIMEOUT：{}s URL：{}'.format(i + 1, assets_length, connect_timeout, asset))
-      response = requests.get(asset, timeout=(connect_timeout, DOWNLOAD.READ_TIMEOUT))
+      proxies = {
+        # 'https': 'http://127.0.0.1:21882',
+      }
+      response = requests.get(asset, timeout=(connect_timeout, DOWNLOAD.READ_TIMEOUT), proxies=proxies)
       if response.status_code != 200:
         print('下载失败：{}'.format(asset))
         # 保存下载日志

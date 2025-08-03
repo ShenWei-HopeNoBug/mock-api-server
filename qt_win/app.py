@@ -9,6 +9,7 @@ from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
 from qt_win.server_config_dialog import ServerConfigDialog
 from qt_win.download_config_dialog import DownloadConfigDialog
 from qt_win.mitmproxy_data_edit_dialog import MitmproxyDataEditDialog
+from qt_win.download_proxy_config_dialog import DownloadProxyConfigDialog
 
 import os
 import time
@@ -195,6 +196,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       mitmproxy_data_dialog = MitmproxyDataEditDialog(work_dir=self.work_dir)
       mitmproxy_data_dialog.exec_()
 
+    def open_download_proxy_config_dialog():
+      mitmproxy_data_dialog = DownloadProxyConfigDialog(work_dir=self.work_dir)
+      mitmproxy_data_dialog.exec_()
+
     edit_menu = menu_bar.addMenu(EDIT.MENU_NAME)
     self.edit_menu = edit_menu
     set_menu_config(edit_menu, [
@@ -202,6 +207,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       {"name": EDIT.DOWNLOAD_EDIT, "callback": open_download_dialog},
       {"name": EDIT.SERVER_EDIT, "callback": open_server_config_dialog},
       {"name": EDIT.MITMPROXY_DATA_EDIT, "callback": open_mitmproxy_data_edit_dialog},
+      {"name": EDIT.DOWNLOAD_PROXY_EDIT, "callback": open_download_proxy_config_dialog},
     ])
 
     # ---------------------
