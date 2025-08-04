@@ -66,9 +66,15 @@ class DownloadProxyConfigDialog(QDialog):
     self.web_channel = web_channel
     self.interact_obj = interact_obj
 
+    # 页面加载完成
+    def page_loaded(result):
+      if result:
+        self.webview.page().runJavaScript("window.location.href = '#/downloadProxy';")
+
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    web_path = os.path.abspath('./web/apps/configEdit/index.html#/downloadProxy')
+    webview.loadFinished.connect(page_loaded)
+    web_path = os.path.abspath('./web/apps/configEdit/index.html')
     current_page.load(QUrl.fromLocalFile(web_path))
 
     layout = QVBoxLayout()
