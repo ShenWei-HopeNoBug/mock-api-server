@@ -149,7 +149,8 @@ def get_download_assets_list(work_dir='.') -> list:
   # 添加静态资源链接
   for row_data in static_data_list:
     url = row_data.get('url', '')
-    assets_list.append(url)
+    assets = assets_reg.findall(url)
+    assets_list.extend(assets)
 
   # 去重
   assets_list = list(set(assets_list))
@@ -290,6 +291,7 @@ class DownloadDetailManager:
 
 
 # 获取下载代理配置
+@error_catch(error_msg='获取下载代理配置失败', error_return={})
 def get_download_proxies(url: str, download_proxy_list: list) -> dict:
   if not url or type(download_proxy_list) != list:
     return {}
