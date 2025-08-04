@@ -116,6 +116,7 @@ WORK_FILE_DICT = {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
       "download_timeout": DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
       "auto_adjust_timeout": DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT,
+      "download_proxy_list": [],
     }
   },
   # ---------------------------------------------------
