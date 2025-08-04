@@ -23,6 +23,7 @@ from lib.utils_lib import (
   get_url_domain,
   create_md5,
   limit_num_range,
+  is_url_match,
 )
 from lib.app_lib import get_mock_api_data_list
 from lib import server_lib
@@ -288,6 +289,24 @@ class DownloadDetailManager:
     )
 
 
+# 获取下载代理配置
+def get_download_proxies(url: str, download_proxy_list: list) -> dict:
+  if not url or type(download_proxy_list) != list:
+    return {}
+
+  proxies = {}
+  for conf in download_proxy_list:
+    protocol = conf.get('protocol', '')
+    proxy = conf.get('proxy', '')
+    includes = conf.get('includes', [])
+    includes = list(set(includes))
+    # 根据匹配情况设置代理
+    if is_url_match(url=url, includes=includes):
+      proxies[protocol] = proxy
+
+  return proxies
+
+
 # 下载mock服务需要静态资源
 @error_catch(error_msg='下载 Mock Server 静态资源失败')
 def download_server_static(
@@ -328,7 +347,14 @@ def download_server_static(
   download_config = get_download_config(work_dir=work_dir)
   # 基准下载超时时间
   base_timeout = download_config.get('download_timeout', DEFAULT_DOWNLOAD_CONNECT_TIMEOUT)
-  auto_adjust_timeout = download_config.get('auto_adjust_timeout', DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT)
+  # 是否动态调整下载超时连接时间
+  auto_adjust_timeout = download_config.get(
+    'auto_adjust_timeout',
+    DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT,
+  )
+  # 下载代理配置列表
+  download_proxy_list = download_config.get('download_proxy_list', [])
+
   # 下载详情管理器
   download_detail_manager = DownloadDetailManager(timeout=base_timeout)
 
@@ -353,13 +379,18 @@ def download_server_static(
         "total": assets_length,
         "asset": asset,
       })
+
+    connect_timeout = download_detail_manager.get_timeout(url=asset) if auto_adjust_timeout else base_timeout
+    proxies = get_download_proxies(url=asset, download_proxy_list=download_proxy_list)
+    print('\n******** 正在下载：{}/{} ********\nCONNECT_TIMEOUT：{}s\nURL：{}\nPROXIES：{}'.format(
+      i + 1,
+      assets_length,
+      connect_timeout,
+      asset,
+      proxies,
+    ))
     # 下载静态资源
     try:
-      connect_timeout = download_detail_manager.get_timeout(url=asset) if auto_adjust_timeout else base_timeout
-      print('正在下载：{}/{} CONNECT_TIMEOUT：{}s URL：{}'.format(i + 1, assets_length, connect_timeout, asset))
-      proxies = {
-        # 'https': 'http://127.0.0.1:21882',
-      }
       response = requests.get(asset, timeout=(connect_timeout, DOWNLOAD.READ_TIMEOUT), proxies=proxies)
       if response.status_code != 200:
         print('下载失败：{}'.format(asset))
@@ -368,6 +399,7 @@ def download_server_static(
           "url": asset,
           "save_path": assets_path,
           "file_name": file_name,
+          "proxies": proxies,
           "success": False,
           "message": "下载失败! STATUS_CODE:{}".format(response.status_code),
         })
@@ -396,6 +428,7 @@ def download_server_static(
         "url": asset,
         "save_path": assets_path,
         "file_name": file_name,
+        "proxies": proxies,
         "success": True,
         "message": ""
       })
@@ -411,6 +444,7 @@ def download_server_static(
         "url": asset,
         "save_path": assets_path,
         "file_name": file_name,
+        "proxies": proxies,
         "success": True,
         "message": "下载连接异常! ConnectionError:{}".format(e),
       })
@@ -421,9 +455,12 @@ def download_server_static(
         "url": asset,
         "save_path": assets_path,
         "file_name": file_name,
+        "proxies": proxies,
         "success": True,
         "message": "下载报错! ERROR:{}".format(e),
       })
+    finally:
+      print('*' * 29)
 
     white_log()
 

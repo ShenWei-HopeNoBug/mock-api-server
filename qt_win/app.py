@@ -389,6 +389,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     set_menu_item_disabled(self.edit_menu, [
       {"action_name": EDIT.SERVER_EDIT, "disabled": disabled},
       {"action_name": EDIT.DOWNLOAD_EDIT, "disabled": disabled},
+      {"action_name": EDIT.DOWNLOAD_PROXY_EDIT, "disabled": disabled},
     ])
 
   # 抓包服务启动状态变化
