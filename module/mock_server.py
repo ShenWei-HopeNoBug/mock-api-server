@@ -21,6 +21,7 @@ from lib.utils_lib import (
   find_connection_process,
   get_ip_address,
   is_file_request,
+  remove_byte_empty_content,
 )
 
 import json
@@ -259,6 +260,18 @@ class MockServer:
           params = self.__get_params_json_string(request.form or {})
         elif 'application/json' in request_content_type:
           params = self.__get_params_json_string(request.get_data(as_text=True))
+        elif 'multipart/form-data' in request_content_type:
+          try:
+            multipart_dict = dict(request.form or {})
+            file = request.files.get('file')
+            if file:
+              content = remove_byte_empty_content(file.read())
+              file_md5 = 'file-{}'.format(create_md5(content))
+              multipart_dict['file'] = file_md5
+              print('params 存在 file 传参：', multipart_dict)
+            params = self.__get_params_json_string(multipart_dict)
+          except Exception as e:
+            print('Mock Server 解析 multipart/form-data 传参异常', e)
       elif method == 'GET':
         params = self.__get_params_json_string(dict(request.args or {}))
 

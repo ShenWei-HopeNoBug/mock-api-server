@@ -66,7 +66,7 @@ def get_ip_address():
 
 
 # 获取字符串的 md5
-def create_md5(string=''):
+def create_md5(string: str = ''):
   return hashlib.md5(str(string).encode('utf-8')).hexdigest()
 
 
@@ -337,3 +337,26 @@ def is_url_match(url: str, includes: list or str) -> bool:
     return bool(include_reg.search(url))
   else:
     return False
+
+
+@error_catch(error_msg='去除 bytes 内容空字符失败', error_return=bytes())
+def remove_byte_empty_content(b):
+  if type(b) != bytes:
+    return b
+
+  return b.replace(b'\n', b'').replace(b'\r', b'').replace(b'\t', b'')
+
+
+@error_catch(error_msg='获取 multipart_dict 失败', error_return={})
+def get_multipart_dict(multipart_form) -> dict:
+  multipart_dict = {}
+  for key, value in multipart_form.items():
+    key_decode = key.decode('utf-8')
+    # 非文件字段对 bytes 解码，文件字段对文件数据进行压缩处理（转换成 file-hash 的形式）
+    value_decode = value.decode('utf-8') if key_decode != 'file' else 'file-{}'.format(
+      create_md5(remove_byte_empty_content(value))
+    )
+
+    multipart_dict[key_decode] = value_decode
+
+  return multipart_dict

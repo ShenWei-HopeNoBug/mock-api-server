@@ -11,6 +11,7 @@ from lib.utils_lib import (
   is_file_request,
   is_url_match,
   generate_uuid,
+  get_multipart_dict,
 )
 
 
@@ -108,7 +109,9 @@ class RequestRecorder:
         params_json: str = flow.request.get_text() or JsonFormat.dumps({})
         params = JsonFormat.format_json_string(params_json)
       elif 'multipart/form-data' in request_content_type:
-        print('content-type 为 multipart/form-data，请求参数不作保存：\n{}'.format(url))
+        print('content-type 为 multipart/form-data，针对内部的 file 传参作特殊处理：\n{}'.format(url))
+        multipart_dict = get_multipart_dict(flow.request.multipart_form)
+        params = JsonFormat.dumps(multipart_dict)
     elif method == 'GET':
       params = JsonFormat.dumps(dict(flow.request.query.copy()))
 
