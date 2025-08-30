@@ -121,12 +121,13 @@ class MockServer:
       params = row_data.get('params')
       url = row_data.get('url')
       # 去掉域名
-      url = remove_url_domain(url)
+      route = remove_url_domain(url)
       # GET 请求去掉 query 参数
       if method == 'GET':
-        url = remove_url_query(url)
+        route = remove_url_query(route)
 
-      request_key = create_md5(url)
+      # 请求查询键名
+      request_key = self.__get_request_dict_key(route, method)
       # 响应数据查询键名
       response_key = self.__get_response_dict_key(
         method,
@@ -245,7 +246,8 @@ class MockServer:
       if method == 'GET':
         route = remove_url_query(route)
 
-      request_key = create_md5(route)
+      # 请求查询键名
+      request_key = self.__get_request_dict_key(route, method)
       # 请求路径 mock 数据中不存在
       if request_key not in api_dict:
         return
@@ -306,6 +308,11 @@ class MockServer:
         return JsonFormat.format_json_string(params)
     else:
       return params
+
+  # 获取请求查询键名
+  @staticmethod
+  def __get_request_dict_key(route: str, method: str) -> str:
+    return create_md5('{}{}'.format(route, method))
 
   # 获取响应数据映射表键名
   @staticmethod
