@@ -1,37 +1,18 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import QWidget, QDialog, QVBoxLayout, QMessageBox
+from PyQt5.QtWidgets import QWidget, QDialog, QVBoxLayout
 from PyQt5.QtCore import Qt, QRect
 
 import os
-import re
 import copy
-from lib.utils_lib import ConfigFileManager
+from config.default import (DEFAULT_DOWNLOAD_CONNECT_TIMEOUT, DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT)
+from config.enum import DOWNLOAD
+from lib.utils_lib import (ConfigFileManager, limit_num_range)
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 from qt_ui.download_config_win.win_ui import Ui_Dialog
-from qt_ui.list_edit_module.module import ListEditModule
 
 from qt_ui.download_config_win import download_config_win_style
+from qt_ui.download_config_win.module import FileTypeListModule
 
-class FileTypeListModule(ListEditModule):
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-
-  def check_edit_valid(
-      self,
-      text: str = '',
-      old_text: str = '',
-      is_edit: bool = False,
-      current_list: list = None,
-  ):
-    valid = bool(re.match(r'^\.[a-zA-Z0-9]+$', text))
-    if not valid:
-      QMessageBox.critical(
-        self,
-        '异常',
-        '请输入标准的文件扩展名文本（扩展名字符可包含大小写字母和数字），如：\n .jpg, .png',
-      )
-
-    return valid
 
 # 抓包配置弹窗
 class DownloadConfigDialog(QDialog, Ui_Dialog):
@@ -48,9 +29,11 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     download_config_manager.init(replace=False)
 
     # 抓包配置文件读写管理器
-    self.download_config_manager = download_config_manager
+    self.download_config_manager: ConfigFileManager = download_config_manager
     # file_type 编辑模组
-    self.file_type_edit_weight = None
+    self.file_type_edit_weight: FileTypeListModule or None = None
+    self.download_timeout: int = DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
+    self.auto_adjust_timeout: bool = DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT
 
     self.init_ui()
     self.add_events()
@@ -63,6 +46,24 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     # 隐藏帮助问号按钮
     self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
     self.setWindowTitle('下载配置')
+
+    # 初始化超时时间
+    download_timeout: int = self.download_config_manager.get(key='download_timeout') or DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
+    init_timeout: int = limit_num_range(
+      num=download_timeout,
+      min_limit=DOWNLOAD.MIN_CONNECT_TIMEOUT,
+      max_limit=DOWNLOAD.MAX_CONNECT_TIMEOUT,
+    )
+    self.download_timeout = init_timeout
+    self.timeoutSpinBox.setMinimum(DOWNLOAD.MIN_CONNECT_TIMEOUT)
+    self.timeoutSpinBox.setMaximum(DOWNLOAD.MAX_CONNECT_TIMEOUT)
+    self.timeoutSpinBox.setValue(init_timeout)
+
+    auto_adjust_timeout = self.download_config_manager.get(key='auto_adjust_timeout')
+    if type(auto_adjust_timeout) != bool:
+      auto_adjust_timeout = DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT
+    self.auto_adjust_timeout = auto_adjust_timeout
+    self.autoAdjustTimeoutCheckBox.setChecked(auto_adjust_timeout)
 
     # 列表初始化数据
     include_path = self.download_config_manager.get_list(key='include_files')
@@ -85,7 +86,24 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
   def add_events(self):
     self.confirmPushButton.clicked.connect(self.confirm)
 
+    def timeout_input_change(value):
+      self.download_timeout = value
+
+    def auto_adjust_timeout_change(value):
+      self.auto_adjust_timeout = value
+
+    self.timeoutSpinBox.valueChanged.connect(timeout_input_change)
+    self.autoAdjustTimeoutCheckBox.clicked.connect(auto_adjust_timeout_change)
+
   def confirm(self):
+    self.download_config_manager.set(
+      key='download_timeout',
+      value=self.download_timeout or DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
+    )
+    self.download_config_manager.set(
+      key='auto_adjust_timeout',
+      value=self.auto_adjust_timeout,
+    )
     self.download_config_manager.set(
       key='include_files',
       value=self.file_type_edit_weight.get_list(),

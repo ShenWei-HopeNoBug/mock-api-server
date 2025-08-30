@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QAction)
+from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QMenu)
 
 from qt_win.output_static_dialog import OutputStaticDialog
 from qt_win.about_dialog import AboutDialog
 from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
 from qt_win.server_config_dialog import ServerConfigDialog
 from qt_win.download_config_dialog import DownloadConfigDialog
+from qt_win.mitmproxy_data_edit_dialog import MitmproxyDataEditDialog
+from qt_win.download_proxy_config_dialog import DownloadProxyConfigDialog
 
 import os
 import time
@@ -20,8 +22,14 @@ from multiprocessing import Process
 from lib.decorate import create_thread, error_catch
 from lib.utils_lib import check_local_connection
 from lib.work_file_lib import (check_work_files, create_work_files)
-from lib.app_lib import (open_mitmproxy_preview_html, open_operation_manual_html)
-from config.work_file import DEFAULT_WORK_DIR
+from lib.app_lib import (
+  open_mitmproxy_preview_html,
+  open_operation_manual_html,
+  set_menu_config,
+  set_menu_item_disabled,
+)
+from lib.download_lib import download_server_static
+from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
 from config.menu import (FILE, EDIT, HELP)
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
 import ENV
@@ -51,15 +59,15 @@ def server_process_start(server_config: dict):
 # app 主窗口
 class MainWindow(QMainWindow, Ui_MainWindow):
   # 抓包服务运行信号
-  mitmproxy_server_status_signal = pyqtSignal(str)
+  mitmproxy_server_status_signal: pyqtSignal = pyqtSignal(str)
   # 是否追加抓包信号
-  use_history_signal = pyqtSignal(bool)
+  use_history_signal: pyqtSignal = pyqtSignal(bool)
   # 下载静态资源信号
-  downloading_signal = pyqtSignal(str)
+  downloading_signal: pyqtSignal = pyqtSignal(str)
   # mock 服务运行信号
-  server_status_signal = pyqtSignal(str)
+  server_status_signal: pyqtSignal = pyqtSignal(str)
   # 提示弹窗信号
-  message_dialog_signal = pyqtSignal(str, str, str)
+  message_dialog_signal: pyqtSignal = pyqtSignal(str, str, str)
 
   def __init__(self):
     super().__init__()
@@ -73,7 +81,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 服务工作目录
     self.work_dir = os.path.abspath(work_dir)
     # 抓包服务端口号
-    self.catch_server_port = 8080
+    self.catch_server_port: int = 8080
     # -----------------
     # 抓包服务运行状态
     # READY：待运行
@@ -101,18 +109,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # STOP_WAIT：正在停止
     # -----------------
     self.server_status: str = 'READY'
+    # 下载详情
+    self.download_detail: dict = {}
     # 服务端口号
-    self.server_port = 5000
+    self.server_port: int = 5000
     # 接口响应延时
-    self.response_delay = 0
+    self.response_delay: int = 0
     # 静态资源请求加载速率
-    self.static_load_speed = 0
+    self.static_load_speed: int = 0
     # 是否以缓存模式启动服务
     self.cache = False
     # 文件菜单对象
-    self.file_menu = None
+    self.file_menu: QMenu or None = None
     # 编辑菜单对象
-    self.edit_menu = None
+    self.edit_menu: QMenu or None = None
 
     self.init_ui()
     self.render_menu_bar()
@@ -140,6 +150,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 渲染菜单栏
   def render_menu_bar(self):
+    menu_bar = self.menuBar()
+
+    # ---------------------
+    # 文件菜单相关初始化
+    # ---------------------
     # 打开工作目录
     def open_work_dir():
       if not os.path.exists(self.work_dir):
@@ -153,74 +168,60 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       if not result:
         QMessageBox.critical(self, '异常', '打开抓包数据预览html失败！')
 
-    # 匹配菜单 action 类型
-    def file_menu_action(action):
-      action_name = action.text()
-      if action_name == FILE.CHANGE_WORK_DIR:
-        # 更换工作目录
-        self.select_work_dir()
-      elif action_name == FILE.OPEN_WORK_DIR:
-        # 打开工作目录
-        open_work_dir()
-      elif action_name == FILE.OUTPUT_STATIC_FILE:
-        # 导出静态资源
-        self.output_static()
-      elif action_name == FILE.MITMPROXY_DATA_PREVIEW:
-        # 查看抓包数据
-        open_preview_html()
-
-    menu_bar = self.menuBar()
-    # ---------------------
-    # 文件菜单相关初始化
-    # ---------------------
     file_menu = menu_bar.addMenu(FILE.MENU_NAME)
     self.file_menu = file_menu
-    # 批量添加菜单项
-    for name in FILE.ACTION_NAME_LIST:
-      file_menu.addAction(name)
-
-    file_menu.triggered[QAction].connect(file_menu_action)
+    set_menu_config(file_menu, [
+      {"name": FILE.CHANGE_WORK_DIR, "callback": self.select_work_dir},
+      {"name": FILE.OPEN_WORK_DIR, "callback": open_work_dir},
+      {"name": FILE.OUTPUT_STATIC_FILE, "callback": self.output_static},
+      {"name": FILE.MITMPROXY_DATA_PREVIEW, "callback": open_preview_html},
+    ])
 
     # ---------------------
     # 编辑菜单相关初始化
     # ---------------------
-    def edit_menu_action(action):
-      action_name = action.text()
-      if action_name == EDIT.MITMPROXY_EDIT:
-        mitmproxy_config_dialog = MitmproxyConfigDialog(work_dir=self.work_dir)
-        mitmproxy_config_dialog.exec_()
-      elif action_name == EDIT.DOWNLOAD_EDIT:
-        download_dialog = DownloadConfigDialog(work_dir=self.work_dir)
-        download_dialog.exec_()
-      elif action_name == EDIT.SERVER_EDIT:
-        server_config_dialog = ServerConfigDialog(work_dir=self.work_dir)
-        server_config_dialog.exec_()
+    def open_mitmproxy_config_dialog():
+      mitmproxy_config_dialog = MitmproxyConfigDialog(work_dir=self.work_dir)
+      mitmproxy_config_dialog.exec_()
+
+    def open_download_dialog():
+      download_dialog = DownloadConfigDialog(work_dir=self.work_dir)
+      download_dialog.exec_()
+
+    def open_server_config_dialog():
+      server_config_dialog = ServerConfigDialog(work_dir=self.work_dir)
+      server_config_dialog.exec_()
+
+    def open_mitmproxy_data_edit_dialog():
+      mitmproxy_data_dialog = MitmproxyDataEditDialog(work_dir=self.work_dir)
+      mitmproxy_data_dialog.exec_()
+
+    def open_download_proxy_config_dialog():
+      mitmproxy_data_dialog = DownloadProxyConfigDialog(work_dir=self.work_dir)
+      mitmproxy_data_dialog.exec_()
 
     edit_menu = menu_bar.addMenu(EDIT.MENU_NAME)
     self.edit_menu = edit_menu
-    # 批量添加菜单项
-    for name in EDIT.ACTION_NAME_LIST:
-      edit_menu.addAction(name)
-
-    edit_menu.triggered[QAction].connect(edit_menu_action)
+    set_menu_config(edit_menu, [
+      {"name": EDIT.MITMPROXY_EDIT, "callback": open_mitmproxy_config_dialog},
+      {"name": EDIT.DOWNLOAD_EDIT, "callback": open_download_dialog},
+      {"name": EDIT.SERVER_EDIT, "callback": open_server_config_dialog},
+      {"name": EDIT.MITMPROXY_DATA_EDIT, "callback": open_mitmproxy_data_edit_dialog},
+      {"name": EDIT.DOWNLOAD_PROXY_EDIT, "callback": open_download_proxy_config_dialog},
+    ])
 
     # ---------------------
     # 帮助菜单相关初始化
     # ---------------------
-    def help_menu_action(action):
-      action_name = action.text()
-      if action_name == HELP.OPERATION_MANUAL:
-        open_operation_manual_html()
-      elif action_name == HELP.ABOUT:
-        about_dialog = AboutDialog()
-        about_dialog.exec_()
+    def open_about_dialog():
+      about_dialog = AboutDialog()
+      about_dialog.exec_()
 
     help_menu = menu_bar.addMenu(HELP.MENU_NAME)
-    # 批量添加菜单项
-    for name in HELP.ACTION_NAME_LIST:
-      help_menu.addAction(name)
-
-    help_menu.triggered[QAction].connect(help_menu_action)
+    set_menu_config(help_menu, [
+      {"name": HELP.OPERATION_MANUAL, "callback": open_operation_manual_html},
+      {"name": HELP.ABOUT, "callback": open_about_dialog},
+    ])
 
   # 绑定窗口事件
   def add_events(self):
@@ -286,38 +287,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverWorkDirLineEdit.setCursorPosition(0)
     self.serverWorkDirLineEdit.setToolTip(self.work_dir)
 
-  # 更新文件菜单中按钮的禁用状态
-  @error_catch(error_msg='更新【文件】菜单子按钮禁用状态失败')
-  def set_file_menu_disabled(self, action_name: str = '', disabled: bool = False):
-    if not self.file_menu:
-      return
-
-    actions = self.file_menu.actions()
-    target = None
-    for action in actions:
-      if action.text() == action_name:
-        target = action
-        break
-
-    if target:
-      target.setEnabled(not disabled)
-
-  # 更新编辑菜单中按钮的禁用状态
-  @error_catch(error_msg='更新【文件】菜单子按钮禁用状态失败')
-  def set_edit_menu_disabled(self, action_name: str = '', disabled: bool = False):
-    if not self.edit_menu:
-      return
-
-    actions = self.edit_menu.actions()
-    target = None
-    for action in actions:
-      if action.text() == action_name:
-        target = action
-        break
-
-    if target:
-      target.setEnabled(not disabled)
-
   # 展示提示弹窗
   def show_message_dialog(self, dialog_type='critical', title='', message: str = ''):
     if not message:
@@ -377,8 +346,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.responseDelaySpinBox.setDisabled(disabled)
     self.staticLoadSpeedSpinBox.setDisabled(disabled)
     self.cacheCheckBox.setDisabled(disabled)
-    self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
-    self.set_edit_menu_disabled(action_name=EDIT.SERVER_EDIT, disabled=disabled)
+    set_menu_item_disabled(self.file_menu, [
+      {"action_name": FILE.CHANGE_WORK_DIR, "disabled": disabled},
+    ])
+    set_menu_item_disabled(self.edit_menu, [
+      {"action_name": EDIT.SERVER_EDIT, "disabled": disabled},
+    ])
     # mock 服务启动时禁止启动抓包服务
     self.catchServerButton.setDisabled(disabled)
 
@@ -388,7 +361,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if text == 'DOWNLOAD':
       download_btn_disabled = False
       disabled = True
-      button_text = '停止资源下载'
+      current = self.download_detail.get('current', 0)
+      total = self.download_detail.get('total', 0)
+      if current and total:
+        button_text = '停止下载({}/{})'.format(current, total)
+      else:
+        button_text = '停止下载'
     # 正在停止下载
     elif text == 'STOP_WAIT':
       download_btn_disabled = True
@@ -404,8 +382,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticDownloadButton.setText(button_text)
     self.staticDownloadButton.setDisabled(download_btn_disabled)
     self.compressCheckBox.setDisabled(disabled)
-    self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
-    self.set_edit_menu_disabled(action_name=EDIT.SERVER_EDIT, disabled=disabled)
+
+    set_menu_item_disabled(self.file_menu, [
+      {"action_name": FILE.CHANGE_WORK_DIR, "disabled": disabled},
+    ])
+    set_menu_item_disabled(self.edit_menu, [
+      {"action_name": EDIT.SERVER_EDIT, "disabled": disabled},
+      {"action_name": EDIT.DOWNLOAD_EDIT, "disabled": disabled},
+      {"action_name": EDIT.DOWNLOAD_PROXY_EDIT, "disabled": disabled},
+    ])
 
   # 抓包服务启动状态变化
   def mitmproxy_server_status_change(self, text: str):
@@ -437,9 +422,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     self.catchServerPortSpinBox.setDisabled(disabled)
     self.useHistoryCheckBox.setDisabled(disabled)
-    self.set_file_menu_disabled(action_name=FILE.CHANGE_WORK_DIR, disabled=disabled)
-    self.set_file_menu_disabled(action_name=FILE.MITMPROXY_DATA_PREVIEW, disabled=disabled)
-    self.set_edit_menu_disabled(action_name=EDIT.MITMPROXY_EDIT, disabled=disabled)
+
+    set_menu_item_disabled(self.file_menu, [
+      {"action_name": FILE.CHANGE_WORK_DIR, "disabled": disabled},
+      {"action_name": FILE.MITMPROXY_DATA_PREVIEW, "disabled": disabled},
+    ])
+    set_menu_item_disabled(self.edit_menu, [
+      {"action_name": EDIT.MITMPROXY_EDIT, "disabled": disabled},
+      {"action_name": EDIT.MITMPROXY_DATA_EDIT, "disabled": disabled},
+    ])
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
 
@@ -545,6 +536,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     time.sleep(3)
     self.mitmproxy_server_status_signal.emit('READY')
 
+  # 更新下载详情
+  def update_download_detail(self, detail: dict):
+    if type(detail) != dict:
+      detail = {}
+    self.download_detail = detail
+    # 更新下下载按钮显示
+    self.downloading_signal.emit(self.download_status)
+
   # 下载静态资源
   @create_thread
   def download_static(self):
@@ -555,14 +554,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       time.sleep(0.5)
       return
 
-    server = MockServer(work_dir=self.work_dir, port=self.server_port)
     self.downloading_signal.emit('DOWNLOAD')
     GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
-    server.download_static(compress=self.compress_image)
+    # 清空下载详情数据
+    self.download_detail = {}
+    # 开始下载
+    download_server_static(
+      work_dir=self.work_dir,
+      static_url_path=STATIC_DIR,
+      compress=self.compress_image,
+      callback=self.update_download_detail,
+    )
     # 下载任务结束后切换按钮显示
     GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
     time.sleep(0.5)
     self.downloading_signal.emit('READY')
+    # 清空下载详情数据
+    self.download_detail = {}
 
   # 启动mock服务
   @create_thread

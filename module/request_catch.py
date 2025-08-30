@@ -1,35 +1,41 @@
 # -*- coding: utf-8 -*-
+import json
 from mitmproxy import http
-import re
+from mitmproxy.tools.dump import DumpMaster
+from config.work_file import (MITMPROXY_DATA_PATH, STATIC_DATA_PATH, MITMPROXY_CONFIG_PATH)
 from lib import mitmproxy_lib
 from lib.work_file_lib import create_work_files
-from config.work_file import (MITMPROXY_DATA_PATH, STATIC_DATA_PATH, MITMPROXY_CONFIG_PATH)
-from lib.utils_lib import (JsonFormat, is_file_request, is_url_match)
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
-import json
+from lib.utils_lib import (
+  JsonFormat,
+  is_file_request,
+  is_url_match,
+  generate_uuid,
+  get_multipart_dict,
+)
 
 
 # 处理请求抓包工具类
 class RequestRecorder:
   def __init__(self, use_history=True, work_dir='.'):
     # 工作目录
-    self.work_dir = work_dir
+    self.work_dir: str = work_dir
     # 抓包服务 master 实例
-    self.mitmproxy_master = None
+    self.mitmproxy_master: DumpMaster or None = None
     # 抓包结束标记
-    self.mitmproxy_stop_signal = False
+    self.mitmproxy_stop_signal: bool = False
     # 抓包数据保存路径
-    self.save_path = r'{}{}'.format(work_dir, MITMPROXY_DATA_PATH)
-    self.static_save_path = r'{}{}'.format(work_dir, STATIC_DATA_PATH)
-    self.mitmproxy_config_path = r'{}{}'.format(work_dir, MITMPROXY_CONFIG_PATH)
+    self.save_path: str = r'{}{}'.format(work_dir, MITMPROXY_DATA_PATH)
+    self.static_save_path: str = r'{}{}'.format(work_dir, STATIC_DATA_PATH)
+    self.mitmproxy_config_path: str = r'{}{}'.format(work_dir, MITMPROXY_CONFIG_PATH)
     # 抓包缓存数据 dict
-    self.response_cache_dict = {}
+    self.response_cache_dict: dict = {}
     # 抓包包含的 path
     self.include_path: str or list = ''
     # 静态资源包含的 path
-    self.static_include_path = []
+    self.static_include_path: list = []
     # 抓取静态资源缓存数据 dict
-    self.static_cache_dict = {}
+    self.static_cache_dict: dict = {}
 
     # -------------------
     # 初始化
@@ -55,8 +61,8 @@ class RequestRecorder:
 
   # 读取本地保存数据初始化抓包数据
   def load_history_cache(self):
-    # 加载 response 数据
-    self.response_cache_dict = mitmproxy_lib.load_response_cache(self.save_path)
+    # 加载历史 response 数据
+    self.response_cache_dict = mitmproxy_lib.load_response_cache(work_dir=self.work_dir)
     # 加载静态资源数据
     self.static_cache_dict = mitmproxy_lib.load_static_cache(self.static_save_path)
 
@@ -93,21 +99,27 @@ class RequestRecorder:
     method = flow.request.method
 
     # 请求参数，统一用 json string
-    params = JsonFormat.format_dict_to_json_string({})
+    params: str = JsonFormat.dumps({})
 
     request_content_type = flow.request.headers.get('content-type') or ''
     if method == 'POST':
       if 'application/x-www-form-urlencoded' in request_content_type:
-        params = flow.request.form
+        params = JsonFormat.dumps(dict(flow.request.urlencoded_form or {}))
       elif 'application/json' in request_content_type:
-        params = flow.request.get_text()
+        params_json: str = flow.request.get_text() or JsonFormat.dumps({})
+        params = JsonFormat.format_json_string(params_json)
+      elif 'multipart/form-data' in request_content_type:
+        print('content-type 为 multipart/form-data，针对内部的 file 传参作特殊处理：\n{}'.format(url))
+        multipart_dict = get_multipart_dict(flow.request.multipart_form)
+        params = JsonFormat.dumps(multipart_dict)
     elif method == 'GET':
-      params = JsonFormat.format_dict_to_json_string(dict(flow.request.query.copy()))
+      params = JsonFormat.dumps(dict(flow.request.query.copy()))
 
     # 响应内容，统一用 json string
     response = flow.response.get_text()
 
     record = {
+      "id": generate_uuid(),
       "type": "MITMPROXY",
       "url": url,
       "method": method,

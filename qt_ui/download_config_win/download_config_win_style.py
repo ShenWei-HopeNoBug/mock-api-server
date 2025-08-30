@@ -23,4 +23,11 @@ window = '''
   {
     border:none;
   }
+  
+  QSpinBox
+  {
+    background-color:rgb(255, 248, 225);
+    border-radius:4px;
+    padding:4px;
+  }
 '''

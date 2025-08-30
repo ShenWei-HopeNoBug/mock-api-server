@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-
+from config.default import (
+  DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
+  DEFAULT_HTTP_PARAMS_MATCH_MODE,
+  DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT,
+)
 
 # -------------------------------------------------------------
 # APP系统文件工作目录
@@ -100,22 +104,33 @@ WORK_FILE_DICT = {
       "static_include_path": []
     }
   },
+  # ---------------------------------------------------
+  # 下载配置
+  # include_files: 要匹配的静态资源链接扩展名列表
+  # download_timeout: 下载连接超时时间（s）
+  # auto_adjust_timeout: 下载中是否自动调整连接超时时间
+  # ---------------------------------------------------
   "DOWNLOAD_CONFIG": {
     "path": DOWNLOAD_CONFIG_PATH,
     "default": {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
+      "download_timeout": DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
+      "auto_adjust_timeout": DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT,
+      "download_proxy_list": [],
     }
   },
   # ---------------------------------------------------
   # mock 服务的配置
   # include_files: 启动服务后要动态替换的静态资源链接扩展名列表
   # static_match_route: 动态匹配静态资源请求的路由
+  # http_params_match_mode: 请求传参匹配模式
   # ---------------------------------------------------
   "MOCK_SERVER_CONFIG": {
     "path": MOCK_SERVER_CONFIG_PATH,
     "default": {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
-      "static_match_route": []
+      "static_match_route": [],
+      "http_params_match_mode": DEFAULT_HTTP_PARAMS_MATCH_MODE,
     }
   },
   "MITMPROXY_DATA": {

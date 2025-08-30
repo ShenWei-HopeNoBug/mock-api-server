@@ -3,35 +3,38 @@ import os
 import webbrowser
 import pandas as pd
 import json
-from lib.decorate import error_catch
+
+from PyQt5.QtWidgets import QMenu, QAction
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
-from lib.utils_lib import JsonFormat
+from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS
+from lib.decorate import error_catch
+from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field)
 
 
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
-def get_mitmproxy_api_data_list(work_dir='.'):
+def get_mitmproxy_api_data_list(work_dir='.', reverse = False):
   api_list = []
   # 数据源地址
   mitmproxy_data_path = '{}{}'.format(work_dir, MITMPROXY_DATA_PATH)
+  if not os.path.exists(mitmproxy_data_path):
+    return []
   # 读取抓包数据
-  if os.path.exists(mitmproxy_data_path):
-    data = pd.read_json(mitmproxy_data_path)
+  data = pd.read_json(mitmproxy_data_path)
 
-    # 行遍历
-    for row_index, row_data in data.iterrows():
-      api_list.append({
-        "type": row_data.get('type'),
-        "url": row_data.get('url'),
-        "method": row_data.get('method'),
-        "params": row_data.get('params'),
-        "response": row_data.get('response'),
-      })
+  # 行遍历
+  for row_index, row_data in data.iterrows():
+    record = fix_dict_field(dict_data=dict(row_data), fields=MITMPROXY_DATA_FIELDS)
+    api_list.append(record)
+
+  # 是否倒序
+  if reverse:
+    api_list = api_list[::-1]
 
   return api_list
 
 
 @error_catch(error_msg='读取 user api 数据失败', error_return=[])
-def get_user_api_data_list(work_dir='.'):
+def get_user_api_data_list(work_dir='.', reverse = False):
   # 读取用户手动 mock 的接口数据
   user_data_path = '{}{}'.format(work_dir, USER_API_DATA_PATH)
   if not os.path.exists(user_data_path):
@@ -39,7 +42,102 @@ def get_user_api_data_list(work_dir='.'):
 
   with open(user_data_path, 'r', encoding='utf-8') as fl:
     user_api_list = json.loads(fl.read())
+    # 是否倒序
+    if reverse:
+      user_api_list = user_api_list[::-1]
     return user_api_list
+
+
+@error_catch(error_msg='保存 user api 数据失败', error_return=False)
+def save_user_api_data_list(work_dir='.', user_api_list=None) -> bool:
+  # 入参校验
+  if type(user_api_list) != list:
+    return False
+
+  user_data_path = '{}{}'.format(work_dir, USER_API_DATA_PATH)
+  if not os.path.exists(user_data_path):
+    return False
+
+  with open(user_data_path, 'w', encoding='utf-8') as fl:
+    data = JsonFormat.dumps(user_api_list)
+    fl.write(data)
+
+  return True
+
+
+@error_catch(error_msg='更新 user api 数据失败', error_return=False)
+def update_user_api_data(work_dir='.', update_data=None) -> bool:
+  # 入参校验
+  if type(update_data) != dict:
+    return False
+
+  update_id = update_data.get('id', '')
+  if not update_id:
+    return False
+
+  user_api_list = get_user_api_data_list(work_dir=work_dir)
+  index = -1
+  # 查找待更新数据
+  for i, user_api in enumerate(user_api_list):
+    o_id = user_api.get('id', '')
+    if update_id == o_id:
+      index = i
+      break
+
+  if index == -1:
+    return False
+
+  o_data = user_api_list[index]
+  user_api_list[index] = {
+    "id": o_data.get('id'),
+    "type": update_data.get('type') or o_data.get('type'),
+    "url": update_data.get('url') or o_data.get('url'),
+    "method": update_data.get('method') or o_data.get('method'),
+    "params": update_data.get('params') or o_data.get('params'),
+    "response": update_data.get('response') or o_data.get('response'),
+  }
+
+  # 更新数据
+  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
+
+
+@error_catch(error_msg='新增 user api 数据失败', error_return=False)
+def add_user_api_data(work_dir='.', add_data=None) -> bool:
+  if type(add_data) != dict:
+    return False
+
+  user_api_list = get_user_api_data_list(work_dir=work_dir)
+  data = {
+    "id": generate_uuid(),
+    "type": add_data.get('type', 'USER'),
+    "url": add_data.get('url', ''),
+    "method": add_data.get('method', 'GET'),
+    "params": add_data.get('params', JsonFormat.dumps({})),
+    "response": add_data.get('response', JsonFormat.dumps({})),
+  }
+  user_api_list.append(data)
+  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
+
+
+@error_catch(error_msg='删除 user api 数据失败', error_return=False)
+def delete_user_api_data(work_dir='.', delete_id: str = '') -> bool:
+  if type(delete_id) != str or not delete_id:
+    return False
+
+  user_api_list = get_user_api_data_list(work_dir=work_dir)
+  index = -1
+  # 查找待更新数据
+  for i, user_api in enumerate(user_api_list):
+    api_id = user_api.get('id', '')
+    if api_id == delete_id:
+      index = i
+      break
+
+  if index == -1:
+    return False
+
+  del user_api_list[index]
+  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
 
 
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
@@ -62,7 +160,7 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
     return False
   with open(web_mitmproxy_output_file, 'w', encoding='utf-8') as fl:
     content = "window.MITMPROXY_OUTPUT = {};\n".format(
-      JsonFormat.format_dict_to_json_string(preview_list),
+      JsonFormat.dumps(preview_list),
     )
     fl.write(content)
 
@@ -74,6 +172,7 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
 
   return True
 
+
 # 打开操作手册
 @error_catch(error_msg='打开操作手册html失败', error_return=False)
 def open_operation_manual_html(root_dir='.'):
@@ -82,3 +181,69 @@ def open_operation_manual_html(root_dir='.'):
     return False
   webbrowser.open(os.path.abspath(operation_manual_html))
   return True
+
+
+# 修复异常的抓包数据
+@error_catch(error_msg='修复异常抓包数据失败', error_return=False)
+def fix_user_api_data(work_dir='.') -> bool:
+  user_api_list = get_user_api_data_list(work_dir=work_dir)
+  update_list = []
+  for user_api in user_api_list:
+    update_list.append({
+      "id": user_api.get('id', generate_uuid()),
+      "type": user_api.get('type'),
+      "url": user_api.get('url'),
+      "method": user_api.get('method'),
+      "params": user_api.get('params'),
+      "response": user_api.get('response'),
+    })
+
+  return save_user_api_data_list(work_dir=work_dir, user_api_list=update_list)
+
+
+@error_catch(error_msg='批量设置菜单元素配置失败')
+def set_menu_config(menu: QMenu, config_list: list):
+  def menu_action_callback(action: QAction):
+    action_name = action.text()
+    for conf in config_list:
+      callback = conf.get('callback')
+      name = conf.get('name', '')
+      if name == action_name:
+        if callable(callback):
+          callback()
+        return
+
+  for config in config_list:
+    menu_name = config.get('name', '')
+    menu.addAction(menu_name)
+
+  menu.triggered[QAction].connect(menu_action_callback)
+
+
+# 批量设置菜单元素禁用状态
+@error_catch(error_msg='批量设置菜单元素禁用状态失败')
+def set_menu_item_disabled(menu: QMenu, disable_list: list):
+  if not menu or not len(disable_list):
+    return
+
+  # 构造菜单元素禁用状态字典
+  disable_dict: dict = {}
+  action_set = set()
+  for config in disable_list:
+    action_name = config.get('action_name', '')
+    disabled = config.get('disabled', False)
+    if action_name:
+      action_set.add(action_name)
+      disable_dict[action_name] = disabled
+
+  actions = menu.actions()
+  for action in actions:
+    if not len(action_set):
+      return
+
+    action_name = action.text()
+    # 设置匹配到的菜单的禁用状态
+    if action_name in action_set:
+      disabled = disable_dict.get(action_name, False)
+      action.setEnabled(not disabled)
+      action_set.remove(action_name)

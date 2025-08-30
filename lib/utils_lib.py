@@ -10,6 +10,50 @@ from PIL import Image
 import socket
 from lib.decorate import error_catch
 import datetime
+import uuid
+
+
+# 修复字典数据参数
+def fix_dict_field(dict_data: dict, fields: list) -> dict:
+  if type(dict_data) != dict:
+    return {}
+
+  record: dict = {}
+  for field in fields:
+    key = field.get('key')
+    if not key:
+      continue
+
+    default_callback = field.get('default_callback')
+    default_value = default_callback() if callable(default_callback) else None
+    value = dict_data.get(key, default_value)
+    # 键名为 id 的情况下要做进一步校验
+    if key == 'id' and (type(value) != str or not len(value)):
+      value = default_value
+
+    record[key] = value
+
+  return record
+
+
+# 生成数据的 uuid
+def generate_uuid() -> str:
+  name = '{}-{}'.format(uuid.uuid4(), uuid.uuid1())
+  return str(uuid.uuid5(uuid.NAMESPACE_DNS, name))
+
+
+# 限制数值范围
+def limit_num_range(
+    num: int or float,
+    min_limit: int or float,
+    max_limit: int or float
+) -> int or float:
+  if num > max_limit:
+    return max_limit
+  elif num < min_limit:
+    return min_limit
+  else:
+    return num
 
 
 # 获取本机 ip 地址
@@ -22,7 +66,7 @@ def get_ip_address():
 
 
 # 获取字符串的 md5
-def create_md5(string=''):
+def create_md5(string: str = ''):
   return hashlib.md5(str(string).encode('utf-8')).hexdigest()
 
 
@@ -31,8 +75,14 @@ def create_timestamp(time_format: str = '%Y%m%d%H%M%S'):
   return datetime.datetime.now().strftime(time_format)
 
 
+# 获取链接的域名
+def get_url_domain(url: str = ''):
+  domain = urlparse(url).netloc
+  return domain
+
+
 # 去掉链接里面的域名
-def remove_url_domain(url=''):
+def remove_url_domain(url: str = ''):
   parse_data = urlparse(url)
   return parse_data.path
 
@@ -64,25 +114,32 @@ def is_file_request(url=''):
 
 
 class JsonFormat:
+  # 将数据格式化为标准的 json string
+  @staticmethod
+  def dumps(data: dict or list) -> str:
+    return json.dumps(data, ensure_ascii=False)
+
   # 格式化 json string 数据(业务映射)
   @staticmethod
-  def format_json_string(json_string):
-    return json.dumps(json.loads(json_string), ensure_ascii=False)
+  def format_json_string(json_string: str):
+    return JsonFormat.dumps(json.loads(json_string))
 
   # 格式化 dict 数据(业务映射)
   @staticmethod
-  def format_dict(dict_data):
-    return json.loads(json.dumps(dict_data, ensure_ascii=False))
+  def format_dict(dict_data: dict) -> dict:
+    return json.loads(JsonFormat.dumps(dict_data))
 
-  # 将字典转化成标准的 json string 数据(业务映射)
   @staticmethod
-  def format_dict_to_json_string(dict_data):
-    return json.dumps(dict_data, ensure_ascii=False)
+  def sort_dumps(data: dict or list) -> str:
+    return json.dumps(data, ensure_ascii=False, sort_keys=True)
 
-  # 将数据格式化为标准的 json string
   @staticmethod
-  def dumps(data):
-    return json.dumps(data, ensure_ascii=False)
+  def format_and_sort_json_string(json_string: str) -> str:
+    return JsonFormat.sort_dumps(json.loads(json_string))
+
+  @staticmethod
+  def format_and_sort_dict(dict_data: dict) -> dict:
+    return json.loads(JsonFormat.sort_dumps(dict_data))
 
 
 # 找到监听指定 ip 和 端口号网络服务的进程列表
@@ -280,3 +337,26 @@ def is_url_match(url: str, includes: list or str) -> bool:
     return bool(include_reg.search(url))
   else:
     return False
+
+
+@error_catch(error_msg='去除 bytes 内容空字符失败', error_return=bytes())
+def remove_byte_empty_content(b):
+  if type(b) != bytes:
+    return b
+
+  return b.replace(b'\n', b'').replace(b'\r', b'').replace(b'\t', b'')
+
+
+@error_catch(error_msg='获取 multipart_dict 失败', error_return={})
+def get_multipart_dict(multipart_form) -> dict:
+  multipart_dict = {}
+  for key, value in multipart_form.items():
+    key_decode = key.decode('utf-8')
+    # 非文件字段对 bytes 解码，文件字段对文件数据进行压缩处理（转换成 file-hash 的形式）
+    value_decode = value.decode('utf-8') if key_decode != 'file' else 'file-{}'.format(
+      create_md5(remove_byte_empty_content(value))
+    )
+
+    multipart_dict[key_decode] = value_decode
+
+  return multipart_dict
