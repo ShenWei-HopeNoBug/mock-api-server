@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QDialog, QVBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWebChannel import QWebChannel
+from config.work_file import (DATA_DIR, BACKUP_DIR)
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config
@@ -17,17 +18,27 @@ from lib.app_lib import (
   add_user_api_data,
   delete_user_api_data,
 )
+from lib.backup_lib import SimpleFolderBackup
 
 
 class MitmproxyDataEditDialog(QDialog):
   def __init__(self, work_dir='.'):
     super().__init__()
+    # 需要备份的源文件夹路径
+    source_dir = os.path.abspath(r'{}{}'.format(work_dir, DATA_DIR))
+    # 备份文件存放的目标文件夹路径
+    backup_dir = os.path.abspath(r'{}{}{}'.format(work_dir, BACKUP_DIR, DATA_DIR))
+    # 工作目录
     self.work_dir = work_dir
+    # 备份文件实例对象
+    self.simple_folder_backup: SimpleFolderBackup = SimpleFolderBackup(source_dir=source_dir, backup_dir=backup_dir)
     self.webview: QWebEngineView or None = None
     self.web_channel: QWebChannel or None = None
     self.interact_obj: TInteractObj or None = None
 
     self.init()
+    # 初始化之后备份下抓包数据
+    self.simple_folder_backup.backup(backup_name='data')
 
   def init(self):
     self.setWindowTitle('抓包数据管理')
