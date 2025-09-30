@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QDialog, QVBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWebChannel import QWebChannel
+from PyQt5.QtGui import QCloseEvent
 from config.work_file import (DATA_DIR, BACKUP_DIR)
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
@@ -31,7 +32,11 @@ class MitmproxyDataEditDialog(QDialog):
     # 工作目录
     self.work_dir = work_dir
     # 备份文件实例对象
-    self.simple_folder_backup: SimpleFolderBackup = SimpleFolderBackup(source_dir=source_dir, backup_dir=backup_dir)
+    self.simple_folder_backup: SimpleFolderBackup = SimpleFolderBackup(
+      source_dir=source_dir,
+      backup_dir=backup_dir,
+      logger_name='app'
+    )
     self.webview: QWebEngineView or None = None
     self.web_channel: QWebChannel or None = None
     self.interact_obj: TInteractObj or None = None
@@ -148,3 +153,9 @@ class MitmproxyDataEditDialog(QDialog):
     elif name == 'copy_mock_data':
       success = add_user_api_data(work_dir=self.work_dir, add_data=params)
       send_response(success)
+
+  def closeEvent(self, event: QCloseEvent):
+    # 销毁备份对象
+    self.simple_folder_backup.destroy()
+    event.accept()
+

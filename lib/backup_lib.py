@@ -12,7 +12,7 @@ class SimpleFolderBackup:
   使用 shutil.copytree 实现文件夹备份功能
   """
 
-  def __init__(self, source_dir: str, backup_dir: str):
+  def __init__(self, source_dir: str, backup_dir: str, logger_name: str = 'logger') -> None:
     """
     初始化备份工具
 
@@ -22,14 +22,13 @@ class SimpleFolderBackup:
     """
     self.source_dir = source_dir
     self.backup_dir = backup_dir
-    self._ensure_directory_exists(self.backup_dir)
     self.logger_handler = None
-    self.logger = self._setup_logger()
+    self.logger = self._setup_logger(logger_name)
+    self._ensure_directory_exists(self.backup_dir)
 
-
-  def _setup_logger(self) -> logging.Logger:
+  def _setup_logger(self, logger_name='logger') -> logging.Logger:
     """设置日志记录器"""
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -261,6 +260,9 @@ class SimpleFolderBackup:
       self.logger.warning("没有找到符合格式的时间戳备份")
 
     return latest_backup
+
+  def destroy(self):
+    self._remove_logger()
 
 
 # 使用示例
