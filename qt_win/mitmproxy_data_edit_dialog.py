@@ -35,7 +35,6 @@ class MitmproxyDataEditDialog(QDialog):
     self.simple_folder_backup: SimpleFolderBackup = SimpleFolderBackup(
       source_dir=source_dir,
       backup_dir=backup_dir,
-      logger_name='app'
     )
     self.webview: QWebEngineView or None = None
     self.web_channel: QWebChannel or None = None
@@ -153,9 +152,3 @@ class MitmproxyDataEditDialog(QDialog):
     elif name == 'copy_mock_data':
       success = add_user_api_data(work_dir=self.work_dir, add_data=params)
       send_response(success)
-
-  def closeEvent(self, event: QCloseEvent):
-    # 销毁备份对象
-    self.simple_folder_backup.destroy()
-    event.accept()
-

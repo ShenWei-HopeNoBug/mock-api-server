@@ -37,7 +37,6 @@ class RequestRecorder:
     self.simple_folder_backup: SimpleFolderBackup = SimpleFolderBackup(
       source_dir=source_dir,
       backup_dir=backup_dir,
-      logger_name='mitmproxy_server'
     )
     # 抓包服务 master 实例
     self.mitmproxy_master: DumpMaster or None = None
@@ -164,9 +163,6 @@ class RequestRecorder:
     print('----> 正在保存静态资源数据：', self.static_save_path)
     mitmproxy_lib.save_static(self.static_save_path, self.static_cache_dict)
     self.static_cache_dict = {}
-
-    # 销毁备份对象
-    self.simple_folder_backup.destroy()
 
   # 检查请求是否需要被抓取保存
   def __check_response(self, request, response):

@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
 import os
 import shutil
 from datetime import datetime
 from typing import Optional, Tuple, List, Dict, Any
+from lib.logger_lib import STREAM_LOGGER
 import logging
 
 
@@ -12,7 +14,7 @@ class SimpleFolderBackup:
   使用 shutil.copytree 实现文件夹备份功能
   """
 
-  def __init__(self, source_dir: str, backup_dir: str, logger_name: str = 'logger') -> None:
+  def __init__(self, source_dir: str, backup_dir: str) -> None:
     """
     初始化备份工具
 
@@ -22,23 +24,8 @@ class SimpleFolderBackup:
     """
     self.source_dir = source_dir
     self.backup_dir = backup_dir
-    self.logger_handler = None
-    self.logger = self._setup_logger(logger_name)
+    self.logger = STREAM_LOGGER
     self._ensure_directory_exists(self.backup_dir)
-
-  def _setup_logger(self, logger_name='logger') -> logging.Logger:
-    """设置日志记录器"""
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    self.logger_handler = handler
-    logger.addHandler(handler)
-    return logger
-
-  def _remove_logger(self):
-    self.logger.removeHandler(self.logger_handler)
 
   def _ensure_directory_exists(self, directory: str) -> None:
     """确保目录存在，如果不存在则创建"""
@@ -260,9 +247,6 @@ class SimpleFolderBackup:
       self.logger.warning("没有找到符合格式的时间戳备份")
 
     return latest_backup
-
-  def destroy(self):
-    self._remove_logger()
 
 
 # 使用示例
