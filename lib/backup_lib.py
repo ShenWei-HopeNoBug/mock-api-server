@@ -14,16 +14,18 @@ class SimpleFolderBackup:
   使用 shutil.copytree 实现文件夹备份功能
   """
 
-  def __init__(self, source_dir: str, backup_dir: str) -> None:
+  def __init__(self, source_dir: str, backup_dir: str, backup_count = 50) -> None:
     """
     初始化备份工具
 
     Args:
         source_dir: 需要备份的源文件夹路径
         backup_dir: 备份文件存放的目标文件夹路径
+        backup_count: 备份文件夹数量限制
     """
     self.source_dir = source_dir
     self.backup_dir = backup_dir
+    self.backup_count = backup_count
     self.logger = STREAM_LOGGER
     self._ensure_directory_exists(self.backup_dir)
 
