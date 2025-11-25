@@ -67,7 +67,7 @@ class RequestRecorder:
     self.load_mitmproxy_config()
 
     # 初始化时备份下抓包数据
-    self.simple_folder_backup.backup(backup_name='data')
+    self.simple_folder_backup.backup()
 
     # 以历史数据为基础继续抓包
     if use_history:

@@ -42,7 +42,7 @@ class MitmproxyDataEditDialog(QDialog):
 
     self.init()
     # 初始化之后备份下抓包数据
-    self.simple_folder_backup.backup(backup_name='data')
+    self.simple_folder_backup.backup()
 
   def init(self):
     self.setWindowTitle('抓包数据管理')
