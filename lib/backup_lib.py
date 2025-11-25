@@ -57,12 +57,10 @@ class SimpleFolderBackup:
       # 获取备份路径
       backup_path = self._get_backup_path()
 
-      # 如果目标文件夹已存在，添加数字后缀
-      counter = 1
-      original_backup_path = backup_path
-      while os.path.exists(backup_path):
-        backup_path = f"{original_backup_path}_{counter}"
-        counter += 1
+      # 如果目标文件夹已存在，不进行备份
+      if os.path.exists(backup_path):
+        self.logger.error(f"备份到的目标文件夹已存在：{backup_path}")
+        return False
 
       self.logger.info(f"开始备份: {self.source_dir} -> {backup_path}")
 
@@ -109,27 +107,19 @@ class SimpleFolderBackup:
     backups.sort(key=lambda x: x['date'], reverse=True)
     return backups
 
-  def restore(self, backup_path: str, target_dir: Optional[str] = None) -> Tuple[bool, str]:
+  def restore(self, backup_path: str) -> bool:
     """
     将备份恢复到指定目录（默认恢复到源目录）
-
-    Args:
-        backup_path: 备份文件夹路径
-        target_dir: 要恢复到的目标目录，如果为None则恢复到源目录
-
-    Returns:
-        Tuple[bool, str]: (是否成功, 成功信息或错误信息)
     """
     try:
       # 确定目标目录
-      restore_to = target_dir if target_dir is not None else self.source_dir
+      restore_to = self.source_dir
       self.logger.info(f"准备从 {backup_path} 恢复到 {restore_to}")
 
       # 检查备份目录是否存在
       if not os.path.exists(backup_path) or not os.path.isdir(backup_path):
-        error_msg = f"备份目录不存在或不是目录: {backup_path}"
-        self.logger.error(error_msg)
-        return False, error_msg
+        self.logger.error(f"备份目录不存在或不是目录: {backup_path}")
+        return False
 
       # 如果目标目录已存在，先删除它
       if os.path.exists(restore_to):
@@ -145,58 +135,29 @@ class SimpleFolderBackup:
 
       success_msg = f"恢复成功: {backup_path} -> {restore_to}"
       self.logger.info(success_msg)
-      return True, success_msg
+      return True
 
     except Exception as e:
       error_msg = f"恢复过程中发生错误: {str(e)}"
       self.logger.error(error_msg, exc_info=True)
-      return False, error_msg
+      return False
 
-  def restore_latest(self) -> Tuple[bool, str]:
+  def restore_latest(self) -> bool:
     """
     将最新的备份恢复到源目录
-    根据备份文件夹的修改时间确定最新的备份，并使用 shutil.copytree 进行恢复
-
-    Returns:
-        Tuple[bool, str]: (是否成功, 成功信息或错误信息)
     """
-    try:
-      # 检查备份目录是否存在
-      if not os.path.exists(self.backup_dir):
-        error_msg = f"备份目录不存在: {self.backup_dir}"
-        self.logger.error(error_msg)
-        return False, error_msg
-
-      # 获取最近一次备份文件夹地址
-      latest_backup = self.get_latest_timestamped_backup()
-
+    # 获取最近一次备份文件夹地址
+    latest_backup = self.get_latest_timestamped_backup()
+    if latest_backup:
       self.logger.info(f"找到最新的备份: {latest_backup}")
-
-      # 如果目标目录已存在，先删除
-      if os.path.exists(self.source_dir):
-        self.logger.info(f"目标目录已存在，正在删除: {self.source_dir}")
-        shutil.rmtree(self.source_dir)
-
-      # 确保目标目录的父目录存在
-      os.makedirs(os.path.dirname(os.path.abspath(self.source_dir)), exist_ok=True)
-
-      # 使用 copytree 复制整个目录树
-      self.logger.info(f"正在恢复备份: {latest_backup} -> {self.source_dir}")
-      shutil.copytree(latest_backup, self.source_dir)
-
-      success_msg = f"恢复成功: {latest_backup} -> {self.source_dir}"
-      self.logger.info(success_msg)
-      return True, success_msg
-
-    except Exception as e:
-      error_msg = f"恢复最新备份时发生错误: {str(e)}"
-      self.logger.error(error_msg, exc_info=True)
-      return False, error_msg
+      return self.restore(latest_backup)
+    else:
+      self.logger.error(f"未找到最新的备份")
+      return False
 
   def get_latest_timestamped_backup(self) -> Optional[str]:
     """
     查找备份目录中时间戳最新的子文件夹
-
     子文件夹名称需要以 _YYYYMMDDHHMMSS 格式的时间戳结尾
 
     Returns:
@@ -209,19 +170,20 @@ class SimpleFolderBackup:
     latest_backup = None
     latest_time = None
 
-    for item in os.listdir(self.backup_dir):
-      item_path = os.path.join(self.backup_dir, item)
-      if not os.path.isdir(item_path):
+    for dir_name in os.listdir(self.backup_dir):
+      dir_path = os.path.abspath(f"{self.backup_dir}/{dir_name}")
+      # 跳过非文件夹类型路径以及非标准命名的文件夹
+      if not os.path.isdir(dir_path) or not dir_name.startswith(f"{self.prefix}_"):
         continue
 
       try:
         # 查找最后一个下划线的位置
-        last_underscore = item.rfind('_')
+        last_underscore = dir_name.rfind('_')
         if last_underscore == -1:
           continue
 
         # 提取时间戳部分（格式：_YYYYMMDDHHMMSS）
-        timestamp_str = item[last_underscore + 1:]
+        timestamp_str = dir_name[last_underscore + 1:]
         if len(timestamp_str) != 14:  # YYYYMMDDHHMMSS 共14个字符
           continue
 
@@ -229,12 +191,12 @@ class SimpleFolderBackup:
         timestamp = datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
 
         # 更新最新的备份
-        if latest_time is None or timestamp > latest_time:
+        if not latest_time or timestamp > latest_time:
           latest_time = timestamp
-          latest_backup = item_path
+          latest_backup = dir_path
 
       except (ValueError, IndexError) as e:
-        self.logger.debug(f"跳过不符合格式的文件夹: {item}, 错误: {str(e)}")
+        self.logger.debug(f"跳过不符合格式的文件夹: {dir_name}, 错误: {str(e)}")
         continue
 
     if latest_backup:
