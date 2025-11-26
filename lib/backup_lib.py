@@ -21,7 +21,7 @@ class SimpleFolderBackup:
         source_dir: 需要备份的源文件夹路径
         backup_dir: 备份文件存放的目标文件夹路径
         prefix: 备份文件夹前缀
-        backup_count: 备份文件夹数量限制
+        backup_count: 备份文件夹数量限制（传0为无上限）
     """
     self.source_dir: str = os.path.abspath(source_dir)
     self.backup_dir: str = os.path.abspath(backup_dir)
@@ -64,6 +64,8 @@ class SimpleFolderBackup:
     )
 
     self.logger.info(f"备份成功: {backup_path}")
+    # 备份成功后检查并删除超出备份数量上限的文件
+    self.fix_backup_dir_count()
     return True
 
   @error_catch(error_msg='列出所有备份异常', error_return=[])
@@ -164,6 +166,24 @@ class SimpleFolderBackup:
     latest_data = backup_data_list[0]
     return latest_data.get('path', '')
 
+  @error_catch(error_msg='检查并删除超出备份数量的备份文件异常')
+  def fix_backup_dir_count(self):
+    """检查并删除超出备份数量的备份文件"""
+    if not self.backup_count:
+      return
+
+    backup_data_list = self.list_backups()
+    backup_length = len(backup_data_list)
+    if backup_length <= self.backup_count:
+      return
+
+    delete_backup_data_list = backup_data_list[(self.backup_count - backup_length):]
+    delete_dir_list = [backup_data.get('path') for backup_data in delete_backup_data_list]
+    # 删除超出备份上限数量的备份文件夹
+    for delete_dir in delete_dir_list:
+      if self._check_dir_valid(delete_dir):
+        shutil.rmtree(delete_dir)
+
   @staticmethod
   def _check_dir_valid(dir_path: str) -> bool:
     """检查文件夹地址是否合法"""
@@ -210,14 +230,18 @@ def test():
   # 创建备份实例
   simple_folder_back_up = SimpleFolderBackup(
     source_dir=r"B:\project\pycharm\mock-api-server\server\data",
-    backup_dir=r"B:\project\pycharm\mock-api-server\server\backup\data"
+    backup_dir=r"B:\project\pycharm\mock-api-server\server\backup\data",
+    backup_count=3
   )
 
   # 备份文件测试
-  # simple_folder_back_up.backup()
+  simple_folder_back_up.backup()
 
   # 恢复最新备份测试
   # simple_folder_back_up.restore_latest()
+
+  # 检查并删除超出备份数量的备份文件
+  # simple_folder_back_up.fix_backup_dir_count()
 
   # 列出备份列表测试
   backups = simple_folder_back_up.list_backups()
