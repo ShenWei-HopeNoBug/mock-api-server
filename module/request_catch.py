@@ -9,6 +9,8 @@ from config.work_file import (
   DATA_DIR,
   MITMPROXY_CONFIG_PATH,
   BACKUP_DIR,
+  MITMPROXY_FILE_PATH,
+  STATIC_FILE_NAME,
 )
 from lib import mitmproxy_lib
 from lib.work_file_lib import create_work_files
@@ -37,6 +39,10 @@ class RequestRecorder:
     self.simple_folder_backup: SimpleFolderBackup = SimpleFolderBackup(
       source_dir=source_dir,
       backup_dir=backup_dir,
+      watch_backup_files=[
+        f'/{MITMPROXY_FILE_PATH}',
+        f'/{STATIC_FILE_NAME}',
+      ]
     )
     # 抓包服务 master 实例
     self.mitmproxy_master: DumpMaster or None = None
@@ -67,7 +73,7 @@ class RequestRecorder:
     self.load_mitmproxy_config()
 
     # 初始化时备份下抓包数据
-    self.simple_folder_backup.backup()
+    self.simple_folder_backup.watch_diff_backup()
 
     # 以历史数据为基础继续抓包
     if use_history:
@@ -163,6 +169,9 @@ class RequestRecorder:
     print('----> 正在保存静态资源数据：', self.static_save_path)
     mitmproxy_lib.save_static(self.static_save_path, self.static_cache_dict)
     self.static_cache_dict = {}
+
+    # 备份下当前抓包数据结果
+    self.simple_folder_backup.watch_diff_backup()
 
   # 检查请求是否需要被抓取保存
   def __check_response(self, request, response):

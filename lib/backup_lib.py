@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from lib.logger_lib import STREAM_LOGGER
 from lib.decorate import error_catch
-from lib.file_lib import is_dir_path_valid
+from lib.file_lib import is_dir_path_valid, diff_file
 from logging import Logger
 import re
 import sys
@@ -14,7 +14,14 @@ import sys
 class SimpleFolderBackup:
   """简单文件夹备份工具类"""
 
-  def __init__(self, source_dir: str, backup_dir: str, prefix: str = "backup", backup_count: int = 50) -> None:
+  def __init__(
+      self,
+      source_dir: str,
+      backup_dir: str,
+      prefix: str = "backup",
+      backup_count: int = 50,
+      watch_backup_files: Optional[List[str]] = None,
+  ) -> None:
     """
     初始化备份工具
 
@@ -23,6 +30,7 @@ class SimpleFolderBackup:
         backup_dir: 备份文件存放的目标文件夹路径
         prefix: 备份文件夹前缀
         backup_count: 备份文件夹数量限制（传0为无上限）
+        watch_backup_files: 内容检测相对路径列表（比如 /example.txt）
     """
     self.source_dir: str = os.path.abspath(source_dir)
     self.backup_dir: str = os.path.abspath(backup_dir)
@@ -30,6 +38,7 @@ class SimpleFolderBackup:
     self.prefix: str = prefix
     self.logger: Logger = STREAM_LOGGER
     self.source_dir_name: str = ''
+    self.watch_backup_files: Optional[List[str]] = watch_backup_files
 
     self.init()
 
@@ -68,6 +77,37 @@ class SimpleFolderBackup:
     # 备份成功后检查并删除超出备份数量上限的文件
     self.fix_backup_dir_count()
     return True
+
+  def watch_diff_backup(self, watch_backup_files: Optional[List[str]] = None) -> bool:
+    """
+    检查监测目录内的指定文件变化，有变化就进行文件夹备份
+
+    Args:
+      watch_backup_files：内容检测相对路径列表（比如 /example.txt），不传默认为 self.watch_backup_files 的配置
+    """
+    relative_file_paths = self.watch_backup_files if watch_backup_files is None else watch_backup_files
+
+    # 传参不是数组或者为空数组，直接备份
+    if type(relative_file_paths) != list or not len(relative_file_paths):
+      return self.backup()
+
+    # 当前没有备份文件，直接备份
+    latest_backup_path = self.get_latest_backup_path()
+    if not latest_backup_path:
+      return self.backup()
+
+    for relative_path in relative_file_paths:
+      # 存在非法相对路径，直接备份整个文件夹
+      if not relative_path.startswith('/'):
+        return self.backup()
+
+      diff_source_path = os.path.abspath(f'{self.source_dir}{relative_path}')
+      diff_target_path = os.path.abspath(f'{latest_backup_path}{relative_path}')
+      # 文件内容有差异，直接备份整个文件夹
+      if diff_file(source_path=diff_source_path, target_path=diff_target_path):
+        return self.backup()
+
+    return False
 
   @error_catch(error_msg='列出所有备份异常', error_return=[])
   def list_backups(self) -> List[Dict[str, Any]]:

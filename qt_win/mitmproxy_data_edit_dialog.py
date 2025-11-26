@@ -19,7 +19,6 @@ from lib.app_lib import (
   delete_user_api_data,
 )
 from lib.backup_lib import SimpleFolderBackup
-from lib.file_lib import diff_file
 
 
 class MitmproxyDataEditDialog(QDialog):
@@ -31,23 +30,18 @@ class MitmproxyDataEditDialog(QDialog):
     backup_dir = os.path.abspath(r'{}{}{}'.format(work_dir, BACKUP_DIR, DATA_DIR))
     # 工作目录
     self.work_dir = work_dir
-    self.source_dir = source_dir
-    self.backup_dir = backup_dir
     # 备份文件实例对象
     self.simple_folder_backup: SimpleFolderBackup = SimpleFolderBackup(
       source_dir=source_dir,
       backup_dir=backup_dir,
+      watch_backup_files=[f'/{USER_API_FILE_NAME}'],
     )
     self.webview: QWebEngineView or None = None
     self.web_channel: QWebChannel or None = None
     self.interact_obj: TInteractObj or None = None
 
     self.init()
-
-    # 初始化后如果备份文件夹没有对应备份文件，先备份一份当前数据
-    latest_backup_path = self.simple_folder_backup.get_latest_backup_path()
-    if not latest_backup_path:
-      self.simple_folder_backup.backup()
+    self.simple_folder_backup.watch_diff_backup()
 
   def init(self):
     self.setWindowTitle('抓包数据管理')
@@ -158,14 +152,7 @@ class MitmproxyDataEditDialog(QDialog):
       success = add_user_api_data(work_dir=self.work_dir, add_data=params)
       send_response(success)
 
-  def closeEvent(self, event: QEvent) -> None:
-    latest_backup_path = self.simple_folder_backup.get_latest_backup_path()
-    if not latest_backup_path:
-      self.simple_folder_backup.backup()
-    else:
-      latest_user_api_file_path = os.path.abspath(f'{latest_backup_path}/{USER_API_FILE_NAME}')
-      source_user_api_file_path = os.path.abspath(f'{self.source_dir}/{USER_API_FILE_NAME}')
-      # 检查文件有差异，备份整个文件夹
-      if diff_file(source_path=latest_user_api_file_path, target_path=source_user_api_file_path):
-        self.simple_folder_backup.backup()
+  def closeEvent(self, event: QEvent):
+    # 检查文件是否变化判断是否备份文件
+    self.simple_folder_backup.watch_diff_backup()
     event.accept()
