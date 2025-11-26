@@ -21,4 +21,4 @@ def setup_stream_logger(logger_name='logger'):
 
 
 # 主进程全局日志
-STREAM_LOGGER = setup_stream_logger('APP')
+APP_LOGGER = setup_stream_logger('APP')

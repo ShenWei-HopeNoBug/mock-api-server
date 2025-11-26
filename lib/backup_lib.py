@@ -3,7 +3,7 @@ import os
 import shutil
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from lib.logger_lib import STREAM_LOGGER
+from lib.logger_lib import APP_LOGGER
 from lib.decorate import error_catch
 from lib.file_lib import is_dir_path_valid, diff_file
 from logging import Logger
@@ -21,6 +21,7 @@ class SimpleFolderBackup:
       prefix: str = "backup",
       backup_count: int = 50,
       watch_backup_files: Optional[List[str]] = None,
+      logger: Optional[Logger] = None,
   ) -> None:
     """
     初始化备份工具
@@ -31,12 +32,13 @@ class SimpleFolderBackup:
         prefix: 备份文件夹前缀
         backup_count: 备份文件夹数量限制（传0为无上限）
         watch_backup_files: 内容检测相对路径列表（比如 /example.txt）
+        logger: 日志对象（不传默认为全局的日志对象）
     """
     self.source_dir: str = os.path.abspath(source_dir)
     self.backup_dir: str = os.path.abspath(backup_dir)
     self.backup_count: int = backup_count
     self.prefix: str = prefix
-    self.logger: Logger = STREAM_LOGGER
+    self.logger: Logger = logger or APP_LOGGER
     self.source_dir_name: str = ''
     self.watch_backup_files: Optional[List[str]] = watch_backup_files
 
