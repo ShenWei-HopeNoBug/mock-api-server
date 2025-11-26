@@ -43,6 +43,7 @@ class MitmproxyDataEditDialog(QDialog):
     self.init()
     self.simple_folder_backup.watch_diff_backup()
 
+  @error_catch(error_msg='抓包数据管理弹窗初始化异常')
   def init(self):
     self.setWindowTitle('抓包数据管理')
     self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
