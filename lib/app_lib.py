@@ -5,14 +5,38 @@ import pandas as pd
 import json
 
 from PyQt5.QtWidgets import QMenu, QAction
+from PyQt5.QtCore import QSharedMemory
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS
 from lib.decorate import error_catch
 from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field)
 
 
+@error_catch(error_msg='检查应用是否已经在运行异常', error_return=False)
+def is_app_running(app_name="APP"):
+  """检查应用是否已经在运行"""
+  # 创建共享内存
+  shared_memory = QSharedMemory(app_name)
+
+  # 尝试附加到现有共享内存
+  if shared_memory.attach():
+    return True
+
+  # 创建共享内存段
+  if not shared_memory.create(1):
+    return True
+
+  # 保存共享内存对象，防止被垃圾回收
+  if not hasattr(is_app_running, 'shared_memory'):
+    is_app_running.shared_memory = shared_memory
+  else:
+    shared_memory.deleteLater()
+
+  return False
+
+
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
-def get_mitmproxy_api_data_list(work_dir='.', reverse = False):
+def get_mitmproxy_api_data_list(work_dir='.', reverse=False):
   api_list = []
   # 数据源地址
   mitmproxy_data_path = '{}{}'.format(work_dir, MITMPROXY_DATA_PATH)
@@ -34,7 +58,7 @@ def get_mitmproxy_api_data_list(work_dir='.', reverse = False):
 
 
 @error_catch(error_msg='读取 user api 数据失败', error_return=[])
-def get_user_api_data_list(work_dir='.', reverse = False):
+def get_user_api_data_list(work_dir='.', reverse=False):
   # 读取用户手动 mock 的接口数据
   user_data_path = '{}{}'.format(work_dir, USER_API_DATA_PATH)
   if not os.path.exists(user_data_path):

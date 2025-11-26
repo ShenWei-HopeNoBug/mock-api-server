@@ -8,6 +8,7 @@ import multiprocessing
 from lib.splash import StartSplash
 from qt_win.app import MainWindow
 from lib.logger_lib import APP_LOGGER
+from lib.app_lib import is_app_running
 
 
 def exception_handler(exception_type, value):
@@ -26,6 +27,11 @@ if __name__ == '__main__':
   app = QApplication(sys.argv)
   # 全局异常捕获
   sys.excepthook = exception_handler
+
+  # 检查 APP 是否已经在运行
+  if is_app_running():
+    QMessageBox.warning(None, '警告', '程序已经在运行中！')
+    sys.exit(1)
 
   start_splash = StartSplash()
   # 启动动画对象
