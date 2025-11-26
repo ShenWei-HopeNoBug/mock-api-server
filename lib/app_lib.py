@@ -3,6 +3,7 @@ import os
 import webbrowser
 import pandas as pd
 import json
+from pathlib import Path
 
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
 from PyQt5.QtCore import QSharedMemory
@@ -47,7 +48,10 @@ def get_memory_name() -> str:
   if not app_proc:
     return 'APP'
 
-  return create_md5(app_proc.name().replace('.win', ''))
+  app_name = app_proc.name().replace('.win', '')
+  memory_name = os.path.abspath(Path(app_name))
+
+  return create_md5(memory_name)
 
 
 @error_catch(error_msg='查找正在运行的APP实例的进程pid异常', error_return=None)
