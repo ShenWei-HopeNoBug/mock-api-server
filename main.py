@@ -7,10 +7,12 @@ import sys
 import multiprocessing
 from lib.splash import StartSplash
 from qt_win.app import MainWindow
+from lib.logger_lib import APP_LOGGER
 
 
 def exception_handler(exception_type, value):
   """全局异常处理器"""
+  APP_LOGGER.error(f'APP全局程序异常捕获：{value}')
   # 显示异常信息的对话框
   QMessageBox.critical(None, "程序异常", f"发生异常：{value}")
   sys.exit(1)
