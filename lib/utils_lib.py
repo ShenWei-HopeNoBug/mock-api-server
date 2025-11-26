@@ -163,14 +163,10 @@ def find_connection_process(ip='0.0.0.0', port=5000):
 
 @error_catch(error_msg='根据pid查找进程异常', error_return=None)
 def find_process(pid: int):
-  if type(pid) != int:
+  try:
+    return psutil.Process(pid)
+  except psutil.NoSuchProcess:
     return None
-
-  for proc in psutil.process_iter(['pid']):
-    if proc.info['pid'] == pid:
-      return proc
-
-  return None
 
 
 # 检测本地指定 ip 和 端口号网络服务是否已经被占用

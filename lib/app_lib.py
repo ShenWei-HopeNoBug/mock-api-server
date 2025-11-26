@@ -9,7 +9,7 @@ from PyQt5.QtCore import QSharedMemory
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS
 from lib.decorate import error_catch
-from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field, find_process)
+from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field, find_process, create_md5)
 import psutil
 import win32gui
 import win32process
@@ -40,9 +40,19 @@ def is_app_running(app_name="APP") -> bool:
   return False
 
 
-@error_catch(error_msg='查找正在运行的应用实例的进程pid异常', error_return=None)
+@error_catch(error_msg='获取共享内存名异常', error_return='APP')
+def get_memory_name() -> str:
+  app_proc_pid = QApplication.applicationPid()
+  app_proc = find_process(app_proc_pid)
+  if not app_proc:
+    return 'APP'
+
+  return create_md5(app_proc.name().replace('.win', ''))
+
+
+@error_catch(error_msg='查找正在运行的APP实例的进程pid异常', error_return=None)
 def find_running_app_pid():
-  """查找正在运行的应用实例的进程pid"""
+  """查找正在运行的APP实例的进程pid"""
   app_proc_pid = QApplication.applicationPid()
   app_proc = find_process(app_proc_pid)
   if not app_proc:
@@ -56,10 +66,15 @@ def find_running_app_pid():
       app_proc_name,
     )
   )
+
+  # 用于匹配的进程名去除.win
+  match_proc_name = app_proc_name.replace('.win', '')
   for proc in psutil.process_iter(['pid', 'name']):
     try:
+      name = proc.info['name'] or ''
+      pid = proc.info['pid']
       # 确保不是当前进程，进程名相同
-      if app_proc_name == proc.info['name'] and proc.info['pid'] != app_proc_pid:
+      if match_proc_name == name.replace('.win', '') and pid != app_proc_pid:
         APP_LOGGER.info(
           r'@@find_running_app_pid 找到的同名运行进程信息 pid: {}  name: {}'.format(
             proc.info['pid'],

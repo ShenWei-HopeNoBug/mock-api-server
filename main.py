@@ -8,7 +8,7 @@ import multiprocessing
 from lib.splash import StartSplash
 from qt_win.app import MainWindow
 from lib.logger_lib import APP_LOGGER
-from lib.app_lib import (is_app_running, find_running_app_pid, bring_to_front)
+from lib.app_lib import (get_memory_name, is_app_running, find_running_app_pid, bring_to_front)
 
 
 def exception_handler(exception_type, value):
@@ -29,7 +29,7 @@ if __name__ == '__main__':
   sys.excepthook = exception_handler
 
   # 检查 APP 是否已经在运行
-  if is_app_running():
+  if is_app_running(app_name=get_memory_name()):
     # 查找已运行的实例
     pid = find_running_app_pid()
     if pid:
