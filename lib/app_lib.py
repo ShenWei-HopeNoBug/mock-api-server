@@ -4,16 +4,21 @@ import webbrowser
 import pandas as pd
 import json
 
-from PyQt5.QtWidgets import QMenu, QAction
+from PyQt5.QtWidgets import QMenu, QAction, QApplication
 from PyQt5.QtCore import QSharedMemory
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS
 from lib.decorate import error_catch
 from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field)
+import psutil
+import win32gui
+import win32process
+import win32con
+from lib.logger_lib import APP_LOGGER
 
 
 @error_catch(error_msg='检查应用是否已经在运行异常', error_return=False)
-def is_app_running(app_name="APP"):
+def is_app_running(app_name="APP") -> bool:
   """检查应用是否已经在运行"""
   # 创建共享内存
   shared_memory = QSharedMemory(app_name)
@@ -33,6 +38,62 @@ def is_app_running(app_name="APP"):
     shared_memory.deleteLater()
 
   return False
+
+
+@error_catch(error_msg='查找正在运行的应用实例的进程pid异常', error_return=None)
+def find_running_app_pid():
+  """查找正在运行的应用实例的进程pid"""
+  app_proc_pid = QApplication.applicationPid()
+  app_proc_name = QApplication.applicationName()
+  APP_LOGGER.info(
+    f'@@find_running_app_pid 当前运行进程信息 app_proc_pid: {app_proc_pid} app_proc_name: {app_proc_name}')
+  for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+    try:
+      # 确保不是当前进程，进程名相同
+      if app_proc_name in proc.info['name'] and proc.info['pid'] != app_proc_pid:
+        APP_LOGGER.info(
+          r'@@find_running_app_pid 查到的同名运行进程信息 pid: {}  name: {} cmdline: {}'.format(
+            proc.info['pid'],
+            proc.info['name'],
+            proc.info['cmdline'],
+          )
+        )
+        return proc.info['pid']
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+      pass
+  return None
+
+
+@error_catch(error_msg='将指定进程的窗口置顶异常')
+def bring_to_front(pid):
+  """将指定进程的窗口置顶"""
+  hwnds = get_process_windows(pid)
+  for hwnd in hwnds:
+    # 如果窗口最小化，先恢复
+    if win32gui.IsIconic(hwnd):
+      win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+    # 置顶窗口
+    win32gui.SetForegroundWindow(hwnd)
+    # 确保窗口显示在最前
+    win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
+                          win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
+    win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
+                          win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
+
+
+def get_process_windows(pid):
+  """获取指定进程ID的所有窗口句柄"""
+
+  def callback(hwnd, hwnds):
+    if win32gui.IsWindowVisible(hwnd) and win32gui.IsWindowEnabled(hwnd):
+      _, found_pid = win32process.GetWindowThreadProcessId(hwnd)
+      if found_pid == pid:
+        hwnds.append(hwnd)
+    return True
+
+  hwnds = []
+  win32gui.EnumWindows(callback, hwnds)
+  return hwnds
 
 
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
