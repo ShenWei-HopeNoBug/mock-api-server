@@ -6,14 +6,12 @@ from typing import List, Dict, Any
 from lib.logger_lib import STREAM_LOGGER
 from lib.decorate import error_catch
 from logging import Logger
+import re
+import sys
 
 
 class SimpleFolderBackup:
-  """
-  简单文件夹备份工具类
-
-  使用 shutil.copytree 实现文件夹备份功能
-  """
+  """简单文件夹备份工具类"""
 
   def __init__(self, source_dir: str, backup_dir: str, prefix: str = "backup", backup_count: int = 50) -> None:
     """
@@ -39,60 +37,6 @@ class SimpleFolderBackup:
     # 记录源文件的文件名
     if self._check_dir_valid(self.source_dir):
       self.source_dir_name = os.path.basename(self.source_dir)
-
-  @staticmethod
-  def _check_dir_valid(dir_path: str) -> bool:
-    """检查文件夹地址是否合法"""
-    if not type(dir_path) == str:
-      return False
-
-    # 地址存在并且是文件夹的地址
-    return os.path.exists(dir_path) and os.path.isdir(dir_path)
-
-  @error_catch(error_msg='检查备份文件路径异常', error_return=False)
-  def _check_backup_path_valid(self, backup_path: str) -> bool:
-    if not self._check_dir_valid(backup_path):
-      return False
-
-    backup_dir_name: str = os.path.basename(backup_path)
-    # 检查
-    if not backup_dir_name.startswith(f"{self.prefix}_"):
-      return False
-
-    # 查找最后一个下划线的位置
-    last_underscore = backup_dir_name.rfind('_')
-    if last_underscore == -1:
-      return False
-
-    # 提取时间戳部分（格式：_YYYYMMDDHHMMSS）
-    timestamp_str = backup_dir_name[last_underscore + 1:]
-    # YYYYMMDDHHMMSS 共14个字符
-    if len(timestamp_str) != 14:
-      return False
-
-    return True
-
-  def get_backup_path_timestamp(self, backup_path: str) -> str:
-    if not self._check_backup_path_valid(backup_path):
-      return ''
-
-    backup_dir_name: str = os.path.basename(backup_path)
-    last_underscore = backup_dir_name.rfind('_')
-    timestamp_str = backup_dir_name[last_underscore + 1:]
-    return timestamp_str
-
-  def _ensure_directory_exists(self, directory: str) -> None:
-    """确保目录存在，如果不存在则创建"""
-    if not os.path.exists(directory):
-      os.makedirs(directory, exist_ok=True)
-      self.logger.info(f"创建目录: {directory}")
-
-  def _get_backup_path(self) -> str:
-    """生成带时间戳的备份文件夹路径"""
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    backup_name = f"{self.prefix}_{self.source_dir_name}_{timestamp}"
-    backup_path = f"{self.backup_dir}/{backup_name}"
-    return os.path.abspath(backup_path)
 
   @error_catch(error_msg='备份文件异常', error_return=False)
   def backup(self) -> bool:
@@ -138,7 +82,7 @@ class SimpleFolderBackup:
         continue
 
       try:
-        timestamp = self.get_backup_path_timestamp(back_up_path)
+        timestamp = self._get_backup_path_timestamp(back_up_path)
         sort_time = datetime.strptime(timestamp, "%Y%m%d%H%M%S")
         if not timestamp:
           continue
@@ -171,7 +115,7 @@ class SimpleFolderBackup:
     """
     将备份恢复到指定目录（默认恢复到源目录）
     """
-    
+
     # 确定目标目录
     restore_to = self.source_dir
     self.logger.info(f"准备从 {backup_path} 恢复到 {restore_to}")
@@ -203,10 +147,10 @@ class SimpleFolderBackup:
     """
 
     # 获取最近一次备份文件夹地址
-    latest_backup = self.get_latest_backup_path()
-    if len(latest_backup):
-      self.logger.info(f"找到最新的备份: {latest_backup}")
-      return self.restore(latest_backup)
+    latest_backup_path = self.get_latest_backup_path()
+    if latest_backup_path:
+      self.logger.info(f"找到最新的备份: {latest_backup_path}")
+      return self.restore(latest_backup_path)
     else:
       self.logger.error(f"未找到最新的备份")
       return False
@@ -220,14 +164,71 @@ class SimpleFolderBackup:
     latest_data = backup_data_list[0]
     return latest_data.get('path', '')
 
+  @staticmethod
+  def _check_dir_valid(dir_path: str) -> bool:
+    """检查文件夹地址是否合法"""
+    if type(dir_path) != str:
+      return False
+
+    # 地址存在并且是文件夹的地址
+    return os.path.exists(dir_path) and os.path.isdir(dir_path)
+
+  def _get_backup_path_timestamp(self, backup_path: str) -> str:
+    if not self._check_backup_path_valid(backup_path):
+      return ''
+
+    backup_dir_name: str = os.path.basename(backup_path)
+    last_underscore = backup_dir_name.rfind('_')
+    timestamp_str = backup_dir_name[last_underscore + 1:]
+    return timestamp_str
+
+  def _ensure_directory_exists(self, directory: str) -> None:
+    """确保目录存在，如果不存在则创建"""
+    if not os.path.exists(directory):
+      os.makedirs(directory, exist_ok=True)
+      self.logger.info(f"创建目录: {directory}")
+
+  def _get_backup_path(self) -> str:
+    """生成带时间戳的备份文件夹路径"""
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    backup_name = f"{self.prefix}_{self.source_dir_name}_{timestamp}"
+    backup_path = f"{self.backup_dir}/{backup_name}"
+    return os.path.abspath(backup_path)
+
+  @error_catch(error_msg='检查备份文件路径异常', error_return=False)
+  def _check_backup_path_valid(self, backup_path: str) -> bool:
+    if not self._check_dir_valid(backup_path):
+      return False
+
+    backup_dir_name: str = os.path.basename(backup_path)
+    # 以特定前缀开头，并以 14 位数字结尾
+    pattern: str = r'^' + self.prefix + r'_.*_\d{14}$'
+    return bool(re.match(pattern, backup_dir_name))
+
+
+def test():
+  # 创建备份实例
+  simple_folder_back_up = SimpleFolderBackup(
+    source_dir=r"B:\project\pycharm\mock-api-server\server\data",
+    backup_dir=r"B:\project\pycharm\mock-api-server\server\backup\data"
+  )
+
+  # 备份文件测试
+  # simple_folder_back_up.backup()
+
+  # 恢复最新备份测试
+  # simple_folder_back_up.restore_latest()
+
+  # 列出备份列表测试
+  backups = simple_folder_back_up.list_backups()
+  for index, backup in enumerate(backups):
+    name = backup.get('name', '')
+    path = backup.get('path', '')
+    timestamp = backup.get('timestamp', '')
+    print(f"backup-{index + 1}\n文件名：{name}\n文件地址：{path}\ntimestamp：{timestamp}\n")
+
 
 # 使用示例
 if __name__ == "__main__":
-  # 创建备份实例
-  folderBackup = SimpleFolderBackup(
-    source_dir=r"B:\project\pycharm\mock-api-server\server\data",  # 替换为你要备份的文件夹
-    backup_dir=r"B:\project\pycharm\mock-api-server\server\backup\data"  # 替换为备份存放的目录
-  )
-
-  # folderBackup.backup()
-  # folderBackup.restore_latest()
+  test()
+  sys.exit(0)
