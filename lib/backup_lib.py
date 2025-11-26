@@ -2,7 +2,7 @@
 import os
 import shutil
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from lib.logger_lib import STREAM_LOGGER
 from lib.decorate import error_catch
 from lib.file_lib import is_dir_path_valid
@@ -158,14 +158,15 @@ class SimpleFolderBackup:
       self.logger.error(f"未找到最新的备份")
       return False
 
-  def get_latest_backup_path(self) -> str:
-    """找到最新的备份文件夹路径"""
+  @error_catch(error_msg='查找最新的备份文件夹路径异常', error_return=None)
+  def get_latest_backup_path(self) -> Optional[str]:
+    """查找最新的备份文件夹路径"""
     backup_data_list = self.list_backups()
     if not len(backup_data_list):
-      return ''
+      return None
 
     latest_data = backup_data_list[0]
-    return latest_data.get('path', '')
+    return latest_data.get('path', None)
 
   @error_catch(error_msg='检查并删除超出备份数量的备份文件异常')
   def fix_backup_dir_count(self):

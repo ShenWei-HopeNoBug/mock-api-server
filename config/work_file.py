@@ -29,14 +29,22 @@ MOCK_SERVER_CONFIG_PATH = r'{}/mock_server_config.json'.format(CONFIG_DIR)
 
 # 存放数据文件的目录
 DATA_DIR = r'/data'
+# 抓包数据文件名
+MITMPROXY_FILE_PATH = r'output.json'
 # 抓包数据文件路径
-MITMPROXY_DATA_PATH = r'{}/output.json'.format(DATA_DIR)
+MITMPROXY_DATA_PATH = f'{DATA_DIR}/{MITMPROXY_FILE_PATH}'
+# 用户自定义接口数据文件名
+USER_API_FILE_NAME = 'user_api.json'
 # 用户自定义接口数据文件路径
-USER_API_DATA_PATH = r'{}/user_api.json'.format(DATA_DIR)
+USER_API_DATA_PATH = f'{DATA_DIR}/{USER_API_FILE_NAME}'
+# 静态资源数据文件名
+STATIC_FILE_NAME = 'static.json'
 # 静态资源数据文件路径
-STATIC_DATA_PATH = r'{}/static.json'.format(DATA_DIR)
+STATIC_DATA_PATH = f'{DATA_DIR}/{STATIC_FILE_NAME}'
+# 服务创建接口缓存文件名
+API_CACHE_FILE_NAME = 'api_cache.json'
 # 服务创建接口缓存文件地址
-API_CACHE_DATA_PATH = r'{}/api_cache.json'.format(DATA_DIR)
+API_CACHE_DATA_PATH = f'{DATA_DIR}/{API_CACHE_FILE_NAME}'
 
 # 静态资源目录
 STATIC_DIR = r'/static'
