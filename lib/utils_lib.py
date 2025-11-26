@@ -161,6 +161,18 @@ def find_connection_process(ip='0.0.0.0', port=5000):
   return process_list
 
 
+@error_catch(error_msg='根据pid查找进程异常', error_return=None)
+def find_process(pid: int):
+  if type(pid) != int:
+    return None
+
+  for proc in psutil.process_iter(['pid']):
+    if proc.info['pid'] == pid:
+      return proc
+
+  return None
+
+
 # 检测本地指定 ip 和 端口号网络服务是否已经被占用
 def check_local_connection(ip='0.0.0.0', port=5000):
   connections = psutil.net_connections()

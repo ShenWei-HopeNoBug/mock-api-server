@@ -9,7 +9,7 @@ from PyQt5.QtCore import QSharedMemory
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS
 from lib.decorate import error_catch
-from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field)
+from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field, find_process)
 import psutil
 import win32gui
 import win32process
@@ -44,23 +44,32 @@ def is_app_running(app_name="APP") -> bool:
 def find_running_app_pid():
   """查找正在运行的应用实例的进程pid"""
   app_proc_pid = QApplication.applicationPid()
-  app_proc_name = QApplication.applicationName()
+  app_proc = find_process(app_proc_pid)
+  if not app_proc:
+    APP_LOGGER.info('@@find_running_app_pid 未找到当前运行进程对象')
+    return None
+
+  app_proc_name = app_proc.name()
   APP_LOGGER.info(
-    f'@@find_running_app_pid 当前运行进程信息 app_proc_pid: {app_proc_pid} app_proc_name: {app_proc_name}')
-  for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+    r'@@find_running_app_pid 当前运行进程对象信息 pid: {}  name: {}'.format(
+      app_proc_pid,
+      app_proc_name,
+    )
+  )
+  for proc in psutil.process_iter(['pid', 'name']):
     try:
       # 确保不是当前进程，进程名相同
-      if app_proc_name in proc.info['name'] and proc.info['pid'] != app_proc_pid:
+      if app_proc_name == proc.info['name'] and proc.info['pid'] != app_proc_pid:
         APP_LOGGER.info(
-          r'@@find_running_app_pid 查到的同名运行进程信息 pid: {}  name: {} cmdline: {}'.format(
+          r'@@find_running_app_pid 找到的同名运行进程信息 pid: {}  name: {}'.format(
             proc.info['pid'],
             proc.info['name'],
-            proc.info['cmdline'],
           )
         )
         return proc.info['pid']
     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
       pass
+  APP_LOGGER.info('@@find_running_app_pid 未找到的同名运行进程')
   return None
 
 
