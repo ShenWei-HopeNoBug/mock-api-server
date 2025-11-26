@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 from lib.logger_lib import STREAM_LOGGER
 from lib.decorate import error_catch
+from lib.file_lib import is_dir_path_valid
 from logging import Logger
 import re
 import sys
@@ -35,7 +36,7 @@ class SimpleFolderBackup:
   def init(self):
     self._ensure_directory_exists(self.backup_dir)
     # 记录源文件的文件名
-    if self._check_dir_valid(self.source_dir):
+    if is_dir_path_valid(self.source_dir):
       self.source_dir_name = os.path.basename(self.source_dir)
 
   @error_catch(error_msg='备份文件异常', error_return=False)
@@ -43,7 +44,7 @@ class SimpleFolderBackup:
     """
     执行备份操作
     """
-    if not self._check_dir_valid(self.source_dir):
+    if not is_dir_path_valid(self.source_dir):
       self.logger.error(f"源文件夹路径非法: {self.source_dir}")
       return False
 
@@ -72,7 +73,7 @@ class SimpleFolderBackup:
   def list_backups(self) -> List[Dict[str, Any]]:
     """列出所有备份"""
 
-    if not self._check_dir_valid(self.backup_dir):
+    if not is_dir_path_valid(self.backup_dir):
       self.logger.error(f"备份文件夹路径非法: {self.backup_dir}")
       return []
 
@@ -181,17 +182,8 @@ class SimpleFolderBackup:
     delete_dir_list = [backup_data.get('path') for backup_data in delete_backup_data_list]
     # 删除超出备份上限数量的备份文件夹
     for delete_dir in delete_dir_list:
-      if self._check_dir_valid(delete_dir):
+      if is_dir_path_valid(delete_dir):
         shutil.rmtree(delete_dir)
-
-  @staticmethod
-  def _check_dir_valid(dir_path: str) -> bool:
-    """检查文件夹地址是否合法"""
-    if type(dir_path) != str:
-      return False
-
-    # 地址存在并且是文件夹的地址
-    return os.path.exists(dir_path) and os.path.isdir(dir_path)
 
   def _get_backup_path_timestamp(self, backup_path: str) -> str:
     if not self._check_backup_path_valid(backup_path):
@@ -217,7 +209,7 @@ class SimpleFolderBackup:
 
   @error_catch(error_msg='检查备份文件路径异常', error_return=False)
   def _check_backup_path_valid(self, backup_path: str) -> bool:
-    if not self._check_dir_valid(backup_path):
+    if not is_dir_path_valid(backup_path):
       return False
 
     backup_dir_name: str = os.path.basename(backup_path)
@@ -226,33 +218,33 @@ class SimpleFolderBackup:
     return bool(re.match(pattern, backup_dir_name))
 
 
-def test():
-  # 创建备份实例
-  simple_folder_back_up = SimpleFolderBackup(
-    source_dir=r"B:\project\pycharm\mock-api-server\server\data",
-    backup_dir=r"B:\project\pycharm\mock-api-server\server\backup\data",
-    backup_count=3
-  )
-
-  # 备份文件测试
-  simple_folder_back_up.backup()
-
-  # 恢复最新备份测试
-  # simple_folder_back_up.restore_latest()
-
-  # 检查并删除超出备份数量的备份文件
-  # simple_folder_back_up.fix_backup_dir_count()
-
-  # 列出备份列表测试
-  backups = simple_folder_back_up.list_backups()
-  for index, backup in enumerate(backups):
-    name = backup.get('name', '')
-    path = backup.get('path', '')
-    timestamp = backup.get('timestamp', '')
-    print(f"backup-{index + 1}\n文件名：{name}\n文件地址：{path}\ntimestamp：{timestamp}\n")
-
-
 # 使用示例
 if __name__ == "__main__":
+  def test():
+    # 创建备份实例
+    simple_folder_back_up = SimpleFolderBackup(
+      source_dir=r"B:\project\pycharm\mock-api-server\server\data",
+      backup_dir=r"B:\project\pycharm\mock-api-server\server\backup\data",
+      backup_count=3
+    )
+
+    # 备份文件测试
+    # simple_folder_back_up.backup()
+
+    # 恢复最新备份测试
+    # simple_folder_back_up.restore_latest()
+
+    # 检查并删除超出备份数量的备份文件
+    # simple_folder_back_up.fix_backup_dir_count()
+
+    # 列出备份列表测试
+    backups = simple_folder_back_up.list_backups()
+    for index, backup in enumerate(backups):
+      name = backup.get('name', '')
+      path = backup.get('path', '')
+      timestamp = backup.get('timestamp', '')
+      print(f"backup-{index + 1}\n文件名：{name}\n文件地址：{path}\ntimestamp：{timestamp}\n")
+
+
   test()
   sys.exit(0)
