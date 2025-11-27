@@ -8,7 +8,13 @@ import multiprocessing
 from lib.splash import StartSplash
 from qt_win.app import MainWindow
 from lib.logger_lib import APP_LOGGER
-from lib.app_lib import (get_memory_name, is_app_running, find_running_app_pid, bring_to_front)
+from lib.app_lib import (
+  get_memory_name,
+  is_app_running,
+  find_running_app_pid,
+  bring_to_front,
+  is_app_work_dir_valid,
+)
 
 
 def exception_handler(exception_type, value):
@@ -36,6 +42,11 @@ if __name__ == '__main__':
       # 将已运行的实例窗口置顶
       bring_to_front(pid)
     QMessageBox.information(None, '提示', '程序已经在运行中！')
+    sys.exit(1)
+
+  # 检查 APP 运行路径是否合法
+  if not is_app_work_dir_valid():
+    QMessageBox.critical(None, '程序异常', '程序运行路径异常（路径包含中文或路径不存在）！')
     sys.exit(1)
 
   start_splash = StartSplash()

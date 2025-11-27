@@ -109,6 +109,20 @@ def bring_to_front(pid):
                           win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
 
 
+#  检查app运行文件路径是否合法（不包含中文字符）
+def is_app_work_dir_valid():
+  app_work_dir = os.path.abspath(Path())
+  if not os.path.exists(app_work_dir):
+    return False
+
+  # 检查路径中是否包含中文字符
+  for char in app_work_dir:
+    if '\u4e00' <= char <= '\u9fff':
+      return False
+
+  return True
+
+
 def get_process_windows(pid):
   """获取指定进程ID的所有窗口句柄"""
 
