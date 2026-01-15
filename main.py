@@ -4,6 +4,7 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
 
 import sys
+import requests
 import multiprocessing
 from lib.splash import StartSplash
 from qt_win.app import MainWindow
@@ -15,6 +16,9 @@ from lib.app_lib import (
   bring_to_front,
   is_app_work_dir_valid,
 )
+from module.app_server import AppServer
+from lib.decorate import create_thread
+from multiprocessing import Process
 
 
 def exception_handler(exception_type, value):
@@ -23,6 +27,29 @@ def exception_handler(exception_type, value):
   # 显示异常信息的对话框
   QMessageBox.critical(None, "程序异常", f"发生异常：{value}")
   sys.exit(1)
+
+
+# app 服务进程启动
+def app_server_process_start(server_config: dict):
+  port = server_config.get('port', 5007)
+  app_server = AppServer(port=port)
+  app_server.start()
+
+
+@create_thread
+def start_app_server():
+  server_config = {
+    "port": 5007,
+  }
+
+  app_server_process = Process(
+    target=app_server_process_start,
+    args=(server_config,),
+    name='app_server_process',
+  )
+
+  # 启动进程 APP 服务进程
+  app_server_process.start()
 
 
 if __name__ == '__main__':
@@ -57,6 +84,22 @@ if __name__ == '__main__':
 
   # app 主窗口
   main_window = MainWindow()
+
+  # app_server_port = 5007
+  # start_app_server()
+  # app_server_running = False
+  # check_count = 0
+  # while not app_server_running and check_count < 10:
+  #   try:
+  #     response = requests.get('http://127.0.0.1:{}/ping'.format(app_server_port))
+  #     if response.status_code == 200:
+  #       app_server_running = True
+  #     else:
+  #       check_count += 1
+  #   except Exception as e:
+  #     print('APP_SERVER 未启动！', e)
+  #     check_count += 1
+
   # 展示窗口
   main_window.show()
   # 结束启动动画
