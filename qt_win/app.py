@@ -69,7 +69,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 提示弹窗信号
   message_dialog_signal: pyqtSignal = pyqtSignal(str, str, str)
 
-  def __init__(self, app_server_port: int = 5007):
+  def __init__(self, app_server_port: int = 5050):
     super().__init__()
     # 初始化全局变量文件
     GLOBALS_CONFIG_MANAGER.init(replace=True)

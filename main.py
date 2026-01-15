@@ -59,13 +59,8 @@ if __name__ == '__main__':
   # 启动 APP_SERVER 服务
   start_result: dict = start_app_server()
 
-  # 启动 APP_SERVER 服务失败提示
-  if not start_result.get('success'):
-    QMessageBox.critical(None, '程序异常', '启动 APP_SERVER 服务失败！')
-    sys.exit(1)
-
   # app 主窗口
-  main_window = MainWindow(app_server_port=start_result.get('port', 5007))
+  main_window = MainWindow(app_server_port=start_result.get('port', 5050))
   main_window.show()
   # 展示窗口
   main_window.show()

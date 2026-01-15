@@ -11,7 +11,7 @@ from lib.utils_lib import check_local_connection, find_connection_process
 
 
 class AppServer:
-  def __init__(self, port: int = 5007):
+  def __init__(self, port: int = 5050):
     self.port = port
     self.web_root: Path = Path(os.path.abspath('./appServer'))
 
@@ -52,15 +52,15 @@ class AppServer:
 
 # app 服务进程启动
 def start_app_server_process(server_config: dict):
-  port = server_config.get('port', 5007)
+  port = server_config.get('port', 5050)
   app_server = AppServer(port=port)
   app_server.start()
 
 
-@error_catch(error_msg='start_app_server 准备启动 APP_SERVER 异常', error_return={"success": False, "port": 5007})
+@error_catch(error_msg='start_app_server 准备启动 APP_SERVER 异常', error_return={"success": False, "port": 5050})
 def start_app_server() -> dict:
   @create_thread
-  def _start_server(port: int = 5007) -> None:
+  def _start_server(port: int = 5050) -> None:
     server_config = {
       "port": port,
     }
@@ -74,7 +74,7 @@ def start_app_server() -> dict:
     # 启动进程 APP 服务进程
     app_server_process.start()
 
-  app_server_port = 5007
+  app_server_port = 5050
   while check_local_connection('0.0.0.0', app_server_port):
     APP_LOGGER.warning(f"APP_SERVER 待启动服务端口被占用: {app_server_port}")
     app_server_port += 1

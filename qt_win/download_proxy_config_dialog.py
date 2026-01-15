@@ -10,14 +10,14 @@ from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config
-from lib.utils_lib import (ConfigFileManager)
+from lib.utils_lib import (ConfigFileManager, get_ip_address)
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 
 
 class DownloadProxyConfigDialog(QDialog):
   close_signal: pyqtSignal = pyqtSignal()
 
-  def __init__(self, work_dir=DEFAULT_WORK_DIR):
+  def __init__(self, work_dir=DEFAULT_WORK_DIR, app_server_port=5050):
     super().__init__()
     # 当前配置文件地址
     download_config_path = os.path.join(r'{}{}'.format(work_dir, DOWNLOAD_CONFIG_PATH))
@@ -34,6 +34,7 @@ class DownloadProxyConfigDialog(QDialog):
     self.web_channel: QWebChannel or None = None
     self.interact_obj: TInteractObj or None = None
     self.download_config_manager: ConfigFileManager = download_config_manager
+    self.app_server_port = app_server_port
 
     self.init()
 
@@ -74,8 +75,9 @@ class DownloadProxyConfigDialog(QDialog):
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
     webview.loadFinished.connect(page_loaded)
-    web_path = os.path.abspath('./web/apps/configEdit/index.html')
-    current_page.load(QUrl.fromLocalFile(web_path))
+    # web_path = os.path.abspath('./appServer/static/web/apps/configEdit/index.html')
+    # current_page.load(QUrl.fromLocalFile(web_path))
+    current_page.load(QUrl(f"http://{get_ip_address()}:{self.app_server_port}/static/web/apps/configEdit/index.html"))
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)

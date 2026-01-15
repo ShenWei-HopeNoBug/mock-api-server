@@ -18,11 +18,12 @@ from lib.app_lib import (
   add_user_api_data,
   delete_user_api_data,
 )
+from lib.utils_lib import get_ip_address
 from lib.backup_lib import SimpleFolderBackup
 
 
 class MitmproxyDataEditDialog(QDialog):
-  def __init__(self, work_dir='.'):
+  def __init__(self, work_dir='.', app_server_port=5050):
     super().__init__()
     # 需要备份的源文件夹路径
     source_dir = os.path.abspath(r'{}{}'.format(work_dir, DATA_DIR))
@@ -39,6 +40,7 @@ class MitmproxyDataEditDialog(QDialog):
     self.webview: QWebEngineView or None = None
     self.web_channel: QWebChannel or None = None
     self.interact_obj: TInteractObj or None = None
+    self.app_server_port = app_server_port
 
     self.init()
     self.simple_folder_backup.watch_diff_backup()
@@ -75,8 +77,9 @@ class MitmproxyDataEditDialog(QDialog):
 
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    web_path = os.path.abspath('./web/apps/dataManager/index.html')
-    current_page.load(QUrl.fromLocalFile(web_path))
+    # web_path = os.path.abspath('./appServer/static/web/apps/dataManager/index.html')
+    # current_page.load(QUrl.fromLocalFile(web_path))
+    current_page.load(QUrl(f"http://{get_ip_address()}:{self.app_server_port}/static/web/apps/dataManager/index.html"))
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
