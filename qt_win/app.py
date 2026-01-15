@@ -69,7 +69,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 提示弹窗信号
   message_dialog_signal: pyqtSignal = pyqtSignal(str, str, str)
 
-  def __init__(self):
+  def __init__(self, app_server_port: int = 5007):
     super().__init__()
     # 初始化全局变量文件
     GLOBALS_CONFIG_MANAGER.init(replace=True)
@@ -123,6 +123,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.file_menu: QMenu or None = None
     # 编辑菜单对象
     self.edit_menu: QMenu or None = None
+    # APP 服务启动端口号
+    self.app_server_port = app_server_port
 
     self.init_ui()
     self.render_menu_bar()
@@ -623,6 +625,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     time.sleep(2)
     self.server_status_signal.emit('READY')
 
+  # 停止 APP_SERVER 服务
+  @create_thread
+  def stop_app_server(self):
+    @error_catch(print_error_msg=False)
+    def shutdown():
+      """这个请求发送到 APP_SERVER 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
+      requests.get('http://127.0.0.1:{}/system/shutdown'.format(self.app_server_port))
+
+    shutdown()
+
   # 重写弹窗关闭事件
   def closeEvent(self, event: QCloseEvent):
     reply = QMessageBox.question(
@@ -637,9 +649,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       # 尝试杀掉运行的服务进程
       self.stop_catch_server()
       self.stop_server()
+      self.stop_app_server()
       # 设置退出程序的全局变量
       GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
-      time.sleep(0.2)
+      time.sleep(0.5)
       event.accept()
     else:
       event.ignore()

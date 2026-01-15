@@ -1,30 +1,19 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, send_from_directory, jsonify
 import os
+import time
+import requests
+from flask import Flask, jsonify
 from pathlib import Path
+from lib.decorate import create_thread, error_catch
+from lib.logger_lib import APP_LOGGER
+from multiprocessing import Process
+from lib.utils_lib import check_local_connection, find_connection_process
 
 
 class AppServer:
-  def __init__(self, debug: bool = True, port: int = 5000):
-    """
-    初始化静态文件服务器
-    :param web_root: 静态文件根目录，默认为项目下的app目录
-    :param debug: 是否启用调试模式
-    :param port: 服务端口号
-    """
-    self.debug = debug
+  def __init__(self, port: int = 5007):
     self.port = port
     self.web_root: Path = Path(os.path.abspath('./appServer'))
-    self.app = Flask('APP_SERVER', root_path=str(self.web_root))
-    self._setup_routes()
-    self._running = False
-
-  def _setup_routes(self) -> None:
-    """设置路由"""
-
-    @self.app.route('/ping', methods=['GET'])
-    def ping():
-      return jsonify({'data': 'pong!'})
 
   def _ensure_web_directory(self) -> None:
     """确保app目录存在"""
@@ -32,17 +21,80 @@ class AppServer:
       self.web_root.mkdir(parents=True)
       print(f"创建app目录: {self.web_root}")
 
-  def start(self, threaded: bool = True) -> None:
+  @create_thread
+  def start(self) -> None:
     """
     启动服务器
     :param threaded: 是否以线程方式运行
     """
     self._ensure_web_directory()
-    self.app.run(debug=self.debug, port=self.port)
+    app = Flask('APP_SERVER', root_path=str(self.web_root))
+
+    @app.route('/ping')
+    def ping():
+      return jsonify({'data': 'pong!'})
+
+    @app.route('/system/shutdown')
+    def server_shutdown():
+      self.stop()
+
+    app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   def stop(self) -> None:
-    print('stop')
+    process_list = find_connection_process(ip='0.0.0.0', port=self.port)
+    if len(process_list) == 0:
+      print('未找到 APP_SERVER 进程！port={}'.format(self.port))
 
-  def is_running(self) -> bool:
-    """检查服务器是否正在运行"""
-    return self._running
+    for proc in process_list:
+      print('正在关闭 APP_SERVER 进程! port={}'.format(self.port), proc)
+      proc.terminate()
+
+
+# app 服务进程启动
+def start_app_server_process(server_config: dict):
+  port = server_config.get('port', 5007)
+  app_server = AppServer(port=port)
+  app_server.start()
+
+
+@error_catch(error_msg='start_app_server 准备启动 APP_SERVER 异常', error_return={"success": False, "port": 5007})
+def start_app_server() -> dict:
+  @create_thread
+  def _start_server(port: int = 5007) -> None:
+    server_config = {
+      "port": port,
+    }
+
+    app_server_process = Process(
+      target=start_app_server_process,
+      args=(server_config,),
+      name='app_server_process',
+    )
+
+    # 启动进程 APP 服务进程
+    app_server_process.start()
+
+  app_server_port = 5007
+  while check_local_connection('0.0.0.0', app_server_port):
+    APP_LOGGER.warning(f"APP_SERVER 待启动服务端口被占用: {app_server_port}")
+    app_server_port += 1
+
+  APP_LOGGER.info(f"APP_SERVER 准备启动: prot {app_server_port}")
+
+  _start_server(port=app_server_port)
+  check_count = 0
+  while check_count < 5:
+    try:
+      time.sleep(1)
+      response = requests.get('http://127.0.0.1:{}/ping'.format(app_server_port))
+      if response.status_code == 200:
+        APP_LOGGER.info(f"APP_SERVER 准备启动成功! port={app_server_port}")
+        return {"success": True, "port": app_server_port}
+      else:
+        check_count += 1
+    except Exception as e:
+      print('APP_SERVER 未启动！', e)
+      check_count += 1
+
+  APP_LOGGER.error(f"APP_SERVER 准备启动失败! port={app_server_port}")
+  return {"success": False, "port": app_server_port}
