@@ -148,7 +148,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def init_ui(self):
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
-    self.setWindowTitle('Mock Server {}'.format(globals.version))
+    self.setWindowTitle(f'Mock Server {globals.version}')
     self.setWindowOpacity(0.95)
     self.setStyleSheet(main_win_style.window)
 
@@ -374,7 +374,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       current = self.download_detail.get('current', 0)
       total = self.download_detail.get('total', 0)
       if current and total:
-        button_text = '停止下载({}/{})'.format(current, total)
+        button_text = f'停止下载({current}/{total})'
       else:
         button_text = '停止下载'
     # 正在停止下载
@@ -503,7 +503,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.message_dialog_signal.emit(
         'critical',
         '端口检查',
-        '{} 端口已被占用，启动抓包服务失败！'.format(self.catch_server_port),
+        f'{self.catch_server_port} 端口已被占用，启动抓包服务失败！',
       )
       return
 
@@ -542,7 +542,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 设置全局 mitmproxy 服务停止信号
     GLOBALS_CONFIG_MANAGER.set(key='mitmproxy_stop_signal', value=True)
     # 向 mitmproxy 抓包服务发送一个本地请求，触发 addons 脚本内关闭服务事件
-    requests.get('http://127.0.0.1:{}/index.html'.format(self.catch_server_port))
+    requests.get(f'http://127.0.0.1:{self.catch_server_port}/index.html')
     time.sleep(3)
     self.mitmproxy_server_status_signal.emit('READY')
 
@@ -594,7 +594,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.message_dialog_signal.emit(
         'critical',
         '端口检查',
-        '{} 端口已被占用，启动 mock 服务失败！'.format(self.server_port),
+        f'{self.server_port} 端口已被占用，启动 mock 服务失败！',
       )
       return
 
@@ -629,7 +629,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     @error_catch(print_error_msg=False)
     def shutdown():
       """这个请求发送到 mock 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
-      requests.get('http://127.0.0.1:{}/system/shutdown'.format(self.server_port))
+      requests.get(f'http://127.0.0.1:{self.server_port}/system/shutdown')
 
     self.server_status_signal.emit('STOP_WAIT')
     shutdown()
@@ -650,7 +650,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def shutdown():
       app_sever_port = self.app_sever_running_data.get('port', 5050)
       """这个请求发送到 APP_SERVER 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
-      requests.get('http://127.0.0.1:{}/system/shutdown'.format(app_sever_port))
+      requests.get(f'http://127.0.0.1:{app_sever_port}/system/shutdown')
 
     shutdown()
 
