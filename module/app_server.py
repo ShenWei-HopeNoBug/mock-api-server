@@ -26,19 +26,16 @@ class AppServer:
 
   @create_thread
   def start(self) -> None:
-    """
-    启动服务器
-    :param threaded: 是否以线程方式运行
-    """
     self._ensure_web_directory()
     app = Flask('APP_SERVER', root_path=str(self.web_root))
 
-    @app.route('/ping')
+    @app.route('/ping', methods=['GET'])
     def ping():
       return jsonify({'data': 'pong!'})
 
     @app.route('/system/shutdown')
     def server_shutdown():
+      APP_LOGGER.info('APP_SERVER 服务收到 shutdown 指令！正在关闭服务...')
       self.shutdown()
 
     app.run(host='0.0.0.0', port=self.port, threaded=True)
@@ -48,7 +45,6 @@ class AppServer:
     if result:
       APP_LOGGER.info(f"即将关闭 APP_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)
-
 
 # app 服务进程启动
 def start_app_server_process(server_config: dict):

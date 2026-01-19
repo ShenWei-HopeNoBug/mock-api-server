@@ -234,18 +234,18 @@ class MockServer:
     # 添加跨域头
     CORS(app, resources=resources)
 
-    @app.route('/ping')
+    @app.route('/ping', methods=['GET'])
     def ping():
       return jsonify({'data': 'pong!'})
 
     # 服务进程自杀
-    @app.route('{}/shutdown'.format(SYSTEM_ROUTE), methods=['GET'])
+    @app.route(f"{SYSTEM_ROUTE}/shutdown", methods=['GET'])
     def server_shutdown():
-      print('mock 服务收到 shutdown 指令！正在关闭服务...')
-      self.stop_server()
+      APP_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
+      self.shutdown()
 
     # 统一 mock 匹配接口
-    @app.route('{}/<path:path>'.format(MOCK_API_ROUTE), methods=['GET', 'POST'])
+    @app.route(f"{MOCK_API_ROUTE}/<path:path>", methods=['GET', 'POST'])
     def request_api(path):
       method = request.method
       route = '/' + path
@@ -301,7 +301,7 @@ class MockServer:
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   # 停止本地 mock 服务
-  def stop_server(self):
+  def shutdown(self):
     result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING')
     if result:
       APP_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
