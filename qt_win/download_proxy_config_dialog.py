@@ -11,13 +11,14 @@ from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config
 from lib.utils_lib import (ConfigFileManager, get_ip_address)
+from lib.app_lib import is_app_server_running
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 
 
 class DownloadProxyConfigDialog(QDialog):
   close_signal: pyqtSignal = pyqtSignal()
 
-  def __init__(self, work_dir=DEFAULT_WORK_DIR, app_server_port=5050):
+  def __init__(self, work_dir=DEFAULT_WORK_DIR, app_sever_running_data: dict = None):
     super().__init__()
     # 当前配置文件地址
     download_config_path = os.path.join(r'{}{}'.format(work_dir, DOWNLOAD_CONFIG_PATH))
@@ -34,7 +35,7 @@ class DownloadProxyConfigDialog(QDialog):
     self.web_channel: QWebChannel or None = None
     self.interact_obj: TInteractObj or None = None
     self.download_config_manager: ConfigFileManager = download_config_manager
-    self.app_server_port = app_server_port
+    self.app_sever_running_data: dict or None = app_sever_running_data
 
     self.init()
 
@@ -75,9 +76,16 @@ class DownloadProxyConfigDialog(QDialog):
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
     webview.loadFinished.connect(page_loaded)
-    # web_path = os.path.abspath('./appServer/static/web/apps/configEdit/index.html')
-    # current_page.load(QUrl.fromLocalFile(web_path))
-    current_page.load(QUrl(f"http://{get_ip_address()}:{self.app_server_port}/static/web/apps/configEdit/index.html"))
+
+    # 检查 APP_SERVER 是否正常启动
+    if is_app_server_running(self.app_sever_running_data):
+      app_server_port = self.app_sever_running_data.get('port', 5050)
+      current_page.load(
+        QUrl(f"http://{get_ip_address()}:{app_server_port}/static/web/apps/configEdit/index.html")
+      )
+    else:
+      web_path = os.path.abspath('./appServer/static/web/apps/configEdit/index.html')
+      current_page.load(QUrl.fromLocalFile(web_path))
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)

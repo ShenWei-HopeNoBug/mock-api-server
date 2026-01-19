@@ -17,13 +17,14 @@ from lib.app_lib import (
   update_user_api_data,
   add_user_api_data,
   delete_user_api_data,
+  is_app_server_running,
 )
 from lib.utils_lib import get_ip_address
 from lib.backup_lib import SimpleFolderBackup
 
 
 class MitmproxyDataEditDialog(QDialog):
-  def __init__(self, work_dir='.', app_server_port=5050):
+  def __init__(self, work_dir='.', app_sever_running_data: dict = None):
     super().__init__()
     # 需要备份的源文件夹路径
     source_dir = os.path.abspath(r'{}{}'.format(work_dir, DATA_DIR))
@@ -40,7 +41,7 @@ class MitmproxyDataEditDialog(QDialog):
     self.webview: QWebEngineView or None = None
     self.web_channel: QWebChannel or None = None
     self.interact_obj: TInteractObj or None = None
-    self.app_server_port = app_server_port
+    self.app_sever_running_data: dict or None = app_sever_running_data
 
     self.init()
     self.simple_folder_backup.watch_diff_backup()
@@ -77,9 +78,16 @@ class MitmproxyDataEditDialog(QDialog):
 
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    # web_path = os.path.abspath('./appServer/static/web/apps/dataManager/index.html')
-    # current_page.load(QUrl.fromLocalFile(web_path))
-    current_page.load(QUrl(f"http://{get_ip_address()}:{self.app_server_port}/static/web/apps/dataManager/index.html"))
+
+    # 检查 APP_SERVER 是否正常启动
+    if is_app_server_running(self.app_sever_running_data):
+      app_server_port = self.app_sever_running_data.get('port', 5050)
+      current_page.load(
+        QUrl(f"http://{get_ip_address()}:{app_server_port}/static/web/apps/dataManager/index.html")
+      )
+    else:
+      web_path = os.path.abspath('./appServer/static/web/apps/dataManager/index.html')
+      current_page.load(QUrl.fromLocalFile(web_path))
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)

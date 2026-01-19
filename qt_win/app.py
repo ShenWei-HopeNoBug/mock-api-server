@@ -27,6 +27,7 @@ from lib.app_lib import (
   open_operation_manual_html,
   set_menu_config,
   set_menu_item_disabled,
+  is_app_server_running,
 )
 from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
@@ -195,11 +196,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       server_config_dialog.exec_()
 
     def open_mitmproxy_data_edit_dialog():
-      mitmproxy_data_dialog = MitmproxyDataEditDialog(work_dir=self.work_dir)
+      mitmproxy_data_dialog = MitmproxyDataEditDialog(
+        work_dir=self.work_dir,
+        app_sever_running_data=self.app_sever_running_data,
+      )
       mitmproxy_data_dialog.exec_()
 
     def open_download_proxy_config_dialog():
-      mitmproxy_data_dialog = DownloadProxyConfigDialog(work_dir=self.work_dir)
+      mitmproxy_data_dialog = DownloadProxyConfigDialog(
+        work_dir=self.work_dir,
+        app_sever_running_data=self.app_sever_running_data,
+      )
       mitmproxy_data_dialog.exec_()
 
     edit_menu = menu_bar.addMenu(EDIT.MENU_NAME)
@@ -628,10 +635,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 停止 APP_SERVER 服务
   @create_thread
   def stop_app_server(self):
-    if type(self.app_sever_running_data) != dict:
-      return
-
-    if not self.app_sever_running_data.get('success'):
+    # 检查 APP_SERVER 是否正常启动
+    if not is_app_server_running(self.app_sever_running_data):
       return
 
     @error_catch(print_error_msg=False)

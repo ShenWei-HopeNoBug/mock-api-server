@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import webbrowser
+import requests
 import pandas as pd
 import json
 from pathlib import Path
@@ -374,3 +375,24 @@ def set_menu_item_disabled(menu: QMenu, disable_list: list):
       disabled = disable_dict.get(action_name, False)
       action.setEnabled(not disabled)
       action_set.remove(action_name)
+
+@error_catch(error_msg='检查 APP_SERVER 是否运行失败！', error_return=False)
+def is_app_server_running(app_sever_running_data: dict) -> bool:
+  if type(app_sever_running_data) != dict:
+    return False
+
+  success = app_sever_running_data.get('success', False)
+  port = app_sever_running_data.get('port', 5050)
+  if not success:
+    return False
+
+  try:
+    response = requests.get('http://127.0.0.1:{}/ping'.format(port))
+    if response.status_code == 200:
+      print('检测到 APP_SERVER 已启动！')
+      return True
+    else:
+      return False
+  except Exception as e:
+    print('检测到 APP_SERVER 未启动！', e)
+    return False
