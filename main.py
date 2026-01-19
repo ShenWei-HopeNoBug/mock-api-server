@@ -57,10 +57,10 @@ if __name__ == '__main__':
   app.processEvents()
 
   # 启动 APP_SERVER 服务
-  start_result: dict = start_app_server()
+  app_sever_running_data: dict = start_app_server()
 
   # app 主窗口
-  main_window = MainWindow(app_server_port=start_result.get('port', 5050))
+  main_window = MainWindow(app_sever_running_data=app_sever_running_data)
   main_window.show()
   # 展示窗口
   main_window.show()

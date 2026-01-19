@@ -56,7 +56,7 @@ def start_app_server_process(server_config: dict):
   app_server = AppServer(port=port)
   app_server.start()
 
-
+# 启动并检查 APP_SERVER 服务
 @error_catch(error_msg='start_app_server 准备启动 APP_SERVER 异常', error_return={"success": False, "port": 5050})
 def start_app_server() -> dict:
   @create_thread
@@ -75,7 +75,7 @@ def start_app_server() -> dict:
     app_server_process.start()
 
   app_server_port = 5050
-  while check_local_connection('0.0.0.0', app_server_port):
+  while check_local_connection(ip='0.0.0.0', port=app_server_port):
     APP_LOGGER.warning(f"APP_SERVER 待启动服务端口被占用: {app_server_port}")
     app_server_port += 1
 
