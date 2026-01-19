@@ -20,7 +20,8 @@ from module.mock_server import MockServer
 from module.asyncio_mitmproxy_server import start_mitmproxy
 from multiprocessing import Process
 from lib.decorate import create_thread, error_catch
-from lib.utils_lib import check_local_connection
+from lib.logger_lib import APP_LOGGER
+from lib.utils_lib import check_local_connection, is_local_server_running
 from lib.work_file_lib import (check_work_files, create_work_files)
 from lib.app_lib import (
   open_mitmproxy_preview_html,
@@ -612,7 +613,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     self.server_status_signal.emit('START_WAIT')
     server_process.start()
-    time.sleep(2)
+    time.sleep(1)
+    result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='NOT_RUNNING')
+    APP_LOGGER.info(f"点击启动 MOCK_SERVER 后检测服务当前是否运行：{result}")
+    time.sleep(0.5)
     self.server_status_signal.emit('RUNNING')
 
   # 停止mock服务
@@ -629,7 +633,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     self.server_status_signal.emit('STOP_WAIT')
     shutdown()
-    time.sleep(2)
+    time.sleep(1)
+    result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='RUNNING')
+    APP_LOGGER.info(f"点击停止 MOCK_SERVER 后检测服务当前是否运行：{result}")
+    time.sleep(0.5)
     self.server_status_signal.emit('READY')
 
   # 停止 APP_SERVER 服务

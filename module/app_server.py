@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import time
-import requests
 from flask import Flask, jsonify
 from pathlib import Path
 from lib.decorate import create_thread, error_catch

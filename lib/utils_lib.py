@@ -374,23 +374,35 @@ def get_multipart_dict(multipart_form) -> dict:
 
 
 @error_catch(error_msg='检查本地指定端口服务是否运行失败！', error_return=False)
-def is_local_server_running(port: int = 5000, retry: int = 0, retry_delay: int = 1) -> bool:
+def is_local_server_running(
+    port: int = 5000,
+    retry: int = 0,
+    retry_delay: int = 1,
+    retry_condition: str = 'NOT_RUNNING',
+) -> bool:
   def _is_running(count: int = 1) -> bool:
     try:
-      response = requests.get('http://127.0.0.1:{}/ping'.format(port))
-      if response.status_code == 200:
-        print(f"第 {count} 次检测：本地{port}端口服务运行中！")
-        return True
-      else:
-        return False
+      response = requests.get(f"http://127.0.0.1:{port}/ping")
+      is_running = response.status_code == 200
+      status = "运行中" if is_running else "未运行"
+      print(f"第 {count} 次检测：本地{port}端口服务{status}！")
+      return is_running
     except Exception as e:
-      print(f"第 {count} 次检测：到本地{port}端口服务未运行！", e)
+      print(f"第 {count} 次检测：本地{port}端口服务未运行！", e)
       return False
 
   check_count = 1
   result: bool = _is_running(check_count)
+
+  # 确定是否需要重试
+  def need_retry() -> bool:
+    return (
+        (retry_condition == 'RUNNING' and result) or
+        (retry_condition == 'NOT_RUNNING' and not result)
+    )
+
   # 进行重试
-  while check_count <= retry and result is False:
+  while check_count <= retry and need_retry():
     time.sleep(retry_delay)
     result = _is_running(check_count + 1)
     check_count += 1

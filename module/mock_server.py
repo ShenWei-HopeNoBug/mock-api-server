@@ -25,7 +25,7 @@ from lib.utils_lib import (
 )
 
 import json
-from flask import (Flask, request, send_from_directory)
+from flask import (Flask, request, send_from_directory, jsonify)
 from flask_cors import CORS
 
 
@@ -231,6 +231,10 @@ class MockServer:
 
     # 添加跨域头
     CORS(app, resources=resources)
+
+    @app.route('/ping')
+    def ping():
+      return jsonify({'data': 'pong!'})
 
     # 服务进程自杀
     @app.route('{}/shutdown'.format(SYSTEM_ROUTE), methods=['GET'])

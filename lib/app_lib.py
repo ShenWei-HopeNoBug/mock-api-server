@@ -393,10 +393,9 @@ def is_app_server_running(app_sever_running_data: dict) -> bool:
   if not success:
     return False
 
-  if is_local_server_running(port=port, retry=0):
-    print('检测到 APP_SERVER 已启动！')
+  if is_local_server_running(port=port, retry=0, retry_condition='NOT_RUNNING'):
+    print(f"检测到 APP_SERVER 运行中！port={port}")
     return True
   else:
-    APP_LOGGER.error('检测到 APP_SERVER 未启动！')
-    print('检测到 APP_SERVER 未启动！')
+    APP_LOGGER.error(f"检测到 APP_SERVER 未运行！port={port}")
     return False
