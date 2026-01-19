@@ -72,10 +72,7 @@ def find_running_app_pid():
 
   app_proc_name = app_proc.name()
   APP_LOGGER.info(
-    r'@@find_running_app_pid 当前运行进程对象信息 pid: {}  name: {}'.format(
-      app_proc_pid,
-      app_proc_name,
-    )
+    f'@@find_running_app_pid 当前运行进程对象信息 pid: {app_proc_pid}  name: {app_proc_name}'
   )
 
   # 用于匹配的进程名去除.win
@@ -87,10 +84,7 @@ def find_running_app_pid():
       # 确保不是当前进程，进程名相同
       if match_proc_name == name.replace('.win', '') and pid != app_proc_pid:
         APP_LOGGER.info(
-          r'@@find_running_app_pid 找到的同名运行进程信息 pid: {}  name: {}'.format(
-            proc.info['pid'],
-            proc.info['name'],
-          )
+          f'@@find_running_app_pid 找到的同名运行进程信息 pid: {proc.info["pid"]}  name: {proc.info["name"]}'
         )
         return proc.info['pid']
     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
@@ -149,7 +143,7 @@ def get_process_windows(pid):
 def get_mitmproxy_api_data_list(work_dir='.', reverse=False):
   api_list = []
   # 数据源地址
-  mitmproxy_data_path = '{}{}'.format(work_dir, MITMPROXY_DATA_PATH)
+  mitmproxy_data_path = f'{work_dir}{MITMPROXY_DATA_PATH}'
   if not os.path.exists(mitmproxy_data_path):
     return []
   # 读取抓包数据
@@ -289,16 +283,14 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
   preview_list = get_mock_api_data_list(work_dir=work_dir)
 
   # 把预览数据写入web的静态资源文件
-  web_mitmproxy_output_file = r'{}/web/mitmproxy_output.js'.format(root_dir)
+  web_mitmproxy_output_file = f'{root_dir}/web/mitmproxy_output.js'
   if not os.path.exists(web_mitmproxy_output_file):
     return False
   with open(web_mitmproxy_output_file, 'w', encoding='utf-8') as fl:
-    content = "window.MITMPROXY_OUTPUT = {};\n".format(
-      JsonFormat.dumps(preview_list),
-    )
+    content = f"window.MITMPROXY_OUTPUT = {JsonFormat.dumps(preview_list)};\n"
     fl.write(content)
 
-  preview_html = r'{}/web/apps/dataPreview/index.html'.format(root_dir)
+  preview_html = f'{root_dir}/web/apps/dataPreview/index.html'
   if not os.path.exists(preview_html):
     return False
   # 用浏览器打开预览 html 文件

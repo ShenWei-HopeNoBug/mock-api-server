@@ -36,7 +36,7 @@ def get_output_data_list(log_path: str, work_dir: str = '.'):
   if not os.path.exists(log_path):
     return []
 
-  static_dir = r'{}{}'.format(work_dir, STATIC_DIR)
+  static_dir = f'{work_dir}{STATIC_DIR}'
   # 检查静态资源目录
   if not os.path.exists(static_dir):
     return []
@@ -48,7 +48,7 @@ def get_output_data_list(log_path: str, work_dir: str = '.'):
   for log in logs:
     success = log.get('success', False)
     file_name = log.get('file_name', '')
-    static_path = os.path.abspath(r'{}/{}'.format(static_dir, file_name))
+    static_path = os.path.abspath(f'{static_dir}/{file_name}')
 
     # 下载成功且静态资源目录有这个文件，添加到导出列表中
     if success and os.path.exists(static_path):
@@ -69,10 +69,7 @@ def output_static_files(output_dir='./output', output_list=None):
     return
 
   # 拼接导出文件夹路径
-  save_dir = os.path.abspath(r'{}/output-static-{}'.format(
-    output_dir,
-    create_timestamp(),
-  ))
+  save_dir = os.path.abspath(f'{output_dir}/output-static-{create_timestamp()}')
 
   # 检查并创建导出路径
   check_and_create_dir(save_dir)
@@ -101,7 +98,7 @@ def is_exit_download() -> bool:
 
 @error_catch(error_msg='获取下载配置失败', error_return={})
 def get_download_config(work_dir='.') -> dict:
-  download_config_path = r'{}{}'.format(work_dir, DOWNLOAD_CONFIG_PATH)
+  download_config_path = f'{work_dir}{DOWNLOAD_CONFIG_PATH}'
   if not os.path.exists(download_config_path):
     return {}
 
@@ -179,7 +176,7 @@ def get_download_ready_assets(work_dir='.', static_url_path=STATIC_DIR) -> list:
     file_name = asset.split('/')[-1]
 
     # 拼接图片存放地址和名字
-    assets_path = '{}/{}'.format(assets_dir, file_name)
+    assets_path = f'{assets_dir}/{file_name}'
     # 只添加本地没下载过的静态资源
     if not os.path.exists(assets_path):
       download_assets.append(asset)
@@ -198,11 +195,7 @@ def white_download_log(work_dir='.', download_log=None, log_name='log'):
     return
 
   # 下载日志路径
-  download_log_path = '{}{}/{}.json'.format(
-    work_dir,
-    DOWNLOAD_DIR,
-    log_name,
-  )
+  download_log_path = f'{work_dir}{DOWNLOAD_DIR}/{log_name}.json'
 
   with open(download_log_path, 'w', encoding='utf-8') as fl:
     fl.write(JsonFormat.dumps(download_log))
@@ -368,7 +361,7 @@ def download_server_static(
     file_name = asset.split('/')[-1]
 
     # 保存图片的地址
-    assets_path = os.path.abspath('{}/{}'.format(assets_dir, file_name))
+    assets_path = os.path.abspath(f'{assets_dir}/{file_name}')
 
     # 校验下载的文件是否已经存在
     if os.path.exists(assets_path):
@@ -384,18 +377,12 @@ def download_server_static(
 
     connect_timeout = download_detail_manager.get_timeout(url=asset) if auto_adjust_timeout else base_timeout
     proxies = get_download_proxies(url=asset, download_proxy_list=download_proxy_list)
-    print('\n******** 正在下载：{}/{} ********\nCONNECT_TIMEOUT：{}s\nURL：{}\nPROXIES：{}'.format(
-      i + 1,
-      assets_length,
-      connect_timeout,
-      asset,
-      proxies,
-    ))
+    print(f'\n******** 正在下载：{i + 1}/{assets_length} ********\nCONNECT_TIMEOUT：{connect_timeout}s\nURL：{asset}\nPROXIES：{proxies}')
     # 下载静态资源
     try:
       response = requests.get(asset, timeout=(connect_timeout, DOWNLOAD.READ_TIMEOUT), proxies=proxies)
       if response.status_code != 200:
-        print('下载失败：{}'.format(asset))
+        print(f'下载失败：{asset}')
         # 保存下载日志
         download_log.append({
           "url": asset,
@@ -403,7 +390,7 @@ def download_server_static(
           "file_name": file_name,
           "proxies": proxies,
           "success": False,
-          "message": "下载失败! STATUS_CODE:{}".format(response.status_code),
+          "message": f"下载失败! STATUS_CODE:{response.status_code}",
         })
         white_log()
         continue
@@ -448,7 +435,7 @@ def download_server_static(
         "file_name": file_name,
         "proxies": proxies,
         "success": True,
-        "message": "下载连接异常! ConnectionError:{}".format(e),
+        "message": f"下载连接异常! ConnectionError:{e}",
       })
     except Exception as e:
       print('下载静态资源出错！', e)
@@ -459,7 +446,7 @@ def download_server_static(
         "file_name": file_name,
         "proxies": proxies,
         "success": True,
-        "message": "下载报错! ERROR:{}".format(e),
+        "message": f"下载报错! ERROR:{e}",
       })
     finally:
       print('*' * 29)

@@ -9,10 +9,7 @@ from lib.utils_lib import create_timestamp
 # 设置环境变量
 def set_env_params(mitmproxy_log=True, version=globals.version):
   with open('./ENV.py', 'w', encoding='utf-8') as fl:
-    data = '# -*- coding: utf-8 -*-\nMITMPROXY_LOG = {}\nVERSION = \'{}\'\n'.format(
-      mitmproxy_log,
-      version,
-    )
+    data = f'# -*- coding: utf-8 -*-\nMITMPROXY_LOG = {mitmproxy_log}\nVERSION = \'{version}\''
     print('写入环境变量：\n', data)
     fl.write(data)
 
@@ -28,10 +25,10 @@ def app_build(window=False, timestamp=''):
   # 当前版本号
   version = globals.version
   win_ext = '.win' if window else ''
-  time_ext = '.{}'.format(timestamp) if timestamp else ''
+  time_ext = f'.{timestamp}' if timestamp else ''
   # 版本tag
-  app_version_tag = '{}-{}'.format(version, timestamp) if timestamp else version
-  app_name = 'mockServer{}{}-{}'.format(win_ext, time_ext, version)
+  app_version_tag = f'{version}-{timestamp}' if timestamp else version
+  app_name = f'mockServer{win_ext}{time_ext}-{version}'
   args = [
     "pyinstaller",
     f"--name={app_name}",
@@ -49,16 +46,16 @@ def app_build(window=False, timestamp=''):
   # 开始打包
   subprocess.run(args)
 
-  spec_file = './{}.spec'.format(app_name)
+  spec_file = f'./{app_name}.spec'
   if os.path.exists(spec_file):
     os.remove(spec_file)
-    print('删除文件：{}'.format(spec_file))
+    print(f'删除文件：{spec_file}')
 
   # 删除临时的打包文件夹
   build_tmp_dir = './build'
   if os.path.exists(build_tmp_dir):
     shutil.rmtree(build_tmp_dir)
-    print('删除文件夹：{}'.format(build_tmp_dir))
+    print(f'删除文件夹：{build_tmp_dir}')
 
   # 环境变量恢复到默认状态
   set_env_params()
@@ -81,21 +78,17 @@ def batch_build():
   build_app_name = build_info.get('app_name')
 
   # 将带黑窗的exe应用移动到不带黑窗的打包目录下
-  win_build_app_dir = './dist/{}'.format(win_build_app_name)
-  win_build_app_path = '{}/{}.exe'.format(win_build_app_dir, win_build_app_name)
-  move_dir = './dist/{}'.format(build_app_name)
+  win_build_app_dir = f'./dist/{win_build_app_name}'
+  win_build_app_path = f'{win_build_app_dir}/{win_build_app_name}.exe'
+  move_dir = f'./dist/{build_app_name}'
 
   path_valid = os.path.exists(move_dir) and os.path.exists(win_build_app_path)
-  print('路径检测：\n ---> from：{}  \n ---> to：{} \n valid：{}'.format(
-    win_build_app_path,
-    move_dir,
-    path_valid,
-  ))
+  print(f'路径检测：\n ---> from：{win_build_app_path}  \n ---> to：{move_dir} \n valid：{path_valid}')
 
   if os.path.exists(move_dir) and os.path.exists(win_build_app_path):
-    print('开始移动打包产物：\n{} -> {}'.format(win_build_app_path, move_dir))
+    print(f'开始移动打包产物：\n{win_build_app_path} -> {move_dir}')
     shutil.move(win_build_app_path, move_dir)
-    print('删除文件夹：{}'.format(win_build_app_dir))
+    print(f'删除文件夹：{win_build_app_dir}')
     shutil.rmtree(win_build_app_dir)
 
 
