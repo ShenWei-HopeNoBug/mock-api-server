@@ -7,7 +7,11 @@ from pathlib import Path
 from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APP_LOGGER
 from multiprocessing import Process
-from lib.utils_lib import check_local_connection, find_connection_process
+from lib.utils_lib import (
+  check_local_connection,
+  find_connection_process,
+  is_local_server_running,
+)
 
 
 class AppServer:
@@ -56,6 +60,7 @@ def start_app_server_process(server_config: dict):
   app_server = AppServer(port=port)
   app_server.start()
 
+
 # 启动并检查 APP_SERVER 服务
 @error_catch(error_msg='start_app_server 准备启动 APP_SERVER 异常', error_return={"success": False, "port": 5050})
 def start_app_server() -> dict:
@@ -82,19 +87,10 @@ def start_app_server() -> dict:
   APP_LOGGER.info(f"APP_SERVER 准备启动: prot {app_server_port}")
 
   _start_server(port=app_server_port)
-  check_count = 0
-  while check_count < 5:
-    try:
-      time.sleep(1)
-      response = requests.get('http://127.0.0.1:{}/ping'.format(app_server_port))
-      if response.status_code == 200:
-        APP_LOGGER.info(f"APP_SERVER 准备启动成功! port={app_server_port}")
-        return {"success": True, "port": app_server_port}
-      else:
-        check_count += 1
-    except Exception as e:
-      print('APP_SERVER 未启动！', e)
-      check_count += 1
+  time.sleep(1)
+  result: bool = is_local_server_running(port=app_server_port, retry=5)
 
-  APP_LOGGER.error(f"APP_SERVER 准备启动失败! port={app_server_port}")
-  return {"success": False, "port": app_server_port}
+  if not result:
+    APP_LOGGER.error(f"APP_SERVER 准备启动失败! port={app_server_port}")
+
+  return {"success": result, "port": app_server_port}

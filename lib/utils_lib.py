@@ -3,6 +3,9 @@ import os
 import re
 import copy
 import hashlib
+import time
+
+import requests
 from urllib.parse import urlparse
 import json
 import psutil
@@ -368,3 +371,28 @@ def get_multipart_dict(multipart_form) -> dict:
     multipart_dict[key_decode] = value_decode
 
   return multipart_dict
+
+
+@error_catch(error_msg='检查本地指定端口服务是否运行失败！', error_return=False)
+def is_local_server_running(port: int = 5000, retry: int = 0, retry_delay: int = 1) -> bool:
+  def _is_running(count: int = 1) -> bool:
+    try:
+      response = requests.get('http://127.0.0.1:{}/ping'.format(port))
+      if response.status_code == 200:
+        print(f"第 {count} 次检测：本地{port}端口服务运行中！")
+        return True
+      else:
+        return False
+    except Exception as e:
+      print(f"第 {count} 次检测：到本地{port}端口服务未运行！", e)
+      return False
+
+  check_count = 1
+  result: bool = _is_running(check_count)
+  # 进行重试
+  while check_count <= retry and result is False:
+    time.sleep(retry_delay)
+    result = _is_running(check_count + 1)
+    check_count += 1
+
+  return result

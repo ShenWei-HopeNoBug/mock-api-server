@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import webbrowser
-import requests
 import pandas as pd
 import json
 from pathlib import Path
@@ -11,12 +10,19 @@ from PyQt5.QtCore import QSharedMemory
 from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
 from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS
 from lib.decorate import error_catch
-from lib.utils_lib import (JsonFormat, generate_uuid, fix_dict_field, find_process, create_md5)
+from lib.utils_lib import (
+  JsonFormat,
+  generate_uuid,
+  fix_dict_field,
+  find_process,
+  create_md5,
+  is_local_server_running,
+)
+from lib.logger_lib import APP_LOGGER
 import psutil
 import win32gui
 import win32process
 import win32con
-from lib.logger_lib import APP_LOGGER
 
 
 @error_catch(error_msg='检查应用是否已经在运行异常', error_return=False)
@@ -376,6 +382,7 @@ def set_menu_item_disabled(menu: QMenu, disable_list: list):
       action.setEnabled(not disabled)
       action_set.remove(action_name)
 
+
 @error_catch(error_msg='检查 APP_SERVER 是否运行失败！', error_return=False)
 def is_app_server_running(app_sever_running_data: dict) -> bool:
   if type(app_sever_running_data) != dict:
@@ -386,13 +393,10 @@ def is_app_server_running(app_sever_running_data: dict) -> bool:
   if not success:
     return False
 
-  try:
-    response = requests.get('http://127.0.0.1:{}/ping'.format(port))
-    if response.status_code == 200:
-      print('检测到 APP_SERVER 已启动！')
-      return True
-    else:
-      return False
-  except Exception as e:
-    print('检测到 APP_SERVER 未启动！', e)
+  if is_local_server_running(port=port, retry=0):
+    print('检测到 APP_SERVER 已启动！')
+    return True
+  else:
+    APP_LOGGER.error('检测到 APP_SERVER 未启动！')
+    print('检测到 APP_SERVER 未启动！')
     return False
