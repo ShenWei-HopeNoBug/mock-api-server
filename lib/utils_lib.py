@@ -408,3 +408,14 @@ def is_local_server_running(
     check_count += 1
 
   return result
+
+
+@error_catch(error_msg='关闭本地服务异常！')
+def shutdown_local_server(port: int = 5000):
+  process_list = find_connection_process(ip='0.0.0.0', port=port)
+  if len(process_list) == 0:
+    print(f"未找到本地服务进程！port={port}")
+
+  for proc in process_list:
+    print(f"正在关闭本地服务进程! port={port}", proc)
+    proc.terminate()

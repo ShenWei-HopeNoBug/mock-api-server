@@ -11,6 +11,7 @@ from config.enum import SERVER
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread
 from lib.download_lib import get_static_match_regexp
+from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
 from lib.app_lib import get_mock_api_data_list
 from lib.utils_lib import (
@@ -18,10 +19,11 @@ from lib.utils_lib import (
   create_md5,
   remove_url_domain,
   remove_url_query,
-  find_connection_process,
   get_ip_address,
   is_file_request,
   remove_byte_empty_content,
+  shutdown_local_server,
+  is_local_server_running,
 )
 
 import json
@@ -300,13 +302,10 @@ class MockServer:
 
   # 停止本地 mock 服务
   def stop_server(self):
-    process_list = find_connection_process(ip='0.0.0.0', port=self.port)
-    if len(process_list) == 0:
-      print('未找到 mock server 进程！port={}'.format(self.port))
-
-    for proc in process_list:
-      print('正在关闭 mock server 进程! port={}'.format(self.port), proc)
-      proc.terminate()
+    result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING')
+    if result:
+      APP_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
+      shutdown_local_server(port=self.port)
 
   # 获取接口传参的 json 字符串
   def __get_params_json_string(self, params: dict or str) -> str:

@@ -8,8 +8,8 @@ from lib.logger_lib import APP_LOGGER
 from multiprocessing import Process
 from lib.utils_lib import (
   check_local_connection,
-  find_connection_process,
   is_local_server_running,
+  shutdown_local_server,
 )
 
 
@@ -39,18 +39,15 @@ class AppServer:
 
     @app.route('/system/shutdown')
     def server_shutdown():
-      self.stop()
+      self.shutdown()
 
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
-  def stop(self) -> None:
-    process_list = find_connection_process(ip='0.0.0.0', port=self.port)
-    if len(process_list) == 0:
-      print('未找到 APP_SERVER 进程！port={}'.format(self.port))
-
-    for proc in process_list:
-      print('正在关闭 APP_SERVER 进程! port={}'.format(self.port), proc)
-      proc.terminate()
+  def shutdown(self) -> None:
+    result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING')
+    if result:
+      APP_LOGGER.info(f"即将关闭 APP_SERVER 服务！port={self.port}")
+      shutdown_local_server(port=self.port)
 
 
 # app 服务进程启动
