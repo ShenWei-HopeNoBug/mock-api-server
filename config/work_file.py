@@ -10,9 +10,9 @@ from config.default import (
 SYSTEM_DIR = r'./system'
 
 # 全局配置文件路径
-GLOBALS_CONFIG_PATH = r'{}/globals.json'.format(SYSTEM_DIR)
+GLOBALS_CONFIG_PATH = f'{SYSTEM_DIR}/globals.json'
 # 历史记录问价路径
-HISTORY_CONFIG_PATH = r'{}/history.json'.format(SYSTEM_DIR)
+HISTORY_CONFIG_PATH = f'{SYSTEM_DIR}/history.json'
 
 # -------------------------------------------------------------
 # APP默认工作目录
@@ -21,11 +21,11 @@ DEFAULT_WORK_DIR = './server'
 # 存放配置文件的目录
 CONFIG_DIR = r'/config'
 # 抓包配置文件路径
-MITMPROXY_CONFIG_PATH = r'{}/mitmproxy_config.json'.format(CONFIG_DIR)
+MITMPROXY_CONFIG_PATH = f'{CONFIG_DIR}/mitmproxy_config.json'
 # 下载配置文件路径
-DOWNLOAD_CONFIG_PATH = r'{}/download_config.json'.format(CONFIG_DIR)
+DOWNLOAD_CONFIG_PATH = f'{CONFIG_DIR}/download_config.json'
 # mock服务配置文件路径
-MOCK_SERVER_CONFIG_PATH = r'{}/mock_server_config.json'.format(CONFIG_DIR)
+MOCK_SERVER_CONFIG_PATH = f'{CONFIG_DIR}/mock_server_config.json'
 
 # 存放数据文件的目录
 DATA_DIR = r'/data'
