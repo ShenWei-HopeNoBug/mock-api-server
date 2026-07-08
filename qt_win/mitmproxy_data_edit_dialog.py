@@ -21,6 +21,7 @@ from lib.app_lib import (
 )
 from lib.utils_lib import get_ip_address
 from lib.backup_lib import SimpleFolderBackup
+from lib.logger_lib import APP_LOGGER
 
 
 class MitmproxyDataEditDialog(QDialog):
@@ -91,12 +92,15 @@ class MitmproxyDataEditDialog(QDialog):
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      current_page.load(
-        QUrl(f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}")
-      )
+      local_server_url = f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}"
+      APP_LOGGER.info(f"[mitmproxy_data_edit_dialog]以本地服务方式加载编辑页面: {local_server_url}")
+      current_page.load(QUrl(local_server_url))
     else:
       web_path = os.path.abspath(f"./appServer/static{web_base_path}")
-      current_page.load(QUrl.fromLocalFile(web_path))
+      APP_LOGGER.info(f"[mitmproxy_data_edit_dialog]以离线文件方式加载编辑页面: {web_path}{web_route}")
+      local_url = QUrl.fromLocalFile(web_path)
+      local_url.setFragment(web_route.lstrip('#'))
+      current_page.load(local_url)
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
