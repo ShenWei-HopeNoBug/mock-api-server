@@ -84,14 +84,17 @@ class MitmproxyDataEditDialog(QDialog):
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
 
+    # 离线页面路径
+    web_base_path = '/web-v3/apps/dataManager/index.html#/outputManager'
+
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
       current_page.load(
-        QUrl(f"http://{get_ip_address()}:{app_server_port}/static/web/apps/dataManager/index.html")
+        QUrl(f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}")
       )
     else:
-      web_path = os.path.abspath('./appServer/static/web/apps/dataManager/index.html')
+      web_path = os.path.abspath(f"./appServer/static{web_base_path}")
       current_page.load(QUrl.fromLocalFile(web_path))
 
     layout = QVBoxLayout()
