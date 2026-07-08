@@ -57,6 +57,11 @@ class DownloadProxyConfigDialog(QDialog):
 
     # 创建 QWebEngineView 实例
     webview = QWebEngineView()
+
+    # 禁用右键菜单
+    webview.setContextMenuPolicy(Qt.CustomContextMenu)
+    webview.customContextMenuRequested.connect(lambda _: None)
+
     current_page = webview.page()
     interact_obj = TInteractObj()
     interact_obj.js2qt_signal.connect(receive)
