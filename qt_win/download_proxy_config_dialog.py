@@ -13,6 +13,7 @@ from lib.webview_lib import get_webview_dialog_config
 from lib.utils_lib import (ConfigFileManager, get_ip_address)
 from lib.app_lib import is_app_server_running
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
+from lib.logger_lib import APP_LOGGER
 
 
 class DownloadProxyConfigDialog(QDialog):
@@ -85,11 +86,12 @@ class DownloadProxyConfigDialog(QDialog):
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      current_page.load(
-        QUrl(f"http://{get_ip_address()}:{app_server_port}/static/web/apps/configEdit/index.html")
-      )
+      local_server_url = f"http://{get_ip_address()}:{app_server_port}/static/web/apps/configEdit/index.html"
+      APP_LOGGER.info(f"[download_proxy_config_dialog]以本地服务方式加载编辑页面: {local_server_url}")
+      current_page.load(QUrl(local_server_url))
     else:
       web_path = os.path.abspath('./appServer/static/web/apps/configEdit/index.html')
+      APP_LOGGER.info(f"[download_proxy_config_dialog]以离线文件方式加载编辑页面: {web_path}")
       current_page.load(QUrl.fromLocalFile(web_path))
 
     layout = QVBoxLayout()

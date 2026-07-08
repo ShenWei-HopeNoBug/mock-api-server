@@ -227,9 +227,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       about_dialog = AboutDialog()
       about_dialog.exec_()
 
+    def open_operation_manual():
+      result = open_operation_manual_html()
+      # 打开失败
+      if not result:
+        QMessageBox.critical(self, '异常', '打开操作手册html失败！')
+
     help_menu = menu_bar.addMenu(HELP.MENU_NAME)
     set_menu_config(help_menu, [
-      {"name": HELP.OPERATION_MANUAL, "callback": open_operation_manual_html},
+      {"name": HELP.OPERATION_MANUAL, "callback": open_operation_manual},
       {"name": HELP.ABOUT, "callback": open_about_dialog},
     ])
 

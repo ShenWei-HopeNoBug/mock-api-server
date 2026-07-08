@@ -281,16 +281,17 @@ def get_mock_api_data_list(work_dir='.'):
 def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
   # 预览数据列表
   preview_list = get_mock_api_data_list(work_dir=work_dir)
+  base_path = f"{root_dir}/appServer/static/web"
 
   # 把预览数据写入web的静态资源文件
-  web_mitmproxy_output_file = f'{root_dir}/web/mitmproxy_output.js'
+  web_mitmproxy_output_file = f'{base_path}/mitmproxy_output.js'
   if not os.path.exists(web_mitmproxy_output_file):
     return False
   with open(web_mitmproxy_output_file, 'w', encoding='utf-8') as fl:
     content = f"window.MITMPROXY_OUTPUT = {JsonFormat.dumps(preview_list)};\n"
     fl.write(content)
 
-  preview_html = f'{root_dir}/web/apps/dataPreview/index.html'
+  preview_html = f'{base_path}/apps/dataPreview/index.html'
   if not os.path.exists(preview_html):
     return False
   # 用浏览器打开预览 html 文件
@@ -302,7 +303,8 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
 # 打开操作手册
 @error_catch(error_msg='打开操作手册html失败', error_return=False)
 def open_operation_manual_html(root_dir='.'):
-  operation_manual_html = r'{}/web/apps/document/index.html'.format(root_dir)
+  base_path = f"{root_dir}/appServer/static/web"
+  operation_manual_html = f"{base_path}/apps/document/index.html"
   if not os.path.exists(operation_manual_html):
     return False
   webbrowser.open(os.path.abspath(operation_manual_html))
