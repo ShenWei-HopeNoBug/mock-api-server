@@ -3,7 +3,7 @@ import json
 import os
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtCore import Qt, QUrl, QEvent
 from PyQt5.QtWebChannel import QWebChannel
 from config.work_file import (DATA_DIR, BACKUP_DIR, USER_API_FILE_NAME)
@@ -65,6 +65,11 @@ class MitmproxyDataEditDialog(QDialog):
 
     # 创建 QWebEngineView 实例
     webview = QWebEngineView()
+
+    # 禁用右键菜单
+    webview.setContextMenuPolicy(Qt.CustomContextMenu)
+    webview.customContextMenuRequested.connect(lambda _: None)
+
     current_page = webview.page()
     interact_obj = TInteractObj()
     interact_obj.js2qt_signal.connect(receive)
