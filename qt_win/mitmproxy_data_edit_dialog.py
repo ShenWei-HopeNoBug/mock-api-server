@@ -85,13 +85,14 @@ class MitmproxyDataEditDialog(QDialog):
     current_page.setWebChannel(web_channel)
 
     # 离线页面路径
-    web_base_path = '/web-v3/apps/dataManager/index.html#/outputManager'
+    web_route = '#/outputManager'
+    web_base_path = '/web-v3/apps/dataManager/index.html'
 
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
       current_page.load(
-        QUrl(f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}")
+        QUrl(f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}")
       )
     else:
       web_path = os.path.abspath(f"./appServer/static{web_base_path}")
