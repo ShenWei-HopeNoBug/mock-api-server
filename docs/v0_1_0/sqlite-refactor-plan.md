@@ -67,15 +67,22 @@ CREATE TABLE IF NOT EXISTS static_data (
 
 核心类 `MockDB`：
 
-| 方法 | 用途 | 替代原函数 |
-|---|---|---|
-| `upsert_api(record)` | 单条插入/更新 | `add_user_api_data` / `update_user_api_data` |
-| `batch_upsert_api(records)` | 批量写入 | `save_response` (mitmproxy_lib) |
-| `get_api_list(type=None, reverse=False)` | 查询列表（默认 `ORDER BY created_at DESC`，`reverse=True` 时改为 `ASC`） | `get_mitmproxy_api_data_list` / `get_user_api_data_list` / `get_mock_api_data_list` |
-| `update_api(record)` | 按 id 更新 | `update_user_api_data` |
-| `delete_api(api_id)` | 按 id 删除 | `delete_user_api_data` |
-| `batch_upsert_static(urls)` | 批量写静态资源 | `save_static` (mitmproxy_lib) |
-| `get_static_list()` | 查静态资源列表 | `load_static_cache` |
+| 方法 | 用途 | id 来源 | 替代原函数 |
+|---|---|---|---|
+| `upsert_api(record)` → `id` | 新增插入（自然键冲突时覆盖 response），返回生成的 id | MockDB 内部 `generate_uuid()` | `add_user_api_data` |
+| `batch_upsert_api(records)` | 批量写入（自然键冲突时覆盖 response） | record 中已有（mitmproxy 抓包时生成） | `save_response` (mitmproxy_lib) |
+| `get_api_list(type=None, reverse=False)` | 查询列表（默认 `ORDER BY created_at DESC`，`reverse=True` 时改为 `ASC`） | — | `get_mitmproxy_api_data_list` / `get_user_api_data_list` / `get_mock_api_data_list` |
+| `update_api(record)` | 按 id 更新（`UPDATE ... WHERE id = ?`） | 调用方传入 | `update_user_api_data` |
+| `delete_api(api_id)` | 按 id 删除 | 调用方传入 | `delete_user_api_data` |
+| `batch_upsert_static(urls)` | 批量写静态资源 | — | `save_static` (mitmproxy_lib) |
+| `get_static_list()` | 查静态资源列表 | — | `load_static_cache` |
+
+> **id 生成职责下沉到 MockDB**
+>
+> `upsert_api`（新增场景）由 MockDB 内部调用 `generate_uuid()` 生成 id，调用方无需传 id，
+> 避免前端传入原记录 id 导致复制操作变成更新原记录。
+> `update_api`（编辑场景）由调用方传入 id 定位记录。
+> `batch_upsert_api`（抓包场景）record 中的 id 由 `request_catch.py` 在 `response()` 阶段已生成。
 
 入库时冗余字段预计算及归一化：
 
@@ -102,7 +109,7 @@ params_sorted = JsonFormat.format_and_sort_json_string(params)
 
 `id` 保持主键，现有 UI 按 id 增删改零适配。通过自然键唯一索引 `idx_api_natural(type, route, method, params_sorted)` 在 DB 层保证去重。
 
-两种写入场景使用不同冲突策略：
+三种写入场景使用不同冲突策略：
 
 **mitmproxy 批量写入**（`batch_upsert_api`）— 自然键冲突时只更新 response：
 ```sql
@@ -113,24 +120,34 @@ ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
   updated_at=datetime('now','localtime')
 ```
 
-**user 增/改**（`upsert_api`）— id 冲突或自然键冲突均替换：
+**user 新增/复制**（`upsert_api`）— id 由 MockDB 内部生成，仅处理自然键冲突：
 ```sql
-INSERT INTO api_data (id, type, url, method, params, params_sorted, response, route, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
+INSERT INTO api_data (id, type, url, method, params, params_sorted, response, route)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
   type=excluded.type, url=excluded.url, method=excluded.method,
   params=excluded.params, params_sorted=excluded.params_sorted,
   response=excluded.response, route=excluded.route,
   updated_at=datetime('now','localtime')
 ```
-- id 冲突 → 更新同 id 记录，**`created_at` 保留原值**，仅刷新 `updated_at`
-- 自然键冲突 → 删除旧记录插入新的（等价覆盖去重），`created_at` 取新值
-- 两者都冲突 → 同 id 冲突分支生效，保留原 `created_at`
+- 自然键不冲突 → 插入新记录，`created_at` 取默认值（当前时间）
+- 自然键冲突 → 覆盖旧记录的 type/url/method/params/response/route，**`created_at` 保留原值**，仅刷新 `updated_at`
+
+> id 由 MockDB 内部 `generate_uuid()` 生成，新增场景永远不会有 id 冲突，
+> 因此 `upsert_api` 只需处理自然键冲突，无需 `ON CONFLICT(id)`。
+
+**user 编辑**（`update_api`）— 按 id 定位，直接 UPDATE，无冲突处理：
+```sql
+UPDATE api_data SET
+  type=?, url=?, method=?, params=?, params_sorted=?, response=?, route=?,
+  updated_at=datetime('now','localtime')
+WHERE id=?
+```
 
 > **`created_at` vs `updated_at` 分离的原因**
 >
 > 原 `INSERT OR REPLACE` 会删除旧行再插入新行，`created_at` 默认值被重置为当前时间，
-> 导致被覆盖的记录在 UI 列表中"跳到最新"。改用 `ON CONFLICT(id) DO UPDATE` 显式保留原 `created_at`，
+> 导致被覆盖的记录在 UI 列表中"跳到最新"。改用 `ON CONFLICT(...) DO UPDATE` 显式保留原 `created_at`，
 > 新增 `updated_at` 列记录实际修改时间。`get_api_list` 按 `created_at` 排序保证展示顺序稳定。
 
 ## 改造文件清单
@@ -167,8 +184,8 @@ ON CONFLICT(id) DO UPDATE SET
 - `get_user_api_data_list` → `mock_db.get_api_list(type='USER', reverse=reverse)`
 - `get_mock_api_data_list` → `mock_db.get_api_list(reverse=reverse)`
 - `save_user_api_data_list` → 废弃
-- `add_user_api_data` → `mock_db.upsert_api(record)`
-- `update_user_api_data` → `mock_db.update_api(record)`
+- `add_user_api_data` → 构造 record（不含 id）→ `mock_db.upsert_api(record)`，id 由 MockDB 内部生成
+- `update_user_api_data` → 构造 record（含 id）→ `mock_db.update_api(record)`
 - `delete_user_api_data` → `mock_db.delete_api(api_id)`
 - `fix_user_api_data` → `mock_db.get_api_list(type='USER')` → 逐条 `update_api`
 - 移除 `import pandas`
