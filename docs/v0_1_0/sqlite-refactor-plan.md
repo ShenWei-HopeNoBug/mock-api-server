@@ -75,11 +75,14 @@ CREATE TABLE IF NOT EXISTS static_data (
 
 1. **每个进程各自创建一个 `MockDB` 实例**（进程间内存隔离，天然独立连接）
 2. 连接参数：`sqlite3.connect(db_path, check_same_thread=False)`，使同一进程内多线程可共享连接
-3. **所有 DB 操作（读 + 写）共用同一把 `threading.Lock`**：主进程的 UI 线程和 `@create_thread` 线程可能并发访问 DB，锁保证串行化
-4. **`PRAGMA busy_timeout=5000`**：跨进程锁竞争时等待 5s 而非立即抛 `database is locked`
-5. WAL 模式允许读写并发，但仅限 SQLite 引擎层；Python `sqlite3.Connection` 对象本身**不是线程安全的**，`check_same_thread=False` 仅允许跨线程使用同一连接，不代表可以**并发**使用——两个线程同时在同一 connection 上 `execute()` 仍会触发 `sqlite3.ProgrammingError`，因此读操作也必须加锁
+3. **`conn.isolation_level = None`（autocommit 模式）**：Python `sqlite3` 模块默认 `isolation_level` 为 `""`，会在执行 DML（INSERT/UPDATE/DELETE）前**自动开启隐式事务**。若代码中再显式 `execute('BEGIN TRANSACTION')`，会触发 `sqlite3.OperationalError: cannot start a transaction within a transaction`。设置 `isolation_level = None` 关闭隐式事务后，所有事务由代码显式 `BEGIN` / `COMMIT` / `ROLLBACK` 控制，与下方所有事务代码示例配合
+4. **所有 DB 操作（读 + 写）共用同一把 `threading.Lock`**：主进程的 UI 线程和 `@create_thread` 线程可能并发访问 DB，锁保证串行化
+5. **`PRAGMA busy_timeout=5000`**：跨进程锁竞争时等待 5s 而非立即抛 `database is locked`
+6. WAL 模式允许读写并发，但仅限 SQLite 引擎层；Python `sqlite3.Connection` 对象本身**不是线程安全的**，`check_same_thread=False` 仅允许跨线程使用同一连接，不代表可以**并发**使用——两个线程同时在同一 connection 上 `execute()` 仍会触发 `sqlite3.ProgrammingError`，因此读操作也必须加锁
 
 > **不采用"每线程独立连接"的原因**：本项目并发量极低（桌面 GUI），每线程独立连接会增加文件锁竞争和 `database is locked` 概率；进程级单例 + `check_same_thread=False` + 读写共锁已足够，全局锁的性能影响可忽略。
+>
+> **`isolation_level = None` 的必要性**：Python `sqlite3` 默认 `isolation_level` 为 `""`（非 `None`），行为是：在第一条 DML 语句前自动 `BEGIN`，需要显式 `conn.commit()` 才会 `COMMIT`。此模式下**不能**再手动 `execute('BEGIN TRANSACTION')`，否则报 `cannot start a transaction within a transaction`。本项目所有写操作均采用显式 `BEGIN TRANSACTION` + `COMMIT` / `ROLLBACK` 的事务控制模式（见下方代码示例），因此**必须**设置 `isolation_level = None` 进入 autocommit 模式，将事务控制权完全交给应用代码。
 >
 > **mock_server 进程特殊说明**：`create_api_dict` 仅启动时读一次 DB，之后 Flask 请求只查内存 `api_dict`，无运行时 DB 访问，无需考虑 Flask `threaded=True` 的多线程问题。**读取完成后立即 `close()` 连接**，既释放文件锁，又触发 SQLite 自动 checkpoint 合并 `-wal` 文件，避免该进程退出后残留 `-wal`。
 >
@@ -95,7 +98,7 @@ CREATE TABLE IF NOT EXISTS static_data (
 |---|---|---|---|
 | `upsert_api(record)` → `id` | 新增插入（纯 INSERT，不去重），返回生成的 id | MockDB 内部 `generate_uuid()` | `add_user_api_data` |
 | `batch_upsert_api(records)` | 批量写入（应用层去重后纯 INSERT） | record 中已有（mitmproxy 抓包时生成） | `save_response` (mitmproxy_lib) |
-| `get_api_list(type=None, reverse=False)` | 查询列表（默认 `ORDER BY created_at DESC, id DESC`，`reverse=True` 时改为 `ASC, id ASC`） | — | `get_mitmproxy_api_data_list` / `get_user_api_data_list` |
+| `get_api_list(type=None, reverse=False)` | 查询列表（`type=None` 查全部，`type='MITMPROXY'` / `type='USER'` 按类型过滤；默认 `ORDER BY created_at DESC, id DESC`，`reverse=True` 时改为 `ASC, id ASC`） | — | `get_mitmproxy_api_data_list` / `get_user_api_data_list` |
 | `update_api(record)` | 按 id 更新（`UPDATE ... WHERE id = ?`） | 调用方传入 | `update_user_api_data` |
 | `delete_api(api_id)` | 按 id 删除 | 调用方传入 | `delete_user_api_data` |
 | `batch_upsert_static(urls)` | 批量写静态资源（`ON CONFLICT(url) DO UPDATE SET updated_at`，重复抓取刷新更新时间） | — | `save_static` (mitmproxy_lib) |
@@ -140,7 +143,11 @@ CREATE TABLE IF NOT EXISTS static_data (
 >   'updated_at': str,     # 更新时间
 > }
 > ```
-> SQL：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at DESC, id DESC`
+> SQL（`type` 非 `None`）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at DESC, id DESC`
+>
+> SQL（`type=None` 查全部）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data ORDER BY created_at DESC, id DESC`
+>
+> `type=None` 时不加 `WHERE` 条件，返回 `MITMPROXY` 和 `USER` 的全部记录。当前 `get_mock_api_data_list` 为保持 USER 优先于 MITMPROXY 的覆盖语义仍采用两次查询合并（见下文），不使用 `type=None` 单次查询。`type=None` 供未来可能的「不分类型查全部」场景使用。
 >
 > **排序稳定性说明**：`created_at` 精度到毫秒（`strftime('%Y-%m-%d %H:%M:%f','now','localtime')`），大幅降低批量写入时多条记录取到相同 `created_at` 值的概率。但毫秒仍非绝对唯一——高并发或批量 `executemany` 极快写入时仍可能碰撞，因此追加 `id DESC` 作为 tiebreaker，`id` 为 UUID 全局唯一，保证相同 `created_at` 的行有确定的排列顺序。`reverse=True` 时改为 `ORDER BY created_at ASC, id ASC`，保持双向排序的对称性。
 > 相比原 JSON 数据格式新增了 `created_at` / `updated_at` 两个字段。
@@ -254,7 +261,25 @@ def update_api(self, record):
 ### 3. `module/request_catch.py`
 - `__init__`：`self.save_path` / `self.static_save_path` → `self.db_path`，初始化 `self.mock_db = MockDB(self.db_path)`
 - `self.response_cache_dict` / `self.static_cache_dict` → 保留为内存缓冲
-- `load_history_cache` → 简化为 `self.mock_db` 初始化即可
+- `load_history_cache` → 从 DB 查询历史数据填充内存缓冲，保持跨 session 去重语义不变：
+  ```python
+  def load_history_cache(self):
+    # 从 DB 加载历史 response 数据，填充内存缓冲用于抓包去重
+    mitmproxy_data = self.mock_db.get_api_list(type='MITMPROXY')
+    for row_data in mitmproxy_data:
+      mitmproxy_lib.save_response_to_cache(row_data, self.response_cache_dict)
+
+    # 从 DB 加载历史静态资源数据，填充内存缓冲用于去重
+    static_data = self.mock_db.get_static_list()
+    for row_data in static_data:
+      mitmproxy_lib.save_static_to_cache(row_data, self.static_cache_dict)
+  ```
+  > **`load_history_cache` 不能省略的原因**
+  >
+  > `save_response_to_cache` 的去重依赖内存缓冲 `response_cache_dict` 中已有的历史记录（以 `url+method` 为一级键、`md5(method+sort_params)` 为二级键）。
+  > 若仅初始化 `MockDB` 而不填充缓冲，每次抓包 session 的去重仅对当前 session 内有效，跨 session 重复抓同一接口会产生重复记录入库，导致 UI 列表出现重复条目、数据膨胀。
+  > 同理 `static_cache_dict` 需填充历史静态资源记录（以 `md5(url)` 为键），避免重复抓取同一静态资源 URL 入库。
+  > 因此 `load_history_cache` 改为从 DB 查询历史数据，遍历调用 `save_response_to_cache` / `save_static_to_cache` 填充缓冲，与原 `load_response_cache` / `load_static_cache` 的语义完全一致。
 - `done()` 中：
   - `save_response(...)` → `self.mock_db.batch_upsert_api(records)`
   - `save_static(...)` → `self.mock_db.batch_upsert_static(urls)`
@@ -272,7 +297,7 @@ def update_api(self, record):
 - `save_response` → 废弃
 - `save_static` → 废弃
 - `load_static_cache` → 废弃
-- 移除 `import pandas` 和 `from lib.app_lib import get_mitmproxy_api_data_list`
+- 移除 `import pandas`、`from lib.app_lib import get_mitmproxy_api_data_list`、`from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS`
 
 ### 5. `lib/app_lib.py`
 - `get_mitmproxy_api_data_list` → 内部改 `mock_db.get_api_list(type='MITMPROXY', reverse=reverse)`，签名不变
@@ -289,7 +314,7 @@ def update_api(self, record):
 - `update_user_api_data` → 构造 record（含 id）→ `mock_db.update_api(record)`
 - `delete_user_api_data` → `mock_db.delete_api(api_id)`
 - `fix_user_api_data` → 改为 no-op 直接返回 `True`（SQLite schema 的 `NOT NULL DEFAULT` + `PRIMARY KEY` 已保证数据完整性，不存在字段缺失/id 缺失问题；保留函数签名避免前端 `fix_mock_data` 事件调用报错，后续前端移除按钮时再一并清理）
-- 移除 `import pandas`
+- 移除 `import pandas`、`from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS`、`from lib.utils_lib import fix_dict_field`
 - 函数签名保持不变，调用方无需改动
 
 ### 6. `module/mock_server.py`
@@ -329,16 +354,42 @@ def update_api(self, record):
   - `response_key` 通过现有 `__get_params_json_string` + `__get_response_dict_key` 实时计算，自动适配 `http_params_match_mode`
   - `route` 始终从 `url` 实时计算（`remove_url_domain` + `remove_url_query`）
   - 移除 `api_cache.json` 文件写入（`with open(self.api_cache_path, ...) → fl.write(...)`）
-- `get_server_api_dict(read_cache)` → `read_cache=False` 时查库构建；`read_cache=True` 时用内存缓存
+- `get_server_api_dict(read_cache)` → **整个方法移除**，`start_server` 直接调用 `create_api_dict()`
+- `start_server(self, read_cache=False)` → 移除 `read_cache` 参数，签名改为 `start_server(self)`
 - 移除 `API_CACHE_DATA_PATH` 导入
 
-### 7. `lib/server_lib.py`
+> **移除 `read_cache` / 缓存模式的原因**
+>
+> 原 `read_cache=True` 路径依赖 `api_cache.json` 文件，重构后该文件取消。DB 查询构建 `api_dict` 的耗时与读缓存文件相当（单次 `SELECT` + 内存遍历），无需保留缓存模式。
+> 移除范围包括：
+> - `module/mock_server.py`：`get_server_api_dict` 方法整体删除，`start_server` 去掉 `read_cache` 参数
+> - `qt_win/app.py`：移除 `self.cache` 属性、`cache_checkbox_click` 回调、`cacheCheckBox` 信号绑定与禁用控制、`server_config` 中 `read_cache` 字段
+> - `qt_ui/main_win/win_ui.ui`：移除 `cacheCheckBox` UI 元素（可选，保留也不影响功能，仅不再绑定逻辑）
+> - `server_process_start`：移除 `read_cache = server_config.get('read_cache', False)` 和 `server.start_server(read_cache=read_cache)` 的 `read_cache` 参数
+
+### 7. `qt_win/app.py`
+- 移除 `self.cache: bool = False` 属性及注释
+- 移除 `cache_checkbox_click` 回调函数
+- 移除 `self.cacheCheckBox.setChecked(self.cache)` 和 `self.cacheCheckBox.clicked.connect(cache_checkbox_click)` 信号绑定
+- 移除两处 `self.cacheCheckBox.setDisabled(disabled)` 调用
+- `server_config` 字典中移除 `"read_cache": self.cache` 字段
+- `server_process_start` 函数中移除 `read_cache = server_config.get('read_cache', False)`，`server.start_server()` 调用去掉 `read_cache` 参数
+
+### 8. `lib/server_lib.py`
 - `get_static_data_list` → 内部改 `mock_db.get_static_list()`，签名不变
 - 移除 `import pandas` 和 `from config.work_file import STATIC_DATA_PATH`
 - 调用方 `lib/download_lib.py` 无需改动
 
-### 8. `config/enum/MITMPROXY.py`
-- `MITMPROXY_DATA_FIELDS` → 保留，字段补全逻辑仍可能用到
+### 9. `config/enum/MITMPROXY.py`
+- `MITMPROXY_DATA_FIELDS` → **移除**
+- 当前调用方共 3 处，重构后全部消失：
+  - `lib/app_lib.py` 的 `get_mitmproxy_api_data_list` 中 `fix_dict_field(dict_data=..., fields=MITMPROXY_DATA_FIELDS)` → 重构后改用 `mock_db.get_api_list()`，DB schema 的 `NOT NULL DEFAULT` 已保证字段完整性，不再需要 `fix_dict_field` 补全
+  - `lib/mitmproxy_lib.py` 的 `save_response` 中 `field_keys = [field.get('key') for field in MITMPROXY_DATA_FIELDS]` → 重构后 `save_response` 废弃
+  - `lib/mitmproxy_lib.py` 顶部的 `from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS` → 随 `save_response` 废弃一并移除
+- **连带清理**：
+  - `lib/app_lib.py`：移除 `from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS` 和 `from lib.utils_lib import fix_dict_field`
+  - `lib/utils_lib.py`：`fix_dict_field` 函数仅被 `app_lib.py` 的 `get_mitmproxy_api_data_list` 调用，重构后无调用方，一并移除
+  - `config/enum/MITMPROXY.py`：`MITMPROXY_DATA_FIELDS` 移除后，若文件中无其他内容则整个文件删除；`from lib.utils_lib import (generate_uuid, JsonFormat)` 导入也一并移除
 
 ## 不变的部分
 
@@ -356,4 +407,5 @@ def update_api(self, record):
 5. `lib/mitmproxy_lib.py` — 废弃写文件函数，保留内存缓冲
 6. `lib/server_lib.py` — `get_static_data_list` 改用 `MockDB`，移除 pandas
 7. `module/request_catch.py` — 改用 `MockDB`
-8. `module/mock_server.py` — 改用 `MockDB` 查询，取消 `api_cache.json`
+8. `module/mock_server.py` — 改用 `MockDB` 查询，移除 `get_server_api_dict` / `read_cache` 参数
+9. `qt_win/app.py` — 移除缓存模式 UI 逻辑（`self.cache` / `cacheCheckBox` / `read_cache` 传参）
