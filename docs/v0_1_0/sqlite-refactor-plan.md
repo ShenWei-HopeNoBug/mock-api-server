@@ -18,11 +18,12 @@ CREATE TABLE IF NOT EXISTS api_data (
   params      TEXT NOT NULL DEFAULT '{}',         -- json string
   response    TEXT NOT NULL DEFAULT '{}',         -- json string
   route       TEXT NOT NULL DEFAULT '',           -- 去域名后的路径（冗余，加速查询）
-  params_md5  TEXT NOT NULL DEFAULT '',           -- md5(method+sorted_params)，加速匹配
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_api_match ON api_data(route, method, params_md5);
+-- 自然键唯一索引：DB 层保证去重，(type, route, method, params) 相同则覆盖
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_natural ON api_data(type, route, method, params);
+CREATE INDEX IF NOT EXISTS idx_api_route ON api_data(route, method);
 CREATE INDEX IF NOT EXISTS idx_api_type  ON api_data(type);
 
 -- 静态资源抓包记录
@@ -49,19 +50,43 @@ CREATE TABLE IF NOT EXISTS static_data (
 | `get_api_list(type=None, reverse=False)` | 查询列表 | `get_mitmproxy_api_data_list` / `get_user_api_data_list` / `get_mock_api_data_list` |
 | `update_api(record)` | 按 id 更新 | `update_user_api_data` |
 | `delete_api(api_id)` | 按 id 删除 | `delete_user_api_data` |
-| `get_api_by_match(route, method, params_md5)` | 精确匹配 | mock_server 内存查找 |
 | `batch_upsert_static(urls)` | 批量写静态资源 | `save_static` (mitmproxy_lib) |
 | `get_static_list()` | 查静态资源列表 | `load_static_cache` |
 
-入库时冗余字段预计算：
+入库时冗余字段预计算及归一化：
 
 ```python
 route = remove_url_domain(url)
 if method == 'GET':
     route = remove_url_query(route)
-sort_params = JsonFormat.format_and_sort_json_string(params)
-params_md5 = create_md5(method + sort_params)
+# params 归一化排序，确保相同逻辑参数只存一种格式，作为自然键的一部分
+params = JsonFormat.format_and_sort_json_string(params)
 ```
+
+> `params_md5` 不入库，由 `mock_server` 启动构建内存映射时根据当前 `http_params_match_mode` 实时计算，兼容 `EXACT_MATCH` 和 `SIMPLE_MATCH` 两种模式。
+
+### 去重策略
+
+`id` 保持主键，现有 UI 按 id 增删改零适配。通过自然键唯一索引 `idx_api_natural(type, route, method, params)` 在 DB 层保证去重。
+
+两种写入场景使用不同冲突策略：
+
+**mitmproxy 批量写入**（`batch_upsert_api`）— 自然键冲突时只更新 response：
+```sql
+INSERT INTO api_data (id, type, url, method, params, response, route)
+VALUES (?, 'MITMPROXY', ?, ?, ?, ?, ?)
+ON CONFLICT(type, route, method, params) DO UPDATE SET
+  response=excluded.response, url=excluded.url
+```
+
+**user 增/改**（`upsert_api`）— id 冲突或自然键冲突均替换：
+```sql
+INSERT OR REPLACE INTO api_data (id, type, url, method, params, response, route)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+```
+- id 冲突 → 替换同 id 记录（等价 update）
+- 自然键冲突 → 删除旧记录插入新的（等价覆盖去重）
+- 两者都冲突 → 替换
 
 ## 改造文件清单
 
@@ -110,10 +135,12 @@ params_md5 = create_md5(method + sort_params)
   ```
   api_list = mock_db.get_api_list()
   for row in api_list:
-    request_key = md5(row['route'] + row['method'])
-    response_key = row['params_md5']
+    request_key = self.__get_request_dict_key(row['route'], row['method'])
+    params = self.__get_params_json_string(row['params'])
+    response_key = self.__get_response_dict_key(row['method'], params)
     api_dict[request_key][response_key] = json.loads(row['response'])
   ```
+  - `response_key` 通过现有 `__get_params_json_string` + `__get_response_dict_key` 实时计算，自动适配 `http_params_match_mode`
 - `get_server_api_dict(read_cache)` → `read_cache=False` 时查库构建；`read_cache=True` 时用内存缓存
 - 移除 `API_CACHE_DATA_PATH` 导入
 
