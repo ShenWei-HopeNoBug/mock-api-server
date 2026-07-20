@@ -12,11 +12,12 @@
 
 ```python
 from lib.db_lib import MockDB
+from config.work_file import DB_DATA_PATH
 ```
 
 ## `__init__` 改造
 
-- `self.save_path` / `self.static_save_path` → `self.db_path`，初始化 `self.mock_db = MockDB(self.db_path)`
+- `self.save_path` / `self.static_save_path` → `self.db_path = f'{work_dir}{DB_DATA_PATH}'`（与 `app_lib._get_mock_db` 中构造方式一致），初始化 `self.mock_db = MockDB(self.db_path)`
 - `self.response_cache_dict` / `self.static_cache_dict` → 保留为内存缓冲
 
 ## `load_history_cache` 改造
@@ -42,6 +43,10 @@ def load_history_cache(self):
 若仅初始化 `MockDB` 而不填充缓冲，每次抓包 session 的去重仅对当前 session 内有效，跨 session 重复抓同一接口会产生重复记录入库，导致 UI 列表出现重复条目、数据膨胀。
 同理 `static_cache_dict` 需填充历史静态资源记录（以 `md5(url)` 为键），避免重复抓取同一静态资源 URL 入库。
 因此 `load_history_cache` 改为从 DB 查询历史数据，遍历调用 `save_response_to_cache` / `save_static_to_cache` 填充缓冲，与原 `load_response_cache` / `load_static_cache` 的语义完全一致。
+
+### DB 返回数据含额外字段的兼容性说明
+
+`mock_db.get_api_list()` 返回的 dict 比 JSON 数据格式多了 `created_at` / `updated_at` 两个字段。`save_response_to_cache` / `save_static_to_cache` 内部只取 `id` / `type` / `url` / `method` / `params` / `response` 等字段构造缓存键，不会遍历整个 dict，额外字段不影响缓冲逻辑。但实施时需**验证 `save_response_to_cache` / `save_static_to_cache` 不会因额外字段报错**（如使用 `json.dumps` 序列化整个 dict 或解包全部字段的地方）。
 
 ## `done()` 改造
 

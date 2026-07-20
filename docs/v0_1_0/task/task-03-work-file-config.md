@@ -1,8 +1,10 @@
-# 子任务 03 — 工作目录配置调整
+# 子任务 03 — 工作目录配置调整（仅新增 DB 常量）
 
 ## 目标
 
-调整工作目录配置，新增 DB 文件常量，移除 JSON 数据文件项，调整文件初始化逻辑不再创建/检查 `mock.db`。
+新增 DB 文件常量，调整文件初始化逻辑不创建/检查 `mock.db`。
+
+> **本任务不移除 `WORK_FILE_DICT` 中的 JSON 文件项**。JSON 文件项的移除延后到 task-10（连带清理），避免中间状态全新安装时旧代码读不到 JSON 文件而崩溃。本任务仅做**增量新增**，不删除任何现有内容。
 
 ## 涉及文件
 
@@ -12,12 +14,12 @@
 ## `config/work_file.py`
 
 - 新增 `DB_FILE_NAME = 'mock.db'`，`DB_DATA_PATH = f'{DATA_DIR}/{DB_FILE_NAME}'`
-- `WORK_FILE_DICT` 中移除 `MITMPROXY_DATA` / `USER_API_DATA` / `STATIC_DATA` / `API_CACHE_DATA` 四项
+- `WORK_FILE_DICT` **保持不变**（JSON 文件项的移除见 task-10）
 - 保留 `MITMPROXY_DATA_PATH` / `USER_API_DATA_PATH` / `STATIC_DATA_PATH` 常量（暂不删，避免其他地方引用报错）
 
 ## `lib/work_file_lib.py`
 
-- `create_work_files` 不再创建上述四个 JSON 文件，**也不创建 `mock.db`**
+- `create_work_files` **保持原有逻辑不变**（仍创建 JSON 文件），**不创建 `mock.db`**
 - `check_work_files` **不检查 `mock.db`**，保持原有逻辑不变（仅检查 `WORK_DIR_DICT` 中的目录 + `WORK_FILE_DICT` 中的文件）
 - `mock.db` 由首次 `MockDB` 实例化自然创建（`MockDB.__init__` 中 `CREATE TABLE IF NOT EXISTS` 保证建表幂等），`data/` 目录已由 `WORK_DIR_DICT` 中的 `DATA_DIR` 在 `create_work_files` 中创建，`MockDB` 实例化时目录已就绪
 
@@ -38,3 +40,10 @@
 - **首次运行**：`check_work_files` 检查目录和 JSON 配置文件不存在 → 返回 `False` → 弹窗 → 用户确认 → `create_work_files` 创建目录和 JSON 文件 → 后续首次 `MockDB` 实例化自动创建 `mock.db`
 - **用户手动删除 `mock.db`**：`check_work_files` 返回 `True`（不检查 `mock.db`），不弹窗 → 后续首次 `MockDB` 实例化自动重建 `mock.db`（空库），数据从备份恢复或重新抓包
 - **用户删除 `data/` 目录**：`check_work_files` 返回 `False`（`DATA_DIR` 不存在）→ 弹窗 → `create_work_files` 重建 `data/` 目录 → 后续 `MockDB` 实例化创建 `mock.db`
+
+## task-10 延后项（不在本任务执行）
+
+以下内容在 task-10（连带清理）中执行，**本任务不做**：
+
+- `WORK_FILE_DICT` 中移除 `MITMPROXY_DATA` / `USER_API_DATA` / `STATIC_DATA` / `API_CACHE_DATA` 四项
+- `create_work_files` 不再创建上述四个 JSON 文件

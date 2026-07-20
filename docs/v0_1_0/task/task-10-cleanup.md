@@ -1,14 +1,29 @@
-# 子任务 10 — 连带清理
+# 子任务 10 — 连带清理（含 JSON 文件项移除）
 
 ## 目标
 
-清理重构后不再使用的 `MITMPROXY_DATA_FIELDS`、`fix_dict_field` 以及 `pandas` 依赖。
+清理重构后不再使用的 `MITMPROXY_DATA_FIELDS`、`fix_dict_field`、`pandas` 依赖，以及从 task-03 延后的 `WORK_FILE_DICT` JSON 文件项移除。
+
+> **前置条件**：所有其他子任务（task-01 ~ task-09）均已完成。本任务移除的 JSON 文件项和导入语句在中间状态下仍被旧代码引用，提前移除会导致崩溃。
 
 ## 涉及文件
 
 - `config/enum/MITMPROXY.py`
 - `lib/utils_lib.py`
 - `requirements.txt`
+- `config/work_file.py`（从 task-03 延后）
+- `lib/work_file_lib.py`（从 task-03 延后）
+
+## `config/work_file.py`（从 task-03 延后）
+
+- `WORK_FILE_DICT` 中移除 `MITMPROXY_DATA` / `USER_API_DATA` / `STATIC_DATA` / `API_CACHE_DATA` 四项
+  > 此时 `app_lib.py` / `mitmproxy_lib.py` / `server_lib.py` / `request_catch.py` / `mock_server.py` 均已改为使用 `MockDB`，不再读写这些 JSON 文件，可安全移除。
+- 保留 `MITMPROXY_DATA_PATH` / `USER_API_DATA_PATH` / `STATIC_DATA_PATH` 常量（暂不删，避免其他地方引用报错）
+
+## `lib/work_file_lib.py`（从 task-03 延后）
+
+- `create_work_files` 不再创建上述四个 JSON 文件
+  > 此时所有进程均已改为首次 `MockDB` 实例化时自然创建 `mock.db`，不再依赖 `create_work_files` 创建 JSON 数据文件。
 
 ## `config/enum/MITMPROXY.py`
 
@@ -22,11 +37,6 @@
 ## `lib/utils_lib.py`
 
 - `fix_dict_field` 函数仅被 `app_lib.py` 的 `get_mitmproxy_api_data_list` 调用，重构后无调用方，一并移除
-
-## `lib/app_lib.py` 连带清理
-
-- 移除 `from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS`
-- 移除 `from lib.utils_lib import fix_dict_field`
 
 ## `requirements.txt`
 
