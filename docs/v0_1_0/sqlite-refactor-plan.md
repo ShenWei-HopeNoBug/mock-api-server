@@ -84,6 +84,29 @@ CREATE TABLE IF NOT EXISTS static_data (
 | `batch_upsert_static(urls)` | 批量写静态资源 | — | `save_static` (mitmproxy_lib) |
 | `get_static_list()` | 查静态资源列表 | — | `load_static_cache` |
 
+> **`get_api_list` 返回格式**
+>
+> 返回 `list[dict]`，每个 dict 包含 DB 中 `api_data` 表的**所有字段**：
+> ```python
+> {
+>   'id': str,
+>   'type': str,           # MITMPROXY / USER
+>   'url': str,
+>   'method': str,
+>   'params': str,         # 原始顺序 json string
+>   'params_sorted': str,  # 排序后 json string
+>   'response': str,       # json string
+>   'route': str,          # 去域名后的路径
+>   'created_at': str,     # 创建时间
+>   'updated_at': str,     # 更新时间
+> }
+> ```
+> SQL：`SELECT id, type, url, method, params, params_sorted, response, route, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at DESC`
+>
+> 相比原 JSON 数据格式新增了 `params_sorted` / `route` / `created_at` / `updated_at` 四个字段。
+> 前端 / 预览页面只取 `id` / `type` / `url` / `method` / `params` / `response`，多出的字段不影响渲染。
+> `mock_server.create_api_dict` 直接使用 DB 预计算的 `route` 字段，无需再 `remove_url_domain` + `remove_url_query`。
+
 > **id 生成职责下沉到 MockDB**
 >
 > `upsert_api`（新增场景）由 MockDB 内部调用 `generate_uuid()` 生成 id，调用方无需传 id，
@@ -164,13 +187,39 @@ ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
 > id 由 MockDB 内部 `generate_uuid()` 生成，新增场景永远不会有 id 冲突，
 > 因此 `upsert_api` 只需处理自然键冲突，无需 `ON CONFLICT(id)`。
 
-**user 编辑**（`update_api`）— 按 id 定位，直接 UPDATE，无冲突处理：
+**user 编辑**（`update_api`）— 按 id 定位 UPDATE，捕获自然键冲突后先删除冲突记录再更新：
 ```sql
+-- 1. 按 id 更新
 UPDATE api_data SET
   type=?, url=?, method=?, params=?, params_sorted=?, response=?, route=?,
   updated_at=datetime('now','localtime')
 WHERE id=?
+
+-- 2. 若触发 IntegrityError（自然键冲突），先删除与当前编辑记录自然键相同但 id 不同的旧记录
+DELETE FROM api_data
+WHERE type=? AND route=? AND method=? AND params_sorted=? AND id != ?
+
+-- 3. 再执行一次 UPDATE
 ```
+```python
+def update_api(self, record):
+  with self._lock:
+    try:
+      self._conn.execute(update_sql, params)
+      self._conn.commit()
+    except sqlite3.IntegrityError:
+      # 编辑后自然键与另一条记录冲突，先删除冲突记录再更新
+      self._conn.execute(delete_conflict_sql, conflict_params)
+      self._conn.execute(update_sql, params)
+      self._conn.commit()
+    finally:
+      self._wal_checkpoint_passive()
+```
+
+> **`update_api` 冲突处理的原因**
+>
+> 用户编辑时可能修改 `url` / `method` / `params`，导致新的自然键 `(type, route, method, params_sorted)` 与另一条记录冲突，触发 `sqlite3.IntegrityError`。
+> 此时先删除自然键相同但 `id` 不同的冲突记录，再重新 UPDATE，保证编辑操作成功且 DB 中无自然键重复。
 
 > **`created_at` vs `updated_at` 分离的原因**
 >
