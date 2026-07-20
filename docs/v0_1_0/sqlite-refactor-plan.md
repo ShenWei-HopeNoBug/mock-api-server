@@ -16,17 +16,12 @@ CREATE TABLE IF NOT EXISTS api_data (
   url            TEXT NOT NULL DEFAULT '',
   method         TEXT NOT NULL DEFAULT 'GET',
   params         TEXT NOT NULL DEFAULT '{}',          -- 原始顺序 json string（展示 + SIMPLE_MATCH 匹配）
-  params_sorted  TEXT NOT NULL DEFAULT '{}',          -- 排序后 json string（仅用于自然键去重）
   response       TEXT NOT NULL DEFAULT '{}',          -- json string
-  route          TEXT NOT NULL DEFAULT '',            -- 去域名后的路径（仅用于自然键去重索引，读取时实时计算）
   created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
   updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
 
--- 自然键唯一索引：DB 层保证去重，(type, route, method, params_sorted) 相同则覆盖
-CREATE UNIQUE INDEX IF NOT EXISTS idx_api_natural ON api_data(type, route, method, params_sorted);
-CREATE INDEX IF NOT EXISTS idx_api_route ON api_data(route, method);
-CREATE INDEX IF NOT EXISTS idx_api_type  ON api_data(type);
+CREATE INDEX IF NOT EXISTS idx_api_type ON api_data(type);
 
 -- 静态资源抓包记录
 CREATE TABLE IF NOT EXISTS static_data (
@@ -98,8 +93,8 @@ CREATE TABLE IF NOT EXISTS static_data (
 
 | 方法 | 用途 | id 来源 | 替代原函数 |
 |---|---|---|---|
-| `upsert_api(record)` → `id` | 新增插入（自然键冲突时覆盖 response），返回生成的 id | MockDB 内部 `generate_uuid()` | `add_user_api_data` |
-| `batch_upsert_api(records)` | 批量写入（自然键冲突时覆盖 response） | record 中已有（mitmproxy 抓包时生成） | `save_response` (mitmproxy_lib) |
+| `upsert_api(record)` → `id` | 新增插入（纯 INSERT，不去重），返回生成的 id | MockDB 内部 `generate_uuid()` | `add_user_api_data` |
+| `batch_upsert_api(records)` | 批量写入（应用层去重后纯 INSERT） | record 中已有（mitmproxy 抓包时生成） | `save_response` (mitmproxy_lib) |
 | `get_api_list(type=None, reverse=False)` | 查询列表（默认 `ORDER BY created_at DESC, id DESC`，`reverse=True` 时改为 `ASC, id ASC`） | — | `get_mitmproxy_api_data_list` / `get_user_api_data_list` |
 | `update_api(record)` | 按 id 更新（`UPDATE ... WHERE id = ?`） | 调用方传入 | `update_user_api_data` |
 | `delete_api(api_id)` | 按 id 删除 | 调用方传入 | `delete_user_api_data` |
@@ -140,19 +135,17 @@ CREATE TABLE IF NOT EXISTS static_data (
 >   'url': str,
 >   'method': str,
 >   'params': str,         # 原始顺序 json string
->   'params_sorted': str,  # 排序后 json string
 >   'response': str,       # json string
->   'route': str,          # 去域名后的路径（仅用于自然键去重，消费方不直接使用）
 >   'created_at': str,     # 创建时间
 >   'updated_at': str,     # 更新时间
 > }
 > ```
-> SQL：`SELECT id, type, url, method, params, params_sorted, response, route, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at DESC, id DESC`
+> SQL：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at DESC, id DESC`
 >
 > **排序稳定性说明**：`created_at` 精度到毫秒（`strftime('%Y-%m-%d %H:%M:%f','now','localtime')`），大幅降低批量写入时多条记录取到相同 `created_at` 值的概率。但毫秒仍非绝对唯一——高并发或批量 `executemany` 极快写入时仍可能碰撞，因此追加 `id DESC` 作为 tiebreaker，`id` 为 UUID 全局唯一，保证相同 `created_at` 的行有确定的排列顺序。`reverse=True` 时改为 `ORDER BY created_at ASC, id ASC`，保持双向排序的对称性。
-> 相比原 JSON 数据格式新增了 `params_sorted` / `route` / `created_at` / `updated_at` 四个字段。
+> 相比原 JSON 数据格式新增了 `created_at` / `updated_at` 两个字段。
 > 前端 / 预览页面只取 `id` / `type` / `url` / `method` / `params` / `response`，多出的字段不影响渲染。
-> `mock_server.create_api_dict` **不使用** DB 存储的 `route` 字段，始终从 `url` 实时计算 `route`，避免 `remove_url_domain` / `remove_url_query` 逻辑变更后旧数据 `route` 值不一致。`route` 列仅用于自然键唯一索引的去重，不作为读取字段。
+> `mock_server.create_api_dict` 始终从 `url` 实时计算 `route`（`remove_url_domain` + `remove_url_query`），不依赖 DB 冗余字段。
 
 > **id 生成职责下沉到 MockDB**
 >
@@ -161,44 +154,31 @@ CREATE TABLE IF NOT EXISTS static_data (
 > `update_api`（编辑场景）由调用方传入 id 定位记录。
 > `batch_upsert_api`（抓包场景）record 中的 id 由 `request_catch.py` 在 `response()` 阶段已生成。
 
-入库时冗余字段预计算及归一化：
+入库时字段归一化：
 
 ```python
-route = remove_url_domain(url)
-if method == 'GET':
-    route = remove_url_query(route)
 # params 保持原始顺序（展示 + SIMPLE_MATCH 匹配）
 params = JsonFormat.format_json_string(params)
-# params_sorted 排序归一化，仅用于自然键去重
-params_sorted = JsonFormat.format_and_sort_json_string(params)
 ```
 
-> **`params` vs `params_sorted` 分离的原因**
+> **`params` 不排序存储的原因**
 >
 > `SIMPLE_MATCH` 模式下 `mock_server` 构建内存映射时走 `format_json_string`（不排序），
 > 请求侧同样不排序，两侧靠**原始顺序一致**来命中。
-> 若 `params` 列本身排序存储，则存储侧永远是排序序，请求侧保持原始序，两侧不一致导致命中失败。
-> 因此 `params` 列必须保留原始顺序，排序版本独立存 `params_sorted` 列仅供自然键去重使用。
+> 若 `params` 列排序存储，则存储侧永远是排序序，请求侧保持原始序，两侧不一致导致命中失败。
 
 > `params_md5` 不入库，由 `mock_server` 启动构建内存映射时根据当前 `http_params_match_mode` 实时计算，兼容 `EXACT_MATCH` 和 `SIMPLE_MATCH` 两种模式。
 
 ### 去重策略
 
-`id` 保持主键，现有 UI 按 id 增删改零适配。通过自然键唯一索引 `idx_api_natural(type, route, method, params_sorted)` 在 DB 层保证去重。
+DB 层不做去重，`id` 为唯一主键，去重全部在**应用层**处理。三种写入场景均为纯 INSERT 或 UPDATE，不依赖自然键唯一索引。
 
-三种写入场景使用不同冲突策略：
-
-**mitmproxy 批量写入**（`batch_upsert_api`）— 自然键冲突时全字段覆盖（`created_at` 保留原值）：
+**mitmproxy 批量写入**（`batch_upsert_api`）— 应用层去重后纯 INSERT：
 ```sql
-INSERT INTO api_data (id, type, url, method, params, params_sorted, response, route)
-VALUES (?, 'MITMPROXY', ?, ?, ?, ?, ?, ?)
-ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
-  url=excluded.url, method=excluded.method,
-  params=excluded.params, params_sorted=excluded.params_sorted,
-  response=excluded.response, route=excluded.route,
-  updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
+INSERT INTO api_data (id, type, url, method, params, response)
+VALUES (?, 'MITMPROXY', ?, ?, ?, ?)
 ```
-> 冲突时全字段覆盖，确保 DB 中始终是最新一次抓取的完整数据，避免部分字段更新导致的新旧数据混杂。`type` 固定为 `'MITMPROXY'` 无需更新，`created_at` 保留原值维持列表顺序稳定，仅刷新 `updated_at`。
+> 去重逻辑保留在 `mitmproxy_lib.save_response_to_cache` 的内存缓冲阶段（与当前行为一致），`done()` 时将去重后的 records 批量写入 DB。
 
 > **批量写入采用单事务 + `executemany`**
 >
@@ -221,74 +201,43 @@ ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
 > - WAL 模式下读写不互斥，批量写入期间主进程仍可正常读操作，仅在 `COMMIT` 的短暂瞬间有文件锁竞争
 > - commit 后执行 `PRAGMA wal_checkpoint(PASSIVE)` 合并 `-wal`（见上文 checkpoint 策略）
 
-**user 新增/复制**（`upsert_api`）— id 由 MockDB 内部生成，仅处理自然键冲突：
+**user 新增/复制**（`upsert_api`）— id 由 MockDB 内部生成，纯 INSERT：
 ```sql
-INSERT INTO api_data (id, type, url, method, params, params_sorted, response, route)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
-  type=excluded.type, url=excluded.url, method=excluded.method,
-  params=excluded.params, params_sorted=excluded.params_sorted,
-  response=excluded.response, route=excluded.route,
-  updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
+INSERT INTO api_data (id, type, url, method, params, response)
+VALUES (?, ?, ?, ?, ?, ?)
 ```
-- 自然键不冲突 → 插入新记录，`created_at` 取默认值（当前时间）
-- 自然键冲突 → 覆盖旧记录的 type/url/method/params/response/route，**`created_at` 保留原值**，仅刷新 `updated_at`
+- 每次调用均插入新记录，不去重，复制操作正常产生新记录
 
-> id 由 MockDB 内部 `generate_uuid()` 生成，新增场景永远不会有 id 冲突，
-> 因此 `upsert_api` 只需处理自然键冲突，无需 `ON CONFLICT(id)`。
+> id 由 MockDB 内部 `generate_uuid()` 生成，新增场景永远不会有 id 冲突。
 
-**user 编辑**（`update_api`）— 按 id 定位 UPDATE，捕获自然键冲突后先删除冲突记录再更新：
+**user 编辑**（`update_api`）— 按 id 定位 UPDATE，无冲突处理：
 ```sql
--- 1. 按 id 更新
 UPDATE api_data SET
-  type=?, url=?, method=?, params=?, params_sorted=?, response=?, route=?,
+  type=?, url=?, method=?, params=?, response=?,
   updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
 WHERE id=?
-
--- 2. 若触发 IntegrityError（自然键冲突），先删除与当前编辑记录自然键相同但 id 不同的旧记录
-DELETE FROM api_data
-WHERE type=? AND route=? AND method=? AND params_sorted=? AND id != ?
-
--- 3. 再执行一次 UPDATE
 ```
 ```python
 def update_api(self, record):
   with self._lock:
+    conn = self._conn
+    conn.execute('BEGIN TRANSACTION')
     try:
-      # 1. 尝试按 id 更新（单事务）
-      self._conn.execute('BEGIN TRANSACTION')
-      self._conn.execute(update_sql, params)
-      self._conn.execute('COMMIT')
-    except sqlite3.IntegrityError:
-      # 自然键冲突，回滚首次 UPDATE
-      self._conn.execute('ROLLBACK')
-      # 2. 删除冲突记录 + 重新 UPDATE 包裹在同一事务中，保证原子性
-      self._conn.execute('BEGIN TRANSACTION')
-      self._conn.execute(delete_conflict_sql, conflict_params)
-      self._conn.execute(update_sql, params)
-      self._conn.execute('COMMIT')
+      conn.execute(update_sql, params)
+      conn.execute('COMMIT')
     except Exception:
-      self._conn.execute('ROLLBACK')
+      conn.execute('ROLLBACK')
       raise
     finally:
       self._wal_checkpoint_passive()
 ```
 
-> **`update_api` 冲突处理的原因**
+> **`update_api` 无需冲突处理的原因**
 >
-> 用户编辑时可能修改 `url` / `method` / `params`，导致新的自然键 `(type, route, method, params_sorted)` 与另一条记录冲突，触发 `sqlite3.IntegrityError`。
-> 此时先删除自然键相同但 `id` 不同的冲突记录，再重新 UPDATE，保证编辑操作成功且 DB 中无自然键重复。
-
-> **冲突分支必须包裹在显式事务中的原因**
->
-> `delete_conflict` 和第二次 `UPDATE` 是两步独立操作，若不加事务保护，delete 成功后 update 若因连接异常失败，
-> 冲突记录已被删除但编辑未生效，导致**数据丢失**。将两步包裹在同一个 `BEGIN TRANSACTION ... COMMIT` 中，
-> 任一步失败则整体 `ROLLBACK`，保证原子性——要么编辑完全成功，要么 DB 状态不变。
+> DB 层无自然键唯一索引，按 id 更新不会触发 `IntegrityError`，无需 delete + retry 逻辑。
 
 > **`created_at` vs `updated_at` 分离的原因**
 >
-> 原 `INSERT OR REPLACE` 会删除旧行再插入新行，`created_at` 默认值被重置为当前时间，
-> 导致被覆盖的记录在 UI 列表中"跳到最新"。改用 `ON CONFLICT(...) DO UPDATE` 显式保留原 `created_at`，
 > 新增 `updated_at` 列记录实际修改时间。`get_api_list` 按 `created_at` 排序保证展示顺序稳定。
 
 ## 改造文件清单
@@ -362,7 +311,7 @@ def update_api(self, record):
     response = row_data.get('response')
     method = row_data.get('method')
     params = row_data.get('params')
-    # 始终从 url 实时计算 route，不使用 DB 存储的 route 字段，避免逻辑变更后旧数据不一致
+    # 始终从 url 实时计算 route
     route = remove_url_domain(row_data.get('url', ''))
     if method == 'GET':
       route = remove_url_query(route)
@@ -378,7 +327,7 @@ def update_api(self, record):
     api_dict[request_key][response_key] = json.loads(response)
   ```
   - `response_key` 通过现有 `__get_params_json_string` + `__get_response_dict_key` 实时计算，自动适配 `http_params_match_mode`
-  - `route` 始终从 `url` 实时计算（`remove_url_domain` + `remove_url_query`），不读取 DB 存储的 `route` 字段，避免逻辑变更后旧数据不一致
+  - `route` 始终从 `url` 实时计算（`remove_url_domain` + `remove_url_query`）
   - 移除 `api_cache.json` 文件写入（`with open(self.api_cache_path, ...) → fl.write(...)`）
 - `get_server_api_dict(read_cache)` → `read_cache=False` 时查库构建；`read_cache=True` 时用内存缓存
 - 移除 `API_CACHE_DATA_PATH` 导入
