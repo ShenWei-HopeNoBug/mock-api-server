@@ -11,18 +11,19 @@
 ```sql
 -- 抓包接口数据（合并 mitmproxy + user_api）
 CREATE TABLE IF NOT EXISTS api_data (
-  id          TEXT PRIMARY KEY,
-  type        TEXT NOT NULL DEFAULT 'MITMPROXY',  -- MITMPROXY / USER
-  url         TEXT NOT NULL DEFAULT '',
-  method      TEXT NOT NULL DEFAULT 'GET',
-  params      TEXT NOT NULL DEFAULT '{}',         -- json string
-  response    TEXT NOT NULL DEFAULT '{}',         -- json string
-  route       TEXT NOT NULL DEFAULT '',           -- 去域名后的路径（冗余，加速查询）
-  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  id             TEXT PRIMARY KEY,
+  type           TEXT NOT NULL DEFAULT 'MITMPROXY',  -- MITMPROXY / USER
+  url            TEXT NOT NULL DEFAULT '',
+  method         TEXT NOT NULL DEFAULT 'GET',
+  params         TEXT NOT NULL DEFAULT '{}',          -- 原始顺序 json string（展示 + SIMPLE_MATCH 匹配）
+  params_sorted  TEXT NOT NULL DEFAULT '{}',          -- 排序后 json string（仅用于自然键去重）
+  response       TEXT NOT NULL DEFAULT '{}',          -- json string
+  route          TEXT NOT NULL DEFAULT '',            -- 去域名后的路径（冗余，加速查询）
+  created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
--- 自然键唯一索引：DB 层保证去重，(type, route, method, params) 相同则覆盖
-CREATE UNIQUE INDEX IF NOT EXISTS idx_api_natural ON api_data(type, route, method, params);
+-- 自然键唯一索引：DB 层保证去重，(type, route, method, params_sorted) 相同则覆盖
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_natural ON api_data(type, route, method, params_sorted);
 CREATE INDEX IF NOT EXISTS idx_api_route ON api_data(route, method);
 CREATE INDEX IF NOT EXISTS idx_api_type  ON api_data(type);
 
@@ -36,6 +37,28 @@ CREATE TABLE IF NOT EXISTS static_data (
 
 - WAL 模式：`PRAGMA journal_mode=WAL`
 - `api_cache.json` 取消，mock 服务启动时查库构建内存映射
+
+### MockDB 连接 / 实例管理策略
+
+项目实际为**多进程**模型，DB 访问分布在三个独立进程中：
+
+| 进程 | DB 访问场景 | 线程模型 |
+|---|---|---|
+| 主进程（PyQt GUI） | UI 增删改、下载查列表、预览查列表 | PyQt 主线程 + 多个 `@create_thread` 线程，**并发读写** |
+| mitmproxy 进程 | `done()` 批量写入 | 单线程，单次写入 |
+| mock_server 进程 | `create_api_dict` 启动时查一次 | 单线程，启动后不再访问 DB |
+
+**策略：进程级单例 + `check_same_thread=False` + 写锁**
+
+1. **每个进程各自创建一个 `MockDB` 实例**（进程间内存隔离，天然独立连接）
+2. 连接参数：`sqlite3.connect(db_path, check_same_thread=False)`，使同一进程内多线程可共享连接
+3. **写操作加 `threading.Lock`**：主进程的 UI 线程和 `@create_thread` 线程可能并发写，锁保证串行化，避免 `sqlite3.ProgrammingError`
+4. **`PRAGMA busy_timeout=5000`**：跨进程锁竞争时等待 5s 而非立即抛 `database is locked`
+5. 读操作无需加锁（WAL 模式允许读写并发）
+
+> **不采用"每线程独立连接"的原因**：本项目并发量极低（桌面 GUI），每线程独立连接会增加文件锁竞争和 `database is locked` 概率；进程级单例 + `check_same_thread=False` + 写锁已足够。
+>
+> **mock_server 进程特殊说明**：`create_api_dict` 仅启动时读一次 DB，之后 Flask 请求只查内存 `api_dict`，无运行时 DB 访问，无需考虑 Flask `threaded=True` 的多线程问题。
 
 ## 新增文件
 
@@ -59,30 +82,39 @@ CREATE TABLE IF NOT EXISTS static_data (
 route = remove_url_domain(url)
 if method == 'GET':
     route = remove_url_query(route)
-# params 归一化排序，确保相同逻辑参数只存一种格式，作为自然键的一部分
-params = JsonFormat.format_and_sort_json_string(params)
+# params 保持原始顺序（展示 + SIMPLE_MATCH 匹配）
+params = JsonFormat.format_json_string(params)
+# params_sorted 排序归一化，仅用于自然键去重
+params_sorted = JsonFormat.format_and_sort_json_string(params)
 ```
+
+> **`params` vs `params_sorted` 分离的原因**
+>
+> `SIMPLE_MATCH` 模式下 `mock_server` 构建内存映射时走 `format_json_string`（不排序），
+> 请求侧同样不排序，两侧靠**原始顺序一致**来命中。
+> 若 `params` 列本身排序存储，则存储侧永远是排序序，请求侧保持原始序，两侧不一致导致命中失败。
+> 因此 `params` 列必须保留原始顺序，排序版本独立存 `params_sorted` 列仅供自然键去重使用。
 
 > `params_md5` 不入库，由 `mock_server` 启动构建内存映射时根据当前 `http_params_match_mode` 实时计算，兼容 `EXACT_MATCH` 和 `SIMPLE_MATCH` 两种模式。
 
 ### 去重策略
 
-`id` 保持主键，现有 UI 按 id 增删改零适配。通过自然键唯一索引 `idx_api_natural(type, route, method, params)` 在 DB 层保证去重。
+`id` 保持主键，现有 UI 按 id 增删改零适配。通过自然键唯一索引 `idx_api_natural(type, route, method, params_sorted)` 在 DB 层保证去重。
 
 两种写入场景使用不同冲突策略：
 
 **mitmproxy 批量写入**（`batch_upsert_api`）— 自然键冲突时只更新 response：
 ```sql
-INSERT INTO api_data (id, type, url, method, params, response, route)
-VALUES (?, 'MITMPROXY', ?, ?, ?, ?, ?)
-ON CONFLICT(type, route, method, params) DO UPDATE SET
+INSERT INTO api_data (id, type, url, method, params, params_sorted, response, route)
+VALUES (?, 'MITMPROXY', ?, ?, ?, ?, ?, ?)
+ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
   response=excluded.response, url=excluded.url
 ```
 
 **user 增/改**（`upsert_api`）— id 冲突或自然键冲突均替换：
 ```sql
-INSERT OR REPLACE INTO api_data (id, type, url, method, params, response, route)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT OR REPLACE INTO api_data (id, type, url, method, params, params_sorted, response, route)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ```
 - id 冲突 → 替换同 id 记录（等价 update）
 - 自然键冲突 → 删除旧记录插入新的（等价覆盖去重）
@@ -144,7 +176,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
 - `get_server_api_dict(read_cache)` → `read_cache=False` 时查库构建；`read_cache=True` 时用内存缓存
 - 移除 `API_CACHE_DATA_PATH` 导入
 
-### 7. `config/enum/MITMPROXY.py`
+### 7. `lib/server_lib.py`
+- `get_static_data_list` → 内部改 `mock_db.get_static_list()`，签名不变
+- 移除 `import pandas` 和 `from config.work_file import STATIC_DATA_PATH`
+- 调用方 `lib/download_lib.py` 无需改动
+
+### 8. `config/enum/MITMPROXY.py`
 - `MITMPROXY_DATA_FIELDS` → 保留，字段补全逻辑仍可能用到
 
 ## 不变的部分
@@ -161,5 +198,6 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
 3. `lib/work_file_lib.py` — 调整文件初始化逻辑
 4. `lib/app_lib.py` — CRUD 改为调 `MockDB`，移除 pandas
 5. `lib/mitmproxy_lib.py` — 废弃写文件函数，保留内存缓冲
-6. `module/request_catch.py` — 改用 `MockDB`
-7. `module/mock_server.py` — 改用 `MockDB` 查询，取消 `api_cache.json`
+6. `lib/server_lib.py` — `get_static_data_list` 改用 `MockDB`，移除 pandas
+7. `module/request_catch.py` — 改用 `MockDB`
+8. `module/mock_server.py` — 改用 `MockDB` 查询，取消 `api_cache.json`
