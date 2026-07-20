@@ -236,25 +236,70 @@ VALUES (?, ?, ?, ?, ?, ?)
 
 > id 由 MockDB 内部 `generate_uuid()` 生成，新增场景永远不会有 id 冲突。
 
-**user 编辑**（`update_api`）— 按 id 定位 UPDATE，无冲突处理：
-```sql
-UPDATE api_data SET
-  type=?, url=?, method=?, params=?, response=?,
-  updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
-WHERE id=?
-```
+**user 编辑**（`update_api`）— 按 id 定位，先 SELECT 旧值再字段级合并后 UPDATE，无冲突处理：
 ```python
 def update_api(self, record):
   with self._lock:
     conn = self._conn
     conn.execute('BEGIN TRANSACTION')
     try:
-      conn.execute(update_sql, params)
+      # 1. 查询旧记录
+      row = conn.execute(
+        'SELECT type, url, method, params, response FROM api_data WHERE id=?',
+        (record.get('id'),)
+      ).fetchone()
+      if row is None:
+        conn.execute('ROLLBACK')
+        return False
+
+      # 2. 字段级合并：前端只传修改的字段时，旧值保留
+      #    与原 update_user_api_data 的 `update_data.get('field') or o_data.get('field')` 语义一致
+      old = {
+        'type': row[0],
+        'url': row[1],
+        'method': row[2],
+        'params': row[3],
+        'response': row[4],
+      }
+      merged = {
+        'type': record.get('type') or old['type'],
+        'url': record.get('url') or old['url'],
+        'method': record.get('method') or old['method'],
+        'params': record.get('params') or old['params'],
+        'response': record.get('response') or old['response'],
+      }
+
+      # 3. 写入合并后的完整记录
+      conn.execute(
+        '''UPDATE api_data SET
+             type=?, url=?, method=?, params=?, response=?,
+             updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
+           WHERE id=?''',
+        (merged['type'], merged['url'], merged['method'],
+         merged['params'], merged['response'], record.get('id'))
+      )
       conn.execute('COMMIT')
     except Exception:
       conn.execute('ROLLBACK')
       raise
 ```
+```sql
+-- SELECT 旧值
+SELECT type, url, method, params, response FROM api_data WHERE id=?;
+-- 合并后 UPDATE
+UPDATE api_data SET
+  type=?, url=?, method=?, params=?, response=?,
+  updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
+WHERE id=?;
+```
+
+> **`update_api` 采用 SELECT-merge-UPDATE 而非全字段覆盖的原因**
+>
+> 原 `update_user_api_data` 的实现是字段级合并（`update_data.get('field') or o_data.get('field')`），
+> 前端只传修改的字段时旧值会保留。若改为全字段直接覆盖，前端未传的字段会被写入 `None` / 空值，
+> 导致数据丢失。因此在 `update_api` 中先 SELECT 旧记录，逐字段合并后再 UPDATE，
+> 保持与原有部分更新语义完全一致。合并逻辑放在 `MockDB` 内部而非 `app_lib.py`，
+> 使 `app_lib.update_user_api_data` 只需透传前端参数，无需感知合并细节。
 
 > **单条写入跳过 checkpoint 的原因**
 >
@@ -318,9 +363,38 @@ def update_api(self, record):
   > 若仅初始化 `MockDB` 而不填充缓冲，每次抓包 session 的去重仅对当前 session 内有效，跨 session 重复抓同一接口会产生重复记录入库，导致 UI 列表出现重复条目、数据膨胀。
   > 同理 `static_cache_dict` 需填充历史静态资源记录（以 `md5(url)` 为键），避免重复抓取同一静态资源 URL 入库。
   > 因此 `load_history_cache` 改为从 DB 查询历史数据，遍历调用 `save_response_to_cache` / `save_static_to_cache` 填充缓冲，与原 `load_response_cache` / `load_static_cache` 的语义完全一致。
-- `done()` 中：
-  - `save_response(...)` → `self.mock_db.batch_upsert_api(records)`
-  - `save_static(...)` → `self.mock_db.batch_upsert_static(urls)`
+- `done()` 中：`save_response(...)` / `save_static(...)` → 从内存缓冲提取记录批量写入 DB，写入完成后关闭连接：
+  ```python
+  def done(self):
+    print('mitmproxy done!')
+
+    # 从 response_cache_dict 提取全部抓包记录
+    # 缓冲结构: {search_key: {md5_key: record, ...}, ...}
+    records = []
+    for response_data in self.response_cache_dict.values():
+      for record in response_data.values():
+        records.append(record)
+
+    print('----> 正在保存抓包数据，共 {} 条'.format(len(records)))
+    self.mock_db.batch_upsert_api(records)
+    self.response_cache_dict = {}
+
+    # 从 static_cache_dict 提取全部静态资源 URL
+    # 缓冲结构: {md5_key: record, ...}
+    urls = [record.get('url') for record in self.static_cache_dict.values()]
+    print('----> 正在保存静态资源数据，共 {} 条'.format(len(urls)))
+    self.mock_db.batch_upsert_static(urls)
+    self.static_cache_dict = {}
+
+    # 批量写入完成后关闭连接，触发 SQLite 自动 checkpoint 将 -wal 合并回主库
+    # mitmproxy 进程为"用完即关"，运行期间不再访问 DB
+    self.mock_db.close()
+  ```
+  > **`done()` 中 `close()` 的必要性**
+  >
+  > `mitmproxy` 进程在 `done()` 后不再访问 DB。若不显式 `close()`，连接会随进程终止被隐式释放，
+  > 但隐式释放不保证执行 checkpoint，可能导致 `-wal` 文件残留。显式 `close()` 确保已提交事务的
+  > `-wal` 内容被合并回主库，与连接管理策略中"mitmproxy 进程：`done()` 批量写入完成后 `close()` 连接"一致。
 - **移除所有 `SimpleFolderBackup` 相关代码**：
   - 移除 `from lib.backup_lib import SimpleFolderBackup` 导入
   - 移除 `__init__` 中 `self.simple_folder_backup` 实例创建及 `source_dir` / `backup_dir` 相关变量
