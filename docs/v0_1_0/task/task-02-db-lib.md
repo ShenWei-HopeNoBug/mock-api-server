@@ -8,6 +8,16 @@
 
 - `lib/db_lib.py`（**新建**）
 
+## 新增导入
+
+```python
+import sqlite3
+import threading
+from lib.utils_lib import generate_uuid, JsonFormat
+```
+
+> `generate_uuid` 和 `JsonFormat` 均来自 `lib/utils_lib.py`，分别用于 `upsert_api` 内部生成 id 和入库时 `params` 字段归一化。
+
 ## MockDB 方法清单
 
 | 方法 | 用途 | id 来源 | 替代原函数 |
@@ -19,6 +29,8 @@
 | `delete_api(api_id)` | 按 id 删除 | 调用方传入 | `delete_user_api_data` |
 | `batch_upsert_static(urls)` | 批量写静态资源（`ON CONFLICT(url) DO UPDATE SET updated_at`，重复抓取刷新更新时间） | — | `save_static` (mitmproxy_lib) |
 | `get_static_list()` | 查静态资源列表（`ORDER BY created_at DESC, url DESC`） | — | `load_static_cache` |
+| `close()` | 关闭 DB 连接，触发 SQLite 自动 checkpoint 将 `-wal` 合并回主库 | — | — |
+| `_wal_checkpoint_passive()` | 内部辅助方法，执行 `PRAGMA wal_checkpoint(PASSIVE)`，供批量写入后调用 | — | — |
 
 ### id 生成职责下沉到 MockDB
 
@@ -26,6 +38,14 @@
 避免前端传入原记录 id 导致复制操作变成更新原记录。
 `update_api`（编辑场景）由调用方传入 id 定位记录。
 `batch_upsert_api`（抓包场景）record 中的 id 由 `request_catch.py` 在 `response()` 阶段已生成。
+
+## `close()` 方法说明
+
+`close()` 关闭内部 `sqlite3.Connection`，连接关闭时 SQLite 自动执行 checkpoint 将 `-wal` 合并回主库。供子进程（`request_catch.py` 的 `done()`、`mock_server.py` 的 `create_api_dict`）以及主进程连接关闭函数（`app_lib._close_mock_db` / `app_lib.close_all_mock_db`）调用。
+
+## `_wal_checkpoint_passive()` 方法说明
+
+内部辅助方法，执行 `PRAGMA wal_checkpoint(PASSIVE)`，被动尝试将 `-wal` 合并回主库（不阻塞读写）。仅在 `batch_upsert_api` / `batch_upsert_static` 的 `finally` 块中调用，单条写入跳过（见下方「单条写入跳过 checkpoint 的原因」）。
 
 ## 入库时字段归一化
 

@@ -31,6 +31,8 @@
 
 ## `lib/server_lib.py`
 
-- `get_static_data_list` → 内部改 `mock_db.get_static_list()`，签名不变
+- `get_static_data_list` → 内部通过 `app_lib._get_mock_db(work_dir)` 获取 `MockDB` 实例后调用 `mock_db.get_static_list()`，签名不变
+  > 与 task-04 中 `app_lib.py` 的单例缓存复用同一连接，避免独立创建连接。详见 task-04「`server_lib.py` 中的 `get_static_data_list` 同理」。
+- 新增 `from lib.app_lib import _get_mock_db` 导入
 - 移除 `import pandas` 和 `from config.work_file import STATIC_DATA_PATH`
 - 调用方 `lib/download_lib.py` 无需改动

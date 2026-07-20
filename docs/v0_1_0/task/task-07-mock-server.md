@@ -7,6 +7,15 @@
 ## 涉及文件
 
 - `module/mock_server.py`
+- `qt_ui/main_win/win_ui.ui`（可选 — 移除 `cacheCheckBox` UI 元素）
+
+## 新增导入
+
+```python
+from lib.app_lib import _close_mock_db
+```
+
+> `_close_mock_db` 用于 `create_api_dict` 读取完成后关闭 DB 连接，详见 task-04。
 
 ## `create_api_dict` 改造
 
@@ -60,6 +69,8 @@ _close_mock_db(work_dir=self.work_dir)
 for row_data in mock_api_data_list:
   ...
 ```
+
+> `qt_ui/main_win/win_ui.ui` 中 `cacheCheckBox` 的移除为可选项，保留也不影响功能（仅不再绑定逻辑）。若移除，需同步检查 `.ui` 文件对应的 `win_ui.py` 是否有自动生成的引用需要清理。
 
 > **关闭时机在遍历前而非遍历后**：`get_mock_api_data_list` 返回的是 `list`（已在内存中），`_close_mock_db` 后遍历 `mock_api_data_list` 不再访问 DB，数据完整无影响。将 `close()` 提前到遍历前而非 `create_api_dict` 末尾，可更早释放文件锁，减少与其他进程的锁竞争窗口。
 

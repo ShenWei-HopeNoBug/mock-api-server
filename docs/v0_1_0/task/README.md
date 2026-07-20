@@ -29,16 +29,21 @@
 task-01 (设计) ──► task-02 (db_lib)
                         │
                         ├──► task-03 (work_file 配置)
-                        │        │
-                        │        ▼
+                        │
                         ├──► task-04 (app_lib) ──► task-05 (mitmproxy/server lib)
                         │                              │
-                        │                              ├──► task-06 (request_catch)
-                        │                              └──► task-07 (mock_server)
+                        │                              ├──► task-06 (request_catch) ◄── task-02
+                        │                              └──► task-07 (mock_server)   ◄── task-02
                         │
-                        └──► task-08 (app.py)
+                        └──► task-08 (app.py)     ◄── task-04 (需要 close_all_mock_db)
                                    │
                                    └──► task-09 (edit_dialog)
 
 task-10 (连带清理) 依赖 task-04 / task-05 完成后执行
 ```
+
+> **说明**：
+> - task-02 是核心基础，task-04 / task-06 / task-07 均直接依赖 `MockDB` 类
+> - task-03 与 task-02 无强依赖（配置常量调整不依赖 db_lib 实现），可并行
+> - task-08 依赖 task-04（需要 `close_all_mock_db` 函数）
+> - task-06 / task-07 同时依赖 task-02（`MockDB` 类）和 task-05（`mitmproxy_lib` 保留的内存缓冲函数）

@@ -8,6 +8,12 @@
 
 - `module/request_catch.py`
 
+## 新增导入
+
+```python
+from lib.db_lib import MockDB
+```
+
 ## `__init__` 改造
 
 - `self.save_path` / `self.static_save_path` → `self.db_path`，初始化 `self.mock_db = MockDB(self.db_path)`
