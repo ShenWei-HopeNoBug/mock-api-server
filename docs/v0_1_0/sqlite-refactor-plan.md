@@ -1,4 +1,4 @@
-# SQLite 重构方案（方案 B · 无自动迁移）
+# SQLite 重构方案（无自动迁移）
 
 ## 目标
 
@@ -38,6 +38,11 @@ CREATE TABLE IF NOT EXISTS static_data (
 
 - WAL 模式：`PRAGMA journal_mode=WAL`
 - `api_cache.json` 取消，mock 服务启动时查库构建内存映射
+- **WAL checkpoint 与 `-wal` 文件增长控制**：
+  - `mock_server` 进程：`create_api_dict` 查完数据后**立即 `close()` 连接**，连接关闭时 SQLite 自动执行 checkpoint 将 `-wal` 合并回主库，该进程后续不再访问 DB，不会残留 `-wal` 文件
+  - `mitmproxy` 进程：`done()` 批量写入完成后 `close()` 连接，同理触发自动 checkpoint
+  - 主进程（PyQt GUI）：连接为进程级单例，生命周期与 GUI 一致，长期存活。在 `MockDB` 中于每次写入操作后执行 `PRAGMA wal_checkpoint(PASSIVE)`，被动尝试将 `-wal` 合并回主库（不阻塞读写）；应用退出时 `close()` 触发最终 checkpoint
+  - 综上，只有主进程连接长期存活，但通过写入后 `PASSIVE` checkpoint + 退出时 `close()` 可控制 `-wal` 文件增长在合理范围内
 
 ### MockDB 连接 / 实例管理策略
 
@@ -59,7 +64,9 @@ CREATE TABLE IF NOT EXISTS static_data (
 
 > **不采用"每线程独立连接"的原因**：本项目并发量极低（桌面 GUI），每线程独立连接会增加文件锁竞争和 `database is locked` 概率；进程级单例 + `check_same_thread=False` + 读写共锁已足够，全局锁的性能影响可忽略。
 >
-> **mock_server 进程特殊说明**：`create_api_dict` 仅启动时读一次 DB，之后 Flask 请求只查内存 `api_dict`，无运行时 DB 访问，无需考虑 Flask `threaded=True` 的多线程问题。
+> **mock_server 进程特殊说明**：`create_api_dict` 仅启动时读一次 DB，之后 Flask 请求只查内存 `api_dict`，无运行时 DB 访问，无需考虑 Flask `threaded=True` 的多线程问题。**读取完成后立即 `close()` 连接**，既释放文件锁，又触发 SQLite 自动 checkpoint 合并 `-wal` 文件，避免该进程退出后残留 `-wal`。
+>
+> **mitmproxy 进程特殊说明**：`done()` 批量写入完成后同样 `close()` 连接，触发自动 checkpoint。两个子进程均为"用完即关"，运行期间只有主进程持有长期连接。
 
 ## 新增文件
 
@@ -119,6 +126,27 @@ ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
   response=excluded.response, url=excluded.url,
   updated_at=datetime('now','localtime')
 ```
+
+> **批量写入采用单事务 + `executemany`**
+>
+> `batch_upsert_api` 将所有记录包裹在**一个事务**中，使用 `executemany` 批量执行：
+> ```python
+> with self._lock:
+>   conn = self._conn
+>   conn.execute('BEGIN TRANSACTION')
+>   try:
+>     conn.executemany(sql, records)
+>     conn.execute('COMMIT')
+>   except Exception:
+>     conn.execute('ROLLBACK')
+>     raise
+>   finally:
+>     self._wal_checkpoint_passive()
+> ```
+> - 整个批量只获取/释放一次 SQLite 文件写锁，commit 时间从 O(n) 次降为 O(1) 次，大幅缩短跨进程锁竞争窗口
+> - 事务保证原子性：要么全部写入成功，要么全部回滚，不会出现部分写入的中间状态
+> - WAL 模式下读写不互斥，批量写入期间主进程仍可正常读操作，仅在 `COMMIT` 的短暂瞬间有文件锁竞争
+> - commit 后执行 `PRAGMA wal_checkpoint(PASSIVE)` 合并 `-wal`（见上文 checkpoint 策略）
 
 **user 新增/复制**（`upsert_api`）— id 由 MockDB 内部生成，仅处理自然键冲突：
 ```sql
