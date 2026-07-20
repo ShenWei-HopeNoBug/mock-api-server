@@ -7,6 +7,7 @@
 ## 涉及文件
 
 - `module/mock_server.py`
+- `qt_win/app.py`（仅 `server_process_start` 函数 — 同步移除 `read_cache` 调用，避免与 `start_server` 签名变更产生中间态断裂）
 - `qt_ui/main_win/win_ui.ui`（可选 — 移除 `cacheCheckBox` UI 元素）
 
 ## 新增导入
@@ -81,12 +82,41 @@ for row_data in mock_api_data_list:
 - `start_server(self, read_cache=False)` → 移除 `read_cache` 参数，签名改为 `start_server(self)`
 - 移除 `API_CACHE_DATA_PATH` 导入
 
+### `qt_win/app.py` 中 `server_process_start` 同步改动
+
+> **`start_server` 签名变更与调用方必须在同一步完成**：`start_server` 带 `@create_thread` 装饰器，若签名已改为 `start_server(self)` 但 `server_process_start` 仍传 `read_cache=read_cache`，`TypeError` 会在子线程中抛出且被 `create_thread` 静默吞掉（线程直接死亡），mock 服务无法启动，UI 卡在"正在启动..."。因此 `server_process_start` 中 `read_cache` 的移除**必须在本任务中与 `start_server` 签名变更同步执行**，不能延后到 task-08。
+
+在 `qt_win/app.py` 的 `server_process_start` 函数中：
+
+- 移除 `read_cache = server_config.get('read_cache', False)`
+- `server.start_server()` 调用去掉 `read_cache` 参数
+
+```python
+def server_process_start(server_config: dict):
+  print('server_config', server_config)
+  port = server_config.get('port', 5000)
+  work_dir = server_config.get('work_dir', '.')
+  response_delay = server_config.get('response_delay', 0)
+  static_load_speed = server_config.get('static_load_speed', 0)
+  # 初始化 mock 服务实例
+  server = MockServer(
+    work_dir=work_dir,
+    port=port,
+    response_delay=response_delay,
+    static_load_speed=static_load_speed,
+  )
+  # 启动本地 mock 服务
+  server.start_server()
+```
+
+> `server_config` 字典中残留的 `"read_cache": self.cache` 字段不影响功能（`server_process_start` 不再读取它），其移除连同 `self.cache` 属性、`cache_checkbox_click` 回调、`cacheCheckBox` 信号绑定等 UI 逻辑一并留到 task-08 处理。
+
 ### 移除 `read_cache` / 缓存模式的原因
 
 原 `read_cache=True` 路径依赖 `api_cache.json` 文件，重构后该文件取消。DB 查询构建 `api_dict` 的耗时与读缓存文件相当（单次 `SELECT` + 内存遍历），无需保留缓存模式。
 移除范围包括：
 
 - `module/mock_server.py`：`get_server_api_dict` 方法整体删除，`start_server` 去掉 `read_cache` 参数
-- `qt_win/app.py`：移除 `self.cache` 属性、`cache_checkbox_click` 回调、`cacheCheckBox` 信号绑定与禁用控制、`server_config` 中 `read_cache` 字段
+- `qt_win/app.py` 的 `server_process_start`：移除 `read_cache = server_config.get('read_cache', False)` 和 `server.start_server(read_cache=read_cache)` 的 `read_cache` 参数（**本任务执行**）
+- `qt_win/app.py` 的其余缓存模式 UI 逻辑：移除 `self.cache` 属性、`cache_checkbox_click` 回调、`cacheCheckBox` 信号绑定与禁用控制、`server_config` 中 `read_cache` 字段（**task-08 执行**）
 - `qt_ui/main_win/win_ui.ui`：移除 `cacheCheckBox` UI 元素（可选，保留也不影响功能，仅不再绑定逻辑）
-- `server_process_start`：移除 `read_cache = server_config.get('read_cache', False)` 和 `server.start_server(read_cache=read_cache)` 的 `read_cache` 参数

@@ -530,9 +530,9 @@ WHERE id=?;
 > 原 `read_cache=True` 路径依赖 `api_cache.json` 文件，重构后该文件取消。DB 查询构建 `api_dict` 的耗时与读缓存文件相当（单次 `SELECT` + 内存遍历），无需保留缓存模式。
 > 移除范围包括：
 > - `module/mock_server.py`：`get_server_api_dict` 方法整体删除，`start_server` 去掉 `read_cache` 参数
-> - `qt_win/app.py`：移除 `self.cache` 属性、`cache_checkbox_click` 回调、`cacheCheckBox` 信号绑定与禁用控制、`server_config` 中 `read_cache` 字段
+> - `qt_win/app.py` 的 `server_process_start`：移除 `read_cache = server_config.get('read_cache', False)` 和 `server.start_server(read_cache=read_cache)` 的 `read_cache` 参数（**与 `start_server` 签名变更同步执行，避免 `@create_thread` 静默吞掉 `TypeError`**）
+> - `qt_win/app.py` 的其余缓存模式 UI 逻辑：移除 `self.cache` 属性、`cache_checkbox_click` 回调、`cacheCheckBox` 信号绑定与禁用控制、`server_config` 中 `read_cache` 字段
 > - `qt_ui/main_win/win_ui.ui`：移除 `cacheCheckBox` UI 元素（可选，保留也不影响功能，仅不再绑定逻辑）
-> - `server_process_start`：移除 `read_cache = server_config.get('read_cache', False)` 和 `server.start_server(read_cache=read_cache)` 的 `read_cache` 参数
 
 ### 7. `qt_win/app.py`
 - 移除 `self.cache: bool = False` 属性及注释
@@ -540,7 +540,7 @@ WHERE id=?;
 - 移除 `self.cacheCheckBox.setChecked(self.cache)` 和 `self.cacheCheckBox.clicked.connect(cache_checkbox_click)` 信号绑定
 - 移除两处 `self.cacheCheckBox.setDisabled(disabled)` 调用
 - `server_config` 字典中移除 `"read_cache": self.cache` 字段
-- `server_process_start` 函数中移除 `read_cache = server_config.get('read_cache', False)`，`server.start_server()` 调用去掉 `read_cache` 参数
+- `server_process_start` 中 `read_cache` 的移除已在 task-07 与 `start_server` 签名变更同步完成，本任务不涉及
 - **新增 `close_all_mock_db` 导入与调用**：在 `closeEvent` 中用户确认退出后、设置 `client_exit` 全局变量前，调用 `close_all_mock_db()` 关闭主进程所有 `MockDB` 连接，触发最终 checkpoint 将 `-wal` 合并回主库：
   ```python
   from lib.app_lib import close_all_mock_db

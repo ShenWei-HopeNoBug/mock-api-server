@@ -10,12 +10,13 @@
 
 ## 移除缓存模式 UI 逻辑
 
+> **`server_process_start` 中 `read_cache` 的移除已在 task-07 完成**（与 `start_server` 签名变更同步执行，避免中间态 `TypeError`）。本任务仅处理剩余的 UI 逻辑清理。
+
 - 移除 `self.cache: bool = False` 属性及注释
 - 移除 `cache_checkbox_click` 回调函数
 - 移除 `self.cacheCheckBox.setChecked(self.cache)` 和 `self.cacheCheckBox.clicked.connect(cache_checkbox_click)` 信号绑定
 - 移除两处 `self.cacheCheckBox.setDisabled(disabled)` 调用
 - `server_config` 字典中移除 `"read_cache": self.cache` 字段
-- `server_process_start` 函数中移除 `read_cache = server_config.get('read_cache', False)`，`server.start_server()` 调用去掉 `read_cache` 参数
 
 ## 新增 `close_all_mock_db` 导入与调用
 
