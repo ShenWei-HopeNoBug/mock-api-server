@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS static_data (
 |---|---|---|---|
 | `upsert_api(record)` → `id` | 新增插入（自然键冲突时覆盖 response），返回生成的 id | MockDB 内部 `generate_uuid()` | `add_user_api_data` |
 | `batch_upsert_api(records)` | 批量写入（自然键冲突时覆盖 response） | record 中已有（mitmproxy 抓包时生成） | `save_response` (mitmproxy_lib) |
-| `get_api_list(type=None, reverse=False)` | 查询列表（默认 `ORDER BY created_at DESC`，`reverse=True` 时改为 `ASC`） | — | `get_mitmproxy_api_data_list` / `get_user_api_data_list` / `get_mock_api_data_list` |
+| `get_api_list(type=None, reverse=False)` | 查询列表（默认 `ORDER BY created_at DESC`，`reverse=True` 时改为 `ASC`） | — | `get_mitmproxy_api_data_list` / `get_user_api_data_list` |
 | `update_api(record)` | 按 id 更新（`UPDATE ... WHERE id = ?`） | 调用方传入 | `update_user_api_data` |
 | `delete_api(api_id)` | 按 id 删除 | 调用方传入 | `delete_user_api_data` |
 | `batch_upsert_static(urls)` | 批量写静态资源 | — | `save_static` (mitmproxy_lib) |
@@ -182,27 +182,60 @@ WHERE id=?
 ### 5. `lib/app_lib.py`
 - `get_mitmproxy_api_data_list` → 内部改 `mock_db.get_api_list(type='MITMPROXY', reverse=reverse)`，签名不变
 - `get_user_api_data_list` → `mock_db.get_api_list(type='USER', reverse=reverse)`
-- `get_mock_api_data_list` → `mock_db.get_api_list(reverse=reverse)`
+- `get_mock_api_data_list` → 保持两次查询合并，与当前行为一致：
+  ```python
+  api_list = mock_db.get_api_list(type='MITMPROXY', reverse=reverse)
+  api_list.extend(mock_db.get_api_list(type='USER', reverse=reverse))
+  return api_list
+  ```
+  > **不改为单次 `get_api_list()` 查询的原因**：当前实现 `mitmproxy_list.extend(user_list)` 使 USER 数据在后，`create_api_dict` 遍历时后写入覆盖先写入，即 USER 永远优先于 MITMPROXY。若改为单次 `ORDER BY created_at` 查询，同路由记录的覆盖优先级由 `created_at` 决定而非 type，会导致用户手动编辑的 USER 数据被旧的 MITMPROXY 数据覆盖。两次查询合并保持原有优先级语义，零回归风险。
 - `save_user_api_data_list` → 废弃
 - `add_user_api_data` → 构造 record（不含 id）→ `mock_db.upsert_api(record)`，id 由 MockDB 内部生成
 - `update_user_api_data` → 构造 record（含 id）→ `mock_db.update_api(record)`
 - `delete_user_api_data` → `mock_db.delete_api(api_id)`
-- `fix_user_api_data` → `mock_db.get_api_list(type='USER')` → 逐条 `update_api`
+- `fix_user_api_data` → 改为 no-op 直接返回 `True`（SQLite schema 的 `NOT NULL DEFAULT` + `PRIMARY KEY` 已保证数据完整性，不存在字段缺失/id 缺失问题；保留函数签名避免前端 `fix_mock_data` 事件调用报错，后续前端移除按钮时再一并清理）
 - 移除 `import pandas`
 - 函数签名保持不变，调用方无需改动
 
 ### 6. `module/mock_server.py`
 - `self.api_cache_path` → 移除
-- `create_api_dict` → 从 `MockDB` 查询构建内存映射：
-  ```
-  api_list = mock_db.get_api_list()
-  for row in api_list:
-    request_key = self.__get_request_dict_key(row['route'], row['method'])
-    params = self.__get_params_json_string(row['params'])
-    response_key = self.__get_response_dict_key(row['method'], params)
-    api_dict[request_key][response_key] = json.loads(row['response'])
+- `create_api_dict` → 从 `MockDB` 查询构建内存映射（保留静态资源链接替换逻辑，仅移除 `api_cache.json` 写入）：
+  ```python
+  assets_reg = get_static_match_regexp(self.include_files)
+  assets_route = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
+  assets_base_url = '{}{}'.format(self.static_host, assets_route)
+
+  def assets_replace_method(match):
+    assets_url = match[0]
+    file_name = assets_url.split('/')[-1]
+    return '{}/{}'.format(assets_base_url, file_name)
+
+  api_dict = {}
+  mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
+  for row_data in mock_api_data_list:
+    response = row_data.get('response')
+    method = row_data.get('method')
+    params = row_data.get('params')
+    route = row_data.get('route')  # DB 预计算冗余字段，无需再 remove_url_domain + remove_url_query
+    # 若 route 字段不存在则回退到原计算逻辑（兼容旧数据迁移）
+    if not route:
+      route = remove_url_domain(row_data.get('url', ''))
+      if method == 'GET':
+        route = remove_url_query(route)
+
+    request_key = self.__get_request_dict_key(route, method)
+    response_key = self.__get_response_dict_key(method, self.__get_params_json_string(params))
+
+    if request_key not in api_dict:
+      api_dict[request_key] = {}
+    # 替换静态资源链接
+    if len(self.include_files):
+      response = assets_reg.sub(assets_replace_method, response)
+    api_dict[request_key][response_key] = json.loads(response)
   ```
   - `response_key` 通过现有 `__get_params_json_string` + `__get_response_dict_key` 实时计算，自动适配 `http_params_match_mode`
+  - `route` 优先使用 DB 预计算冗余字段，回退到原 `remove_url_domain` + `remove_url_query` 计算逻辑
+  - 移除 `api_cache.json` 文件写入（`with open(self.api_cache_path, ...) → fl.write(...)`）
 - `get_server_api_dict(read_cache)` → `read_cache=False` 时查库构建；`read_cache=True` 时用内存缓存
 - 移除 `API_CACHE_DATA_PATH` 导入
 
