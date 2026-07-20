@@ -98,6 +98,30 @@ CREATE TABLE IF NOT EXISTS static_data (
 | `batch_upsert_static(urls)` | 批量写静态资源（`ON CONFLICT(url) DO UPDATE SET updated_at`，重复抓取刷新更新时间） | — | `save_static` (mitmproxy_lib) |
 | `get_static_list()` | 查静态资源列表（`ORDER BY created_at DESC, url DESC`） | — | `load_static_cache` |
 
+> **`batch_upsert_static` 同样采用单事务 + `executemany`**
+>
+> 与 `batch_upsert_api` 策略一致，将所有静态资源记录包裹在一个事务中批量执行：
+> ```sql
+> INSERT INTO static_data (url, type) VALUES (?, 'MITMPROXY')
+> ON CONFLICT(url) DO UPDATE SET updated_at=datetime('now','localtime')
+> ```
+> ```python
+> with self._lock:
+>   conn = self._conn
+>   conn.execute('BEGIN TRANSACTION')
+>   try:
+>     conn.executemany(sql, records)
+>     conn.execute('COMMIT')
+>   except Exception:
+>     conn.execute('ROLLBACK')
+>     raise
+>   finally:
+>     self._wal_checkpoint_passive()
+> ```
+> - 单事务保证原子性，避免部分写入的中间状态
+> - `executemany` 批量执行，缩短跨进程锁竞争窗口
+> - commit 后执行 `PRAGMA wal_checkpoint(PASSIVE)` 合并 `-wal`
+
 > **`get_api_list` 返回格式**
 >
 > 返回 `list[dict]`，每个 dict 包含 DB 中 `api_data` 表的**所有字段**：
@@ -156,14 +180,17 @@ params_sorted = JsonFormat.format_and_sort_json_string(params)
 
 三种写入场景使用不同冲突策略：
 
-**mitmproxy 批量写入**（`batch_upsert_api`）— 自然键冲突时只更新 response：
+**mitmproxy 批量写入**（`batch_upsert_api`）— 自然键冲突时全字段覆盖（`created_at` 保留原值）：
 ```sql
 INSERT INTO api_data (id, type, url, method, params, params_sorted, response, route)
 VALUES (?, 'MITMPROXY', ?, ?, ?, ?, ?, ?)
 ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
-  response=excluded.response, url=excluded.url,
+  url=excluded.url, method=excluded.method,
+  params=excluded.params, params_sorted=excluded.params_sorted,
+  response=excluded.response, route=excluded.route,
   updated_at=datetime('now','localtime')
 ```
+> 冲突时全字段覆盖，确保 DB 中始终是最新一次抓取的完整数据，避免部分字段更新导致的新旧数据混杂。`type` 固定为 `'MITMPROXY'` 无需更新，`created_at` 保留原值维持列表顺序稳定，仅刷新 `updated_at`。
 
 > **批量写入采用单事务 + `executemany`**
 >
@@ -274,7 +301,12 @@ def update_api(self, record):
 - `done()` 中：
   - `save_response(...)` → `self.mock_db.batch_upsert_api(records)`
   - `save_static(...)` → `self.mock_db.batch_upsert_static(urls)`
-- **移除 `SimpleFolderBackup` 自动备份**：WAL 模式下 `copytree` 复制 `mock.db` + `-wal` + `-shm` 侧车文件无法保证一致性，后续单独用 SQLite 原生 `backup()` API 或 `VACUUM INTO` 实现一致性快照
+- **移除所有 `SimpleFolderBackup` 相关代码**：
+  - 移除 `from lib.backup_lib import SimpleFolderBackup` 导入
+  - 移除 `__init__` 中 `self.simple_folder_backup` 实例创建及 `source_dir` / `backup_dir` 相关变量
+  - 移除 `init()` 中 `self.simple_folder_backup.watch_diff_backup()` 调用
+  - 移除 `done()` 中 `self.simple_folder_backup.watch_diff_backup()` 调用
+  - 原因：WAL 模式下 `copytree` 复制 `mock.db` + `-wal` + `-shm` 侧车文件无法保证一致性，后续单独用 SQLite 原生 `backup()` API 或 `VACUUM INTO` 实现一致性快照
 
 ### 4. `lib/mitmproxy_lib.py`
 - `save_response_to_cache` → 保留，内存缓冲去重
