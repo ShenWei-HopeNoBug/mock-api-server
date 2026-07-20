@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS static_data (
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
   updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
+
+-- schema 版本标记
+PRAGMA user_version = 1;
 ```
 
 > **`created_at` / `updated_at` 使用毫秒精度的原因**
@@ -52,8 +55,8 @@ CREATE TABLE IF NOT EXISTS static_data (
 - **WAL checkpoint 与 `-wal` 文件增长控制**：
   - `mock_server` 进程：`create_api_dict` 查完数据后**立即 `close()` 连接**，连接关闭时 SQLite 自动执行 checkpoint 将 `-wal` 合并回主库，该进程后续不再访问 DB，不会残留 `-wal` 文件
   - `mitmproxy` 进程：`done()` 批量写入完成后 `close()` 连接，同理触发自动 checkpoint
-  - 主进程（PyQt GUI）：连接为进程级单例，生命周期与 GUI 一致，长期存活。在 `MockDB` 中于每次写入操作后执行 `PRAGMA wal_checkpoint(PASSIVE)`，被动尝试将 `-wal` 合并回主库（不阻塞读写）；应用退出时 `close()` 触发最终 checkpoint
-  - 综上，只有主进程连接长期存活，但通过写入后 `PASSIVE` checkpoint + 退出时 `close()` 可控制 `-wal` 文件增长在合理范围内
+  - 主进程（PyQt GUI）：连接为进程级单例，生命周期与 GUI 一致，长期存活。在 `MockDB` 中**仅在批量写入操作（`batch_upsert_api` / `batch_upsert_static`）后**执行 `PRAGMA wal_checkpoint(PASSIVE)`，被动尝试将 `-wal` 合并回主库（不阻塞读写）；单条写入（`upsert_api` / `update_api` / `delete_api`）跳过 checkpoint，避免连续增删改时产生不必要的 I/O 开销；应用退出时 `close()` 触发最终 checkpoint
+  - 综上，只有主进程连接长期存活，但通过批量写入后 `PASSIVE` checkpoint + 退出时 `close()` 可控制 `-wal` 文件增长在合理范围内
   - **异常退出时 WAL 残留处理**：
     - 上述 checkpoint 策略覆盖的是**正常退出**流程，进程被 kill / 崩溃 / 断电时 `close()` 不会执行，`-wal` / `-shm` 侧车文件会残留在磁盘上
     - SQLite 下次打开 DB 时能自动恢复（`-wal` 中已提交的事务会重放回主库，未提交的回滚），数据不会丢失，但 `-wal` 文件不会被主动合并/截断
@@ -87,12 +90,24 @@ CREATE TABLE IF NOT EXISTS static_data (
 > **mock_server 进程特殊说明**：`create_api_dict` 仅启动时读一次 DB，之后 Flask 请求只查内存 `api_dict`，无运行时 DB 访问，无需考虑 Flask `threaded=True` 的多线程问题。**读取完成后立即 `close()` 连接**，既释放文件锁，又触发 SQLite 自动 checkpoint 合并 `-wal` 文件，避免该进程退出后残留 `-wal`。
 >
 > **mitmproxy 进程特殊说明**：`done()` 批量写入完成后同样 `close()` 连接，触发自动 checkpoint。两个子进程均为"用完即关"，运行期间只有主进程持有长期连接。
+>
+> **主进程 `app_lib.py` 中 `MockDB` 实例的获取方式**：`app_lib.py` 中的 `get_mitmproxy_api_data_list` / `get_user_api_data_list` / `get_mock_api_data_list` / `add_user_api_data` / `update_user_api_data` / `delete_user_api_data` 等函数签名保持不变（均接收 `work_dir` 参数），函数内部需要获取 `MockDB` 实例来执行 DB 操作。采用**模块级懒加载单例**：在 `app_lib.py` 模块级维护一个 `_mock_db_cache: dict`，以 `work_dir` 的**绝对路径**为 key 缓存 `MockDB` 实例，首次调用时创建，后续复用。这样同一 `work_dir` 下所有函数共享同一个 `MockDB` 连接（即同一个进程级单例），与上方"进程级单例"策略一致；`download_lib.py` / `server_lib.py` 等通过 `app_lib.py` 函数间接访问 DB 的调用方无需感知 `MockDB` 的存在。`request_catch.py` / `mock_server.py` 等子进程各自直接实例化 `MockDB`，不经过此缓存。
 
 ## 新增文件
 
 ### `lib/db_lib.py` — SQLite 数据访问层
 
 核心类 `MockDB`：
+
+> **Schema 版本管理**
+>
+> 建表后执行 `PRAGMA user_version = 1` 标记当前 schema 版本。`MockDB.__init__` 中建表完成后读取 `PRAGMA user_version`，与代码中定义的 `CURRENT_SCHEMA_VERSION` 比对：
+> - `user_version == 0`：全新数据库（`CREATE TABLE IF NOT EXISTS` 刚建完），直接写入 `CURRENT_SCHEMA_VERSION`
+> - `user_version == CURRENT_SCHEMA_VERSION`：版本匹配，无需处理
+> - `user_version < CURRENT_SCHEMA_VERSION`：旧版数据库，未来在此分支中执行增量迁移（`ALTER TABLE` / `CREATE INDEX` 等），当前版本仅 v1，无迁移逻辑
+> - `user_version > CURRENT_SCHEMA_VERSION`：数据库版本比代码新（用户降级运行旧版程序），给出警告日志但不阻断启动，避免数据被旧代码意外破坏
+>
+> 选择 `PRAGMA user_version` 而非 meta 表的原因：`user_version` 是 SQLite 内置机制，存储在数据库文件头中，不占额外表，读写零成本，且不受 `CREATE TABLE IF NOT EXISTS` 的幂等性影响——即使表已存在，`user_version` 仍能区分是旧库还是新库。
 
 | 方法 | 用途 | id 来源 | 替代原函数 |
 |---|---|---|---|
@@ -235,9 +250,11 @@ def update_api(self, record):
     except Exception:
       conn.execute('ROLLBACK')
       raise
-    finally:
-      self._wal_checkpoint_passive()
 ```
+
+> **单条写入跳过 checkpoint 的原因**
+>
+> `upsert_api` / `update_api` / `delete_api` 均为单行 DML，写入量小，`-wal` 增长有限。若每次写入后都执行 `PRAGMA wal_checkpoint(PASSIVE)`，用户在编辑弹窗中连续增删改多条记录时会产生不必要的 checkpoint I/O 开销。仅在 `batch_upsert_api` / `batch_upsert_static` 批量写入后执行 checkpoint 即可有效控制 `-wal` 增长，单条写入产生的 `-wal` 增量由后续批量 checkpoint 或应用退出时 `close()` 触发的最终 checkpoint 一并合并。
 
 > **`update_api` 无需冲突处理的原因**
 >
@@ -257,6 +274,32 @@ def update_api(self, record):
 ### 2. `lib/work_file_lib.py`
 - `create_work_files` 不再创建上述四个 JSON 文件
 - 新增确保 `mock.db` 初始化的逻辑（通过 `MockDB` 实例化）
+- `check_work_files` 增加对 `mock.db` 的存在性检查：
+  ```python
+  def check_work_files(work_dir=DEFAULT_WORK_DIR):
+    dir_path_list = [r'{}{}'.format(
+      work_dir, detail.get('path')
+    ) for detail in WORK_DIR_DICT.values()]
+    file_path_list = [r'{}{}'.format(
+      work_dir, detail.get('path')
+    ) for detail in WORK_FILE_DICT.values()]
+    check_path_list = [work_dir, *dir_path_list, *file_path_list]
+
+    # 单独检查 mock.db（不在 WORK_FILE_DICT 中，不能用 JSON 写入逻辑创建）
+    db_path = r'{}{}'.format(work_dir, DB_DATA_PATH)
+    check_path_list.append(db_path)
+
+    valid = True
+    for path in check_path_list:
+      if not os.path.exists(path):
+        valid = False
+        break
+
+    return valid
+  ```
+  > **`mock.db` 不加入 `WORK_FILE_DICT` 的原因**：`WORK_FILE_DICT` 的创建逻辑（`create_work_files`）对每个文件执行 `JsonFormat.dumps(default_data)` 写入 JSON 内容，`mock.db` 是 SQLite 二进制文件，不能用 JSON 方式创建。因此 `check_work_files` 中单独追加 `db_path` 做存在性检查，`create_work_files` 中单独通过 `MockDB` 实例化来创建（`MockDB.__init__` 中 `CREATE TABLE IF NOT EXISTS` 保证建表幂等）。
+  >
+  > **`check_work_files` 的影响范围**：`qt_win/app.py` 的 `check_and_create_work_files` 依赖此函数判断是否弹窗提示用户创建工作目录文件。若不补充 `mock.db` 检查，用户在工作目录中手动删除 `mock.db` 后 `check_work_files` 仍返回 `True`，不会触发创建流程，后续 `MockDB` 实例化时才发现文件缺失。补充后可在入口处提前发现并引导用户修复。
 
 ### 3. `module/request_catch.py`
 - `__init__`：`self.save_path` / `self.static_save_path` → `self.db_path`，初始化 `self.mock_db = MockDB(self.db_path)`
@@ -300,10 +343,28 @@ def update_api(self, record):
 - 移除 `import pandas`、`from lib.app_lib import get_mitmproxy_api_data_list`、`from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS`
 
 ### 5. `lib/app_lib.py`
-- `get_mitmproxy_api_data_list` → 内部改 `mock_db.get_api_list(type='MITMPROXY', reverse=reverse)`，签名不变
-- `get_user_api_data_list` → `mock_db.get_api_list(type='USER', reverse=reverse)`
+- 新增模块级懒加载单例，按 `work_dir` 绝对路径缓存 `MockDB` 实例：
+  ```python
+  from lib.db_lib import MockDB
+  from config.work_file import DB_DATA_PATH
+
+  _mock_db_cache: dict = {}
+
+  def _get_mock_db(work_dir: str = '.') -> MockDB:
+    cache_key = os.path.abspath(work_dir)
+    if cache_key not in _mock_db_cache:
+      db_path = f'{work_dir}{DB_DATA_PATH}'
+      _mock_db_cache[cache_key] = MockDB(db_path)
+    return _mock_db_cache[cache_key]
+  ```
+  > **缓存 key 用绝对路径的原因**：`work_dir` 参数可能传入 `'.'`、`'./server'`、`'./server/'` 等不同相对路径形式，但实际指向同一目录。用 `os.path.abspath(work_dir)` 归一化为绝对路径作为缓存 key，避免同一目录创建多个 `MockDB` 实例和多个 DB 连接。
+  >
+  > **`server_lib.py` 中的 `get_static_data_list` 同理**：`server_lib.py` 的 `get_static_data_list` 也接收 `work_dir` 参数，改用 `MockDB` 后同样通过 `app_lib._get_mock_db(work_dir)` 获取实例，复用同一缓存，避免独立创建连接。
+- `get_mitmproxy_api_data_list` → 内部改 `_get_mock_db(work_dir).get_api_list(type='MITMPROXY', reverse=reverse)`，签名不变
+- `get_user_api_data_list` → `_get_mock_db(work_dir).get_api_list(type='USER', reverse=reverse)`
 - `get_mock_api_data_list` → 保持两次查询合并，与当前行为一致（签名 `get_mock_api_data_list(work_dir='.')` 不变，无 `reverse` 参数，`get_api_list` 默认按 `created_at DESC` 排序已满足需求）：
   ```python
+  mock_db = _get_mock_db(work_dir)
   api_list = mock_db.get_api_list(type='MITMPROXY')
   api_list.extend(mock_db.get_api_list(type='USER'))
   return api_list
