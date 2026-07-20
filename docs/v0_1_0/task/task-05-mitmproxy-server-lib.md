@@ -2,9 +2,9 @@
 
 ## 目标
 
-废弃 `mitmproxy_lib.py` 中的 JSON 文件写入函数（保留内存缓冲去重函数），将 `server_lib.py` 的静态资源查询改为调用 `MockDB`。
+删除 `mitmproxy_lib.py` 中的 JSON 文件写入函数（保留内存缓冲去重函数），将 `server_lib.py` 的静态资源查询改为调用 `MockDB`。
 
-> **前置依赖**：本任务必须在 task-06（request_catch 改造）完成后执行。`mitmproxy_lib` 中被废弃的 `save_response` / `save_static` / `load_response_cache` / `load_static_cache` 当前被 `request_catch.py` 调用，task-06 将 `request_catch` 改为使用 `MockDB` 后不再调用这些函数，才可安全删除。
+> **前置依赖**：本任务必须在 task-06（request_catch 改造）完成后执行。`mitmproxy_lib` 中待删除的 `save_response` / `save_static` / `load_response_cache` / `load_static_cache` 当前被 `request_catch.py` 调用，task-06 将 `request_catch` 改为使用 `MockDB` 后不再调用这些函数，才可安全删除。
 
 ## 涉及文件
 
@@ -18,12 +18,14 @@
 - `save_response_to_cache` → 保留，内存缓冲去重（task-06 的 `load_history_cache` 和 `done()` 仍需调用）
 - `save_static_to_cache` → 保留，内存缓冲（同上）
 
-### 废弃的函数（确认 task-06 完成后删除）
+### 删除的函数（确认 task-06 完成后直接删除）
 
-- `load_response_cache` → 废弃（原被 `request_catch.load_response_cache` 调用，task-06 已改为 `load_history_cache` 从 DB 加载）
-- `save_response` → 废弃（原被 `request_catch.done()` 调用，task-06 已改为 `batch_upsert_api`）
-- `save_static` → 废弃（原被 `request_catch.done()` 调用，task-06 已改为 `batch_upsert_static`）
-- `load_static_cache` → 废弃（原被 `request_catch.load_static_cache` 调用，task-06 已改为从 DB 加载）
+以下四个函数在本任务中**直接删除**，不是保留为废弃代码。task-06 完成后已无任何调用方，删除后同步移除其依赖的导入（`pandas` / `MITMPROXY_DATA_FIELDS` / `get_mitmproxy_api_data_list`）。
+
+- `load_response_cache` → 删除（原被 `request_catch.load_response_cache` 调用，task-06 已改为 `load_history_cache` 从 DB 加载）
+- `save_response` → 删除（原被 `request_catch.done()` 调用，task-06 已改为 `batch_upsert_api`）
+- `save_static` → 删除（原被 `request_catch.done()` 调用，task-06 已改为 `batch_upsert_static`）
+- `load_static_cache` → 删除（原被 `request_catch.load_static_cache` 调用，task-06 已改为从 DB 加载）
 
 ### 移除的导入
 
