@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS api_data (
   params_sorted  TEXT NOT NULL DEFAULT '{}',          -- 排序后 json string（仅用于自然键去重）
   response       TEXT NOT NULL DEFAULT '{}',          -- json string
   route          TEXT NOT NULL DEFAULT '',            -- 去域名后的路径（冗余，加速查询）
-  created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 -- 自然键唯一索引：DB 层保证去重，(type, route, method, params_sorted) 相同则覆盖
@@ -48,15 +49,15 @@ CREATE TABLE IF NOT EXISTS static_data (
 | mitmproxy 进程 | `done()` 批量写入 | 单线程，单次写入 |
 | mock_server 进程 | `create_api_dict` 启动时查一次 | 单线程，启动后不再访问 DB |
 
-**策略：进程级单例 + `check_same_thread=False` + 写锁**
+**策略：进程级单例 + `check_same_thread=False` + 读写共锁**
 
 1. **每个进程各自创建一个 `MockDB` 实例**（进程间内存隔离，天然独立连接）
 2. 连接参数：`sqlite3.connect(db_path, check_same_thread=False)`，使同一进程内多线程可共享连接
-3. **写操作加 `threading.Lock`**：主进程的 UI 线程和 `@create_thread` 线程可能并发写，锁保证串行化，避免 `sqlite3.ProgrammingError`
+3. **所有 DB 操作（读 + 写）共用同一把 `threading.Lock`**：主进程的 UI 线程和 `@create_thread` 线程可能并发访问 DB，锁保证串行化
 4. **`PRAGMA busy_timeout=5000`**：跨进程锁竞争时等待 5s 而非立即抛 `database is locked`
-5. 读操作无需加锁（WAL 模式允许读写并发）
+5. WAL 模式允许读写并发，但仅限 SQLite 引擎层；Python `sqlite3.Connection` 对象本身**不是线程安全的**，`check_same_thread=False` 仅允许跨线程使用同一连接，不代表可以**并发**使用——两个线程同时在同一 connection 上 `execute()` 仍会触发 `sqlite3.ProgrammingError`，因此读操作也必须加锁
 
-> **不采用"每线程独立连接"的原因**：本项目并发量极低（桌面 GUI），每线程独立连接会增加文件锁竞争和 `database is locked` 概率；进程级单例 + `check_same_thread=False` + 写锁已足够。
+> **不采用"每线程独立连接"的原因**：本项目并发量极低（桌面 GUI），每线程独立连接会增加文件锁竞争和 `database is locked` 概率；进程级单例 + `check_same_thread=False` + 读写共锁已足够，全局锁的性能影响可忽略。
 >
 > **mock_server 进程特殊说明**：`create_api_dict` 仅启动时读一次 DB，之后 Flask 请求只查内存 `api_dict`，无运行时 DB 访问，无需考虑 Flask `threaded=True` 的多线程问题。
 
@@ -70,7 +71,7 @@ CREATE TABLE IF NOT EXISTS static_data (
 |---|---|---|
 | `upsert_api(record)` | 单条插入/更新 | `add_user_api_data` / `update_user_api_data` |
 | `batch_upsert_api(records)` | 批量写入 | `save_response` (mitmproxy_lib) |
-| `get_api_list(type=None, reverse=False)` | 查询列表 | `get_mitmproxy_api_data_list` / `get_user_api_data_list` / `get_mock_api_data_list` |
+| `get_api_list(type=None, reverse=False)` | 查询列表（默认 `ORDER BY created_at DESC`，`reverse=True` 时改为 `ASC`） | `get_mitmproxy_api_data_list` / `get_user_api_data_list` / `get_mock_api_data_list` |
 | `update_api(record)` | 按 id 更新 | `update_user_api_data` |
 | `delete_api(api_id)` | 按 id 删除 | `delete_user_api_data` |
 | `batch_upsert_static(urls)` | 批量写静态资源 | `save_static` (mitmproxy_lib) |
@@ -108,17 +109,29 @@ params_sorted = JsonFormat.format_and_sort_json_string(params)
 INSERT INTO api_data (id, type, url, method, params, params_sorted, response, route)
 VALUES (?, 'MITMPROXY', ?, ?, ?, ?, ?, ?)
 ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
-  response=excluded.response, url=excluded.url
+  response=excluded.response, url=excluded.url,
+  updated_at=datetime('now','localtime')
 ```
 
 **user 增/改**（`upsert_api`）— id 冲突或自然键冲突均替换：
 ```sql
-INSERT OR REPLACE INTO api_data (id, type, url, method, params, params_sorted, response, route)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO api_data (id, type, url, method, params, params_sorted, response, route, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+  type=excluded.type, url=excluded.url, method=excluded.method,
+  params=excluded.params, params_sorted=excluded.params_sorted,
+  response=excluded.response, route=excluded.route,
+  updated_at=datetime('now','localtime')
 ```
-- id 冲突 → 替换同 id 记录（等价 update）
-- 自然键冲突 → 删除旧记录插入新的（等价覆盖去重）
-- 两者都冲突 → 替换
+- id 冲突 → 更新同 id 记录，**`created_at` 保留原值**，仅刷新 `updated_at`
+- 自然键冲突 → 删除旧记录插入新的（等价覆盖去重），`created_at` 取新值
+- 两者都冲突 → 同 id 冲突分支生效，保留原 `created_at`
+
+> **`created_at` vs `updated_at` 分离的原因**
+>
+> 原 `INSERT OR REPLACE` 会删除旧行再插入新行，`created_at` 默认值被重置为当前时间，
+> 导致被覆盖的记录在 UI 列表中"跳到最新"。改用 `ON CONFLICT(id) DO UPDATE` 显式保留原 `created_at`，
+> 新增 `updated_at` 列记录实际修改时间。`get_api_list` 按 `created_at` 排序保证展示顺序稳定。
 
 ## 改造文件清单
 
@@ -138,7 +151,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 - `done()` 中：
   - `save_response(...)` → `self.mock_db.batch_upsert_api(records)`
   - `save_static(...)` → `self.mock_db.batch_upsert_static(urls)`
-- `SimpleFolderBackup` 的 `watch_backup_files` → `['/mock.db']`
+- **移除 `SimpleFolderBackup` 自动备份**：WAL 模式下 `copytree` 复制 `mock.db` + `-wal` + `-shm` 侧车文件无法保证一致性，后续单独用 SQLite 原生 `backup()` API 或 `VACUUM INTO` 实现一致性快照
 
 ### 4. `lib/mitmproxy_lib.py`
 - `save_response_to_cache` → 保留，内存缓冲去重
@@ -189,7 +202,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 - `mitmproxy_data_edit_dialog.py` — 调用的函数签名不变
 - `open_mitmproxy_preview_html` — 数据格式不变
 - 前端 web 页面 — 无感
-- `SimpleFolderBackup` 类本身 — 只改 `watch_backup_files` 传参
+- `SimpleFolderBackup` 类本身 — 保留，本次不调用（自动备份移除，后续适配 SQLite 后再启用）
 
 ## 实施顺序
 
