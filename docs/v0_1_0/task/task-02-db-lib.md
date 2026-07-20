@@ -95,16 +95,34 @@ SQL（`type=None` 查全部）：`SELECT id, type, url, method, params, response
 
 ## 去重策略
 
-DB 层不做去重，`id` 为唯一主键，去重全部在**应用层**处理。三种写入场景均为纯 INSERT 或 UPDATE，不依赖自然键唯一索引。
+DB 层不做自然键去重，`id` 为唯一主键，应用层去重保留在 `mitmproxy_lib.save_response_to_cache` 的内存缓冲阶段。三种写入场景分别为 INSERT ON CONFLICT、纯 INSERT 和 UPDATE，不依赖自然键唯一索引。
 
-### mitmproxy 批量写入（`batch_upsert_api`）— 应用层去重后纯 INSERT
+### mitmproxy 批量写入（`batch_upsert_api`）— 应用层去重后 INSERT ON CONFLICT
 
 ```sql
 INSERT INTO api_data (id, type, url, method, params, response)
 VALUES (?, 'MITMPROXY', ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+  url=excluded.url,
+  method=excluded.method,
+  params=excluded.params,
+  response=excluded.response,
+  updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
 ```
 
 > 去重逻辑保留在 `mitmproxy_lib.save_response_to_cache` 的内存缓冲阶段（与当前行为一致），`done()` 时将去重后的 records 批量写入 DB。
+
+#### 使用 `ON CONFLICT(id) DO UPDATE` 而非纯 INSERT 的原因
+
+`load_history_cache` 从 DB 加载全部历史 MITMPROXY 记录到内存缓冲用于跨 session 去重。`done()` 时将**全部缓冲记录**（包括从 DB 加载的历史记录）批量写回 DB。历史记录的 `id` 已存在于 DB 中，纯 INSERT 会触发 `sqlite3.IntegrityError: UNIQUE constraint failed: api_data.id`。使用 `ON CONFLICT(id) DO UPDATE SET` 后：
+
+- 历史记录（未重新抓取）→ 同 id 同数据，UPDATE 无实质变化，`created_at` 保留，`id` 不变
+- 本轮新抓取的记录 → 新 id，正常 INSERT
+- `id` 不在 SET 中，冲突时不会被修改
+- `created_at` 不在 SET 中，冲突时保留原值
+- `updated_at` 刷新不影响排序（排序用 `created_at`）
+
+> 不使用 `INSERT OR REPLACE`，因为它会先 DELETE 旧行再 INSERT 新行，导致 `created_at` 被重置为当前时间，历史记录的创建时间丢失。
 
 #### 批量写入采用单事务 + `executemany`
 
@@ -115,7 +133,7 @@ with self._lock:
   conn = self._conn
   conn.execute('BEGIN TRANSACTION')
   try:
-    conn.executemany(sql, records)
+    conn.executemany(sql, [(r['id'], r['url'], r['method'], r['params'], r['response']) for r in records])
     conn.execute('COMMIT')
   except Exception:
     conn.execute('ROLLBACK')
@@ -124,6 +142,7 @@ with self._lock:
     self._wal_checkpoint_passive()
 ```
 
+- `executemany` 需要将 dict 列表转为 tuple 列表，`sqlite3.executemany` 不支持 dict 参数
 - 整个批量只获取/释放一次 SQLite 文件写锁，commit 时间从 O(n) 次降为 O(1) 次，大幅缩短跨进程锁竞争窗口
 - 事务保证原子性：要么全部写入成功，要么全部回滚，不会出现部分写入的中间状态
 - WAL 模式下读写不互斥，批量写入期间主进程仍可正常读操作，仅在 `COMMIT` 的短暂瞬间有文件锁竞争
@@ -184,6 +203,7 @@ def update_api(self, record):
          merged['params'], merged['response'], record.get('id'))
       )
       conn.execute('COMMIT')
+      return True
     except Exception:
       conn.execute('ROLLBACK')
       raise
@@ -198,6 +218,29 @@ UPDATE api_data SET
   updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
 WHERE id=?;
 ```
+
+### `delete_api` 实现
+
+```python
+def delete_api(self, api_id: str):
+  with self._lock:
+    conn = self._conn
+    conn.execute('BEGIN TRANSACTION')
+    try:
+      cursor = conn.execute('DELETE FROM api_data WHERE id=?', (api_id,))
+      if cursor.rowcount == 0:
+        conn.execute('ROLLBACK')
+        return False
+      conn.execute('COMMIT')
+      return True
+    except Exception:
+      conn.execute('ROLLBACK')
+      raise
+```
+
+- `cursor.rowcount == 0` 表示未找到对应 id 的记录，回滚并返回 `False`
+- 成功删除后 `COMMIT` 并返回 `True`
+- `update_api` 和 `delete_api` 均需明确返回 `True`/`False`，因为 `app_lib` 中的调用方（`update_user_api_data` / `delete_user_api_data`）将返回值透传给前端，前端根据布尔值判断操作是否成功
 
 #### `update_api` 采用 SELECT-merge-UPDATE 而非全字段覆盖的原因
 
