@@ -162,13 +162,17 @@ PRAGMA user_version = 1;
 >   'updated_at': str,     # 更新时间
 > }
 > ```
-> SQL（`type` 非 `None`）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at DESC, id DESC`
+> SQL（`type` 非 `None`，`reverse=False`）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at ASC, id ASC`
 >
-> SQL（`type=None` 查全部）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data ORDER BY created_at DESC, id DESC`
+> SQL（`type=None` 查全部，`reverse=False`）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data ORDER BY created_at ASC, id ASC`
+>
+> `reverse=True` 时将 `ASC` 改为 `DESC`（`created_at DESC, id DESC`），返回最新记录在前。
 >
 > `type=None` 时不加 `WHERE` 条件，返回 `MITMPROXY` 和 `USER` 的全部记录。当前 `get_mock_api_data_list` 为保持 USER 优先于 MITMPROXY 的覆盖语义仍采用两次查询合并（见下文），不使用 `type=None` 单次查询。`type=None` 供未来可能的「不分类型查全部」场景使用。
 >
-> **排序稳定性说明**：`created_at` 精度到毫秒（`strftime('%Y-%m-%d %H:%M:%f','now','localtime')`），大幅降低批量写入时多条记录取到相同 `created_at` 值的概率。但毫秒仍非绝对唯一——高并发或批量 `executemany` 极快写入时仍可能碰撞，因此追加 `id DESC` 作为 tiebreaker，`id` 为 UUID 全局唯一，保证相同 `created_at` 的行有确定的排列顺序。`reverse=True` 时改为 `ORDER BY created_at ASC, id ASC`，保持双向排序的对称性。
+> **排序稳定性说明**：`created_at` 精度到毫秒（`strftime('%Y-%m-%d %H:%M:%f','now','localtime')`），大幅降低批量写入时多条记录取到相同 `created_at` 值的概率。但毫秒仍非绝对唯一——高并发或批量 `executemany` 极快写入时仍可能碰撞，因此追加 `id ASC` 作为 tiebreaker，`id` 为 UUID 全局唯一，保证相同 `created_at` 的行有确定的排列顺序。`reverse=True` 时改为 `ORDER BY created_at DESC, id DESC`，保持双向排序的对称性。
+>
+> `reverse` 语义与原 JSON 实现对齐：`reverse=False`（默认）返回最旧记录在前（对应原 JSON 文件存储顺序），`reverse=True` 返回最新记录在前（对应原 `api_list[::-1]`）。`app_lib` 层直接透传 `reverse` 参数，无需反转。
 > 相比原 JSON 数据格式新增了 `created_at` / `updated_at` 两个字段。
 > 前端 / 预览页面只取 `id` / `type` / `url` / `method` / `params` / `response`，多出的字段不影响渲染。
 > `mock_server.create_api_dict` 始终从 `url` 实时计算 `route`（`remove_url_domain` + `remove_url_query`），不依赖 DB 冗余字段。
@@ -199,12 +203,20 @@ params = JsonFormat.format_json_string(params)
 
 DB 层不做去重，`id` 为唯一主键，去重全部在**应用层**处理。三种写入场景均为纯 INSERT 或 UPDATE，不依赖自然键唯一索引。
 
-**mitmproxy 批量写入**（`batch_upsert_api`）— 应用层去重后纯 INSERT：
+**mitmproxy 批量写入**（`batch_upsert_api`）— 应用层去重后 INSERT ON CONFLICT：
 ```sql
 INSERT INTO api_data (id, type, url, method, params, response)
 VALUES (?, 'MITMPROXY', ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+  url=excluded.url,
+  method=excluded.method,
+  params=excluded.params,
+  response=excluded.response,
+  updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
 ```
 > 去重逻辑保留在 `mitmproxy_lib.save_response_to_cache` 的内存缓冲阶段（与当前行为一致），`done()` 时将去重后的 records 批量写入 DB。
+>
+> **使用 `ON CONFLICT(id) DO UPDATE` 而非纯 INSERT 的原因**：`load_history_cache` 从 DB 加载全部历史 MITMPROXY 记录到内存缓冲用于跨 session 去重。`done()` 时将**全部缓冲记录**（包括从 DB 加载的历史记录）批量写回 DB。历史记录的 `id` 已存在于 DB 中，纯 INSERT 会触发 `sqlite3.IntegrityError: UNIQUE constraint failed: api_data.id`。使用 `ON CONFLICT(id) DO UPDATE SET` 后历史记录同 id 同数据 UPDATE 无实质变化，`created_at` 保留，本轮新抓取的记录新 id 正常 INSERT。
 
 > **批量写入采用单事务 + `executemany`**
 >
@@ -431,7 +443,7 @@ WHERE id=?;
   > **`server_lib.py` 中的 `get_static_data_list` 同理**：`server_lib.py` 的 `get_static_data_list` 也接收 `work_dir` 参数，改用 `MockDB` 后同样通过 `app_lib._get_mock_db(work_dir)` 获取实例，复用同一缓存，避免独立创建连接。
 - `get_mitmproxy_api_data_list` → 内部改 `_get_mock_db(work_dir).get_api_list(type='MITMPROXY', reverse=reverse)`，签名不变
 - `get_user_api_data_list` → `_get_mock_db(work_dir).get_api_list(type='USER', reverse=reverse)`
-- `get_mock_api_data_list` → 保持两次查询合并，与当前行为一致（签名 `get_mock_api_data_list(work_dir='.')` 不变，无 `reverse` 参数，`get_api_list` 默认按 `created_at DESC` 排序已满足需求）：
+- `get_mock_api_data_list` → 保持两次查询合并，与当前行为一致（签名 `get_mock_api_data_list(work_dir='.')` 不变，无 `reverse` 参数，两次查询均使用默认 `reverse=False` 使 `ORDER BY created_at ASC, id ASC`，最旧记录在前、最新记录在后）：
   ```python
   mock_db = _get_mock_db(work_dir)
   api_list = mock_db.get_api_list(type='MITMPROXY')
@@ -440,7 +452,7 @@ WHERE id=?;
   ```
   > **不改为单次 `get_api_list()` 查询的原因**：当前实现 `mitmproxy_list.extend(user_list)` 使 USER 数据在后，`create_api_dict` 遍历时后写入覆盖先写入，即 USER 永远优先于 MITMPROXY。若改为单次 `ORDER BY created_at` 查询，同路由记录的覆盖优先级由 `created_at` 决定而非 type，会导致用户手动编辑的 USER 数据被旧的 MITMPROXY 数据覆盖。两次查询合并保持原有优先级语义，零回归风险。
 - `save_user_api_data_list` → 废弃
-- `add_user_api_data` → 构造 record（不含 id）→ `mock_db.upsert_api(record)`，id 由 MockDB 内部生成
+- `add_user_api_data` → 构造 record（不含 id）→ `mock_db.upsert_api(record)`（id 由 MockDB 内部生成），调用后 `return True`，保持原 `bool` 返回类型不变（`upsert_api` 返回的 id 不透传给前端）
 - `update_user_api_data` → 构造 record（含 id）→ `mock_db.update_api(record)`
 - `delete_user_api_data` → `mock_db.delete_api(api_id)`
 - `fix_user_api_data` → 改为 no-op 直接返回 `True`（SQLite schema 的 `NOT NULL DEFAULT` + `PRIMARY KEY` 已保证数据完整性，不存在字段缺失/id 缺失问题；保留函数签名避免前端 `fix_mock_data` 事件调用报错，后续前端移除按钮时再一并清理）

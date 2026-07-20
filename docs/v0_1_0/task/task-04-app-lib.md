@@ -38,12 +38,12 @@ def _get_mock_db(work_dir: str = '.') -> MockDB:
 
 - `get_mitmproxy_api_data_list` → 内部改 `_get_mock_db(work_dir).get_api_list(type='MITMPROXY', reverse=reverse)`，签名不变
 - `get_user_api_data_list` → `_get_mock_db(work_dir).get_api_list(type='USER', reverse=reverse)`
-- `get_mock_api_data_list` → 保持两次查询合并，与当前行为一致（签名 `get_mock_api_data_list(work_dir='.')` 不变，无 `reverse` 参数，两次查询均传 `reverse=True` 使 `ORDER BY created_at ASC, id ASC`，最旧记录在前、最新记录在后）：
+- `get_mock_api_data_list` → 保持两次查询合并，与当前行为一致（签名 `get_mock_api_data_list(work_dir='.')` 不变，无 `reverse` 参数，两次查询均使用默认 `reverse=False` 使 `ORDER BY created_at ASC, id ASC`，最旧记录在前、最新记录在后）：
 
 ```python
 mock_db = _get_mock_db(work_dir)
-api_list = mock_db.get_api_list(type='MITMPROXY', reverse=True)
-api_list.extend(mock_db.get_api_list(type='USER', reverse=True))
+api_list = mock_db.get_api_list(type='MITMPROXY')
+api_list.extend(mock_db.get_api_list(type='USER'))
 return api_list
 ```
 
@@ -51,14 +51,14 @@ return api_list
 
 当前实现 `mitmproxy_list.extend(user_list)` 使 USER 数据在后，`create_api_dict` 遍历时后写入覆盖先写入，即 USER 永远优先于 MITMPROXY。若改为单次 `ORDER BY created_at` 查询，同路由记录的覆盖优先级由 `created_at` 决定而非 type，会导致用户手动编辑的 USER 数据被旧的 MITMPROXY 数据覆盖。两次查询合并保持原有优先级语义，零回归风险。
 
-### 两次查询均传 `reverse=True`（ASC 排序）的原因
+### 两次查询均使用默认 `reverse=False`（ASC 排序）的原因
 
-`create_api_dict` 遍历列表时，后写入的记录覆盖先写入的记录（`api_dict[request_key][response_key] = response`）。若用默认的 `DESC` 排序（最新在前），则最旧的记录排在最后、覆盖最新记录，导致 mock 服务返回旧响应。改用 `reverse=True`（`ASC` 排序，最旧在前、最新在后），使最新记录排在最后、覆盖旧记录，保证 mock 服务返回最新响应。
+`create_api_dict` 遍历列表时，后写入的记录覆盖先写入的记录（`api_dict[request_key][response_key] = response`）。若用 `reverse=True`（`DESC` 排序，最新在前），则最旧的记录排在最后、覆盖最新记录，导致 mock 服务返回旧响应。使用默认 `reverse=False`（`ASC` 排序，最旧在前、最新在后），使最新记录排在最后、覆盖旧记录，保证 mock 服务返回最新响应。
 
 > 原 JSON 方案中同一 `url+method+params` 的记录在内存缓冲阶段已去重，文件中无重复记录，排序方向不影响正确性。SQLite 方案中 DB 会累积跨 session 的重复记录（同 `url+method+params`，不同 `id`），排序方向直接影响覆盖语义，必须用 `ASC` 排序。
 
 - `save_user_api_data_list` → 废弃
-- `add_user_api_data` → 构造 record（不含 id）→ `mock_db.upsert_api(record)`，id 由 MockDB 内部生成
+- `add_user_api_data` → 构造 record（不含 id）→ `mock_db.upsert_api(record)`（id 由 MockDB 内部生成），调用后 `return True`，保持原 `bool` 返回类型不变（`upsert_api` 返回的 id 不透传给前端）
 - `update_user_api_data` → 构造 record（含 id）→ `mock_db.update_api(record)`
 - `delete_user_api_data` → `mock_db.delete_api(api_id)`
 - `fix_user_api_data` → 改为 no-op 直接返回 `True`（SQLite schema 的 `NOT NULL DEFAULT` + `PRIMARY KEY` 已保证数据完整性，不存在字段缺失/id 缺失问题；保留函数签名避免前端 `fix_mock_data` 事件调用报错，后续前端移除按钮时再一并清理）

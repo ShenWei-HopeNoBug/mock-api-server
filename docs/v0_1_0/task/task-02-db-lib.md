@@ -24,7 +24,7 @@ from lib.utils_lib import generate_uuid, JsonFormat
 |---|---|---|---|
 | `upsert_api(record)` → `id` | 新增插入（纯 INSERT，不去重），返回生成的 id | MockDB 内部 `generate_uuid()` | `add_user_api_data` |
 | `batch_upsert_api(records)` | 批量写入（应用层去重后纯 INSERT） | record 中已有（mitmproxy 抓包时生成） | `save_response` (mitmproxy_lib) |
-| `get_api_list(type=None, reverse=False)` | 查询列表（`type=None` 查全部，`type='MITMPROXY'` / `type='USER'` 按类型过滤；默认 `ORDER BY created_at DESC, id DESC`，`reverse=True` 时改为 `ASC, id ASC`） | — | `get_mitmproxy_api_data_list` / `get_user_api_data_list` |
+| `get_api_list(type=None, reverse=False)` | 查询列表（`type=None` 查全部，`type='MITMPROXY'` / `type='USER'` 按类型过滤；默认 `ORDER BY created_at ASC, id ASC`（最旧在前，与原 JSON 文件存储顺序一致），`reverse=True` 时改为 `DESC, id DESC`（最新在前，与原 `api_list[::-1]` 语义一致）） | — | `get_mitmproxy_api_data_list` / `get_user_api_data_list` |
 | `update_api(record)` | 按 id 更新（`UPDATE ... WHERE id = ?`） | 调用方传入 | `update_user_api_data` |
 | `delete_api(api_id)` | 按 id 删除 | 调用方传入 | `delete_user_api_data` |
 | `batch_upsert_static(urls)` | 批量写静态资源（`ON CONFLICT(url) DO UPDATE SET updated_at`，重复抓取刷新更新时间） | — | `save_static` (mitmproxy_lib) |
@@ -79,15 +79,19 @@ params = JsonFormat.format_json_string(params)
 }
 ```
 
-SQL（`type` 非 `None`）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at DESC, id DESC`
+SQL（`type` 非 `None`，`reverse=False`）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at ASC, id ASC`
 
-SQL（`type=None` 查全部）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data ORDER BY created_at DESC, id DESC`
+SQL（`type=None` 查全部，`reverse=False`）：`SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data ORDER BY created_at ASC, id ASC`
+
+`reverse=True` 时将 `ASC` 改为 `DESC`（`created_at DESC, id DESC`），返回最新记录在前。
 
 `type=None` 时不加 `WHERE` 条件，返回 `MITMPROXY` 和 `USER` 的全部记录。当前 `get_mock_api_data_list` 为保持 USER 优先于 MITMPROXY 的覆盖语义仍采用两次查询合并（见 task-04），不使用 `type=None` 单次查询。`type=None` 供未来可能的「不分类型查全部」场景使用。
 
 ### 排序稳定性说明
 
-`created_at` 精度到毫秒（`strftime('%Y-%m-%d %H:%M:%f','now','localtime')`），大幅降低批量写入时多条记录取到相同 `created_at` 值的概率。但毫秒仍非绝对唯一——高并发或批量 `executemany` 极快写入时仍可能碰撞，因此追加 `id DESC` 作为 tiebreaker，`id` 为 UUID 全局唯一，保证相同 `created_at` 的行有确定的排列顺序。`reverse=True` 时改为 `ORDER BY created_at ASC, id ASC`，保持双向排序的对称性。
+`created_at` 精度到毫秒（`strftime('%Y-%m-%d %H:%M:%f','now','localtime')`），大幅降低批量写入时多条记录取到相同 `created_at` 值的概率。但毫秒仍非绝对唯一——高并发或批量 `executemany` 极快写入时仍可能碰撞，因此追加 `id ASC` 作为 tiebreaker，`id` 为 UUID 全局唯一，保证相同 `created_at` 的行有确定的排列顺序。`reverse=True` 时改为 `ORDER BY created_at DESC, id DESC`，保持双向排序的对称性。
+
+> `reverse` 语义与原 JSON 实现对齐：`reverse=False`（默认）返回最旧记录在前（对应原 JSON 文件存储顺序），`reverse=True` 返回最新记录在前（对应原 `api_list[::-1]`）。`app_lib` 层直接透传 `reverse` 参数，无需反转。
 
 相比原 JSON 数据格式新增了 `created_at` / `updated_at` 两个字段。
 前端 / 预览页面只取 `id` / `type` / `url` / `method` / `params` / `response`，多出的字段不影响渲染。
