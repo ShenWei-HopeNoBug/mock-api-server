@@ -302,10 +302,10 @@ def update_api(self, record):
 ### 5. `lib/app_lib.py`
 - `get_mitmproxy_api_data_list` → 内部改 `mock_db.get_api_list(type='MITMPROXY', reverse=reverse)`，签名不变
 - `get_user_api_data_list` → `mock_db.get_api_list(type='USER', reverse=reverse)`
-- `get_mock_api_data_list` → 保持两次查询合并，与当前行为一致：
+- `get_mock_api_data_list` → 保持两次查询合并，与当前行为一致（签名 `get_mock_api_data_list(work_dir='.')` 不变，无 `reverse` 参数，`get_api_list` 默认按 `created_at DESC` 排序已满足需求）：
   ```python
-  api_list = mock_db.get_api_list(type='MITMPROXY', reverse=reverse)
-  api_list.extend(mock_db.get_api_list(type='USER', reverse=reverse))
+  api_list = mock_db.get_api_list(type='MITMPROXY')
+  api_list.extend(mock_db.get_api_list(type='USER'))
   return api_list
   ```
   > **不改为单次 `get_api_list()` 查询的原因**：当前实现 `mitmproxy_list.extend(user_list)` 使 USER 数据在后，`create_api_dict` 遍历时后写入覆盖先写入，即 USER 永远优先于 MITMPROXY。若改为单次 `ORDER BY created_at` 查询，同路由记录的覆盖优先级由 `created_at` 决定而非 type，会导致用户手动编辑的 USER 数据被旧的 MITMPROXY 数据覆盖。两次查询合并保持原有优先级语义，零回归风险。
@@ -391,12 +391,23 @@ def update_api(self, record):
   - `lib/utils_lib.py`：`fix_dict_field` 函数仅被 `app_lib.py` 的 `get_mitmproxy_api_data_list` 调用，重构后无调用方，一并移除
   - `config/enum/MITMPROXY.py`：`MITMPROXY_DATA_FIELDS` 移除后，若文件中无其他内容则整个文件删除；`from lib.utils_lib import (generate_uuid, JsonFormat)` 导入也一并移除
 
+### 10. `qt_win/mitmproxy_data_edit_dialog.py`
+- 移除 `from lib.backup_lib import SimpleFolderBackup` 导入
+- 移除 `from config.work_file import (DATA_DIR, BACKUP_DIR, USER_API_FILE_NAME)` 中仅用于备份的 `DATA_DIR` / `BACKUP_DIR` / `USER_API_FILE_NAME` 导入（这三个常量仅用于 `SimpleFolderBackup` 的 `source_dir` / `backup_dir` / `watch_backup_files`，移除备份后无其他引用）
+- 移除 `__init__` 中 `source_dir` / `backup_dir` 变量及 `self.simple_folder_backup` 实例创建
+- 移除 `init()` 后的 `self.simple_folder_backup.watch_diff_backup()` 调用
+- 移除 `closeEvent` 中 `self.simple_folder_backup.watch_diff_backup()` 调用，仅保留 `event.accept()`
+- 原因：与 `request_catch.py` 同理，WAL 模式下 `copytree` 无法保证 SQLite 一致性，备份功能后续用 SQLite 原生 API 重新实现
+
+### 11. `requirements.txt`
+- 移除 `pandas==2.0.3`
+- 原因：重构后 `lib/app_lib.py`、`lib/mitmproxy_lib.py`、`lib/server_lib.py` 三处 `import pandas` 全部移除，项目不再依赖 pandas（含其传递依赖 numpy），移除可减小打包体积
+
 ## 不变的部分
 
-- `mitmproxy_data_edit_dialog.py` — 调用的函数签名不变
 - `open_mitmproxy_preview_html` — 数据格式不变
 - 前端 web 页面 — 无感
-- `SimpleFolderBackup` 类本身 — 保留，本次不调用（自动备份移除，后续适配 SQLite 后再启用）
+- `SimpleFolderBackup` 类本身 — 保留，本次不调用（`request_catch.py` 和 `mitmproxy_data_edit_dialog.py` 两处调用均移除，后续适配 SQLite 后再启用）
 
 ## 实施顺序
 
@@ -409,3 +420,5 @@ def update_api(self, record):
 7. `module/request_catch.py` — 改用 `MockDB`
 8. `module/mock_server.py` — 改用 `MockDB` 查询，移除 `get_server_api_dict` / `read_cache` 参数
 9. `qt_win/app.py` — 移除缓存模式 UI 逻辑（`self.cache` / `cacheCheckBox` / `read_cache` 传参）
+10. `qt_win/mitmproxy_data_edit_dialog.py` — 移除 `SimpleFolderBackup` 相关代码
+11. `requirements.txt` — 移除 `pandas==2.0.3`
