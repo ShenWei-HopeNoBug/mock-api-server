@@ -29,6 +29,7 @@ from lib.app_lib import (
   set_menu_config,
   set_menu_item_disabled,
   is_app_server_running,
+  close_all_mock_db,
 )
 from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
@@ -42,7 +43,6 @@ from qt_ui.main_win import main_win_style
 # mock 服务进程启动
 def server_process_start(server_config: dict):
   print('server_config', server_config)
-  read_cache = server_config.get('read_cache', False)
   port = server_config.get('port', 5000)
   work_dir = server_config.get('work_dir', '.')
   response_delay = server_config.get('response_delay', 0)
@@ -55,7 +55,7 @@ def server_process_start(server_config: dict):
     static_load_speed=static_load_speed,
   )
   # 启动本地 mock 服务
-  server.start_server(read_cache=read_cache)
+  server.start_server()
 
 
 # app 主窗口
@@ -119,8 +119,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.response_delay: int = 0
     # 静态资源请求加载速率
     self.static_load_speed: int = 0
-    # 是否以缓存模式启动服务
-    self.cache = False
     # 文件菜单对象
     self.file_menu: QMenu or None = None
     # 编辑菜单对象
@@ -256,9 +254,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def use_history_checkbox_click():
       self.use_history = not self.use_history
 
-    def cache_checkbox_click():
-      self.cache = not self.cache
-
     def compress_image_button_click():
       self.compress_image = not self.compress_image
 
@@ -292,9 +287,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.compressCheckBox.setChecked(self.compress_image)
     self.compressCheckBox.clicked.connect(compress_image_button_click)
     self.staticDownloadButton.clicked.connect(static_download_button_click)
-    # 缓存模式启动按钮
-    self.cacheCheckBox.setChecked(self.cache)
-    self.cacheCheckBox.clicked.connect(cache_checkbox_click)
     # mock 服务按钮
     self.serverButton.clicked.connect(self.server_button_click)
 
@@ -357,11 +349,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverButton.setText(button_text)
     self.serverButton.setDisabled(server_btn_disabled)
 
-    self.cacheCheckBox.setDisabled(disabled)
     self.serverPortSpinBox.setDisabled(disabled)
     self.responseDelaySpinBox.setDisabled(disabled)
     self.staticLoadSpeedSpinBox.setDisabled(disabled)
-    self.cacheCheckBox.setDisabled(disabled)
     set_menu_item_disabled(self.file_menu, [
       {"action_name": FILE.CHANGE_WORK_DIR, "disabled": disabled},
     ])
@@ -607,7 +597,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     server_config = {
       "work_dir": self.work_dir,
       "port": self.server_port,
-      "read_cache": self.cache,
       "response_delay": self.response_delay,
       "static_load_speed": self.static_load_speed,
     }
@@ -675,6 +664,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.stop_catch_server()
       self.stop_server()
       self.stop_app_server()
+      # 关闭所有 MockDB 连接，触发最终 checkpoint
+      close_all_mock_db()
       # 设置退出程序的全局变量
       GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
       time.sleep(0.5)

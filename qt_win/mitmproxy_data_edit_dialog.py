@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import QDialog, QVBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtCore import Qt, QUrl, QEvent
 from PyQt5.QtWebChannel import QWebChannel
-from config.work_file import (DATA_DIR, BACKUP_DIR, USER_API_FILE_NAME)
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config
@@ -20,32 +19,20 @@ from lib.app_lib import (
   is_app_server_running,
 )
 from lib.utils_lib import get_ip_address
-from lib.backup_lib import SimpleFolderBackup
 from lib.logger_lib import APP_LOGGER
 
 
 class MitmproxyDataEditDialog(QDialog):
   def __init__(self, work_dir='.', app_sever_running_data: dict = None):
     super().__init__()
-    # 需要备份的源文件夹路径
-    source_dir = os.path.abspath(r'{}{}'.format(work_dir, DATA_DIR))
-    # 备份文件存放的目标文件夹路径
-    backup_dir = os.path.abspath(r'{}{}{}'.format(work_dir, BACKUP_DIR, DATA_DIR))
     # 工作目录
     self.work_dir = work_dir
-    # 备份文件实例对象
-    self.simple_folder_backup: SimpleFolderBackup = SimpleFolderBackup(
-      source_dir=source_dir,
-      backup_dir=backup_dir,
-      watch_backup_files=[f'/{USER_API_FILE_NAME}'],
-    )
     self.webview: QWebEngineView or None = None
     self.web_channel: QWebChannel or None = None
     self.interact_obj: TInteractObj or None = None
     self.app_sever_running_data: dict or None = app_sever_running_data
 
     self.init()
-    self.simple_folder_backup.watch_diff_backup()
 
   @error_catch(error_msg='抓包数据管理弹窗初始化异常')
   def init(self):
@@ -178,6 +165,4 @@ class MitmproxyDataEditDialog(QDialog):
       send_response(success)
 
   def closeEvent(self, event: QEvent):
-    # 检查文件是否变化判断是否备份文件
-    self.simple_folder_backup.watch_diff_backup()
     event.accept()

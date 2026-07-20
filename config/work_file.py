@@ -29,22 +29,11 @@ MOCK_SERVER_CONFIG_PATH = f'{CONFIG_DIR}/mock_server_config.json'
 
 # 存放数据文件的目录
 DATA_DIR = r'/data'
-# 抓包数据文件名
-MITMPROXY_FILE_PATH = r'output.json'
-# 抓包数据文件路径
-MITMPROXY_DATA_PATH = f'{DATA_DIR}/{MITMPROXY_FILE_PATH}'
-# 用户自定义接口数据文件名
-USER_API_FILE_NAME = 'user_api.json'
-# 用户自定义接口数据文件路径
-USER_API_DATA_PATH = f'{DATA_DIR}/{USER_API_FILE_NAME}'
-# 静态资源数据文件名
-STATIC_FILE_NAME = 'static.json'
-# 静态资源数据文件路径
-STATIC_DATA_PATH = f'{DATA_DIR}/{STATIC_FILE_NAME}'
-# 服务创建接口缓存文件名
-API_CACHE_FILE_NAME = 'api_cache.json'
-# 服务创建接口缓存文件地址
-API_CACHE_DATA_PATH = f'{DATA_DIR}/{API_CACHE_FILE_NAME}'
+
+# SQLite 数据库文件名
+DB_FILE_NAME = 'mock.db'
+# SQLite 数据库文件路径
+DB_DATA_PATH = f'{DATA_DIR}/{DB_FILE_NAME}'
 
 # 静态资源目录
 STATIC_DIR = r'/static'
@@ -147,21 +136,5 @@ WORK_FILE_DICT = {
       "static_match_route": [],
       "http_params_match_mode": DEFAULT_HTTP_PARAMS_MATCH_MODE,
     }
-  },
-  "MITMPROXY_DATA": {
-    "path": MITMPROXY_DATA_PATH,
-    "default": [],
-  },
-  "USER_API_DATA": {
-    "path": USER_API_DATA_PATH,
-    "default": [],
-  },
-  "STATIC_DATA": {
-    "path": STATIC_DATA_PATH,
-    "default": [],
-  },
-  "API_CACHE_DATA": {
-    "path": API_CACHE_DATA_PATH,
-    "default": {},
   }
 }

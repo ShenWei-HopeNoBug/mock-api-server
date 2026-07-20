@@ -4,15 +4,11 @@ import os
 from mitmproxy import http
 from mitmproxy.tools.dump import DumpMaster
 from config.work_file import (
-  MITMPROXY_DATA_PATH,
-  STATIC_DATA_PATH,
-  DATA_DIR,
   MITMPROXY_CONFIG_PATH,
-  BACKUP_DIR,
-  MITMPROXY_FILE_PATH,
-  STATIC_FILE_NAME,
+  DB_DATA_PATH,
 )
 from lib import mitmproxy_lib
+from lib.db_lib import MockDB
 from lib.work_file_lib import create_work_files
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
 from lib.utils_lib import (
@@ -22,36 +18,21 @@ from lib.utils_lib import (
   generate_uuid,
   get_multipart_dict,
 )
-from lib.backup_lib import SimpleFolderBackup
 
 
 # 处理请求抓包工具类
 class RequestRecorder:
   def __init__(self, use_history=True, work_dir='.'):
-    # 需要备份的源文件夹路径
-    source_dir = os.path.abspath(r'{}{}'.format(work_dir, DATA_DIR))
-    # 备份文件存放的目标文件夹路径
-    backup_dir = os.path.abspath(r'{}{}{}'.format(work_dir, BACKUP_DIR, DATA_DIR))
-
     # 工作目录
     self.work_dir: str = work_dir
-    # 备份文件实例对象
-    self.simple_folder_backup: SimpleFolderBackup = SimpleFolderBackup(
-      source_dir=source_dir,
-      backup_dir=backup_dir,
-      watch_backup_files=[
-        f'/{MITMPROXY_FILE_PATH}',
-        f'/{STATIC_FILE_NAME}',
-      ]
-    )
+    # SQLite 数据库路径
+    self.db_path: str = f'{work_dir}{DB_DATA_PATH}'
+    # MockDB 实例
+    self.mock_db: MockDB = MockDB(self.db_path)
     # 抓包服务 master 实例
     self.mitmproxy_master: DumpMaster or None = None
     # 抓包结束标记
     self.mitmproxy_stop_signal: bool = False
-    # 抓包数据保存路径
-    self.save_path: str = os.path.abspath(r'{}{}'.format(work_dir, MITMPROXY_DATA_PATH))
-    # 静态资源保存路径
-    self.static_save_path: str = os.path.abspath(r'{}{}'.format(work_dir, STATIC_DATA_PATH))
     # 抓包缓存数据 dict
     self.response_cache_dict: dict = {}
     # 抓包包含的 path
@@ -72,9 +53,6 @@ class RequestRecorder:
     # 加载抓包配置
     self.load_mitmproxy_config()
 
-    # 初始化时备份下抓包数据
-    self.simple_folder_backup.watch_diff_backup()
-
     # 以历史数据为基础继续抓包
     if use_history:
       self.load_history_cache()
@@ -88,12 +66,17 @@ class RequestRecorder:
       self.include_path = mitmproxy_config.get('include_path', '')
       self.static_include_path = mitmproxy_config.get('static_include_path', [])
 
-  # 读取本地保存数据初始化抓包数据
+  # 从 DB 加载历史数据初始化抓包缓存
   def load_history_cache(self):
-    # 加载历史 response 数据
-    self.response_cache_dict = mitmproxy_lib.load_response_cache(work_dir=self.work_dir)
-    # 加载静态资源数据
-    self.static_cache_dict = mitmproxy_lib.load_static_cache(self.static_save_path)
+    # 从 DB 加载历史 response 数据，填充内存缓冲用于抓包去重
+    mitmproxy_data = self.mock_db.get_api_list(type='MITMPROXY')
+    for row_data in mitmproxy_data:
+      mitmproxy_lib.save_response_to_cache(row_data, self.response_cache_dict)
+
+    # 从 DB 加载历史静态资源数据，填充内存缓冲用于去重
+    static_data = self.mock_db.get_static_list()
+    for row_data in static_data:
+      mitmproxy_lib.save_static_to_cache(row_data, self.static_cache_dict)
 
   # 接口请求
   def request(self, flow: http.HTTPFlow):
@@ -162,16 +145,27 @@ class RequestRecorder:
   def done(self):
     print('mitmproxy done!')
 
-    print('----> 正在保存抓包数据：', self.save_path)
-    mitmproxy_lib.save_response(self.save_path, self.response_cache_dict)
+    # 从 response_cache_dict 提取全部抓包记录
+    # 缓冲结构: {search_key: {md5_key: record, ...}, ...}
+    records = []
+    for response_data in self.response_cache_dict.values():
+      for record in response_data.values():
+        records.append(record)
+
+    print('----> 正在保存抓包数据，共 {} 条'.format(len(records)))
+    self.mock_db.batch_upsert_api(records)
     self.response_cache_dict = {}
 
-    print('----> 正在保存静态资源数据：', self.static_save_path)
-    mitmproxy_lib.save_static(self.static_save_path, self.static_cache_dict)
+    # 从 static_cache_dict 提取全部静态资源 URL
+    # 缓冲结构: {md5_key: record, ...}
+    urls = [record.get('url') for record in self.static_cache_dict.values()]
+    print('----> 正在保存静态资源数据，共 {} 条'.format(len(urls)))
+    self.mock_db.batch_upsert_static(urls)
     self.static_cache_dict = {}
 
-    # 备份下当前抓包数据结果
-    self.simple_folder_backup.watch_diff_backup()
+    # 批量写入完成后关闭连接，触发 SQLite 自动 checkpoint 将 -wal 合并回主库
+    # mitmproxy 进程为"用完即关"，运行期间不再访问 DB
+    self.mock_db.close()
 
   # 检查请求是否需要被抓取保存
   def __check_response(self, request, response):

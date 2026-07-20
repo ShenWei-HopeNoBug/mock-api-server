@@ -3,7 +3,6 @@ import time
 import os
 from config.work_file import (
   MOCK_SERVER_CONFIG_PATH,
-  API_CACHE_DATA_PATH,
   STATIC_DIR,
 )
 from config.default import (DEFAULT_HTTP_PARAMS_MATCH_MODE)
@@ -13,7 +12,7 @@ from lib.decorate import create_thread
 from lib.download_lib import get_static_match_regexp
 from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
-from lib.app_lib import get_mock_api_data_list
+from lib.app_lib import get_mock_api_data_list, _close_mock_db
 from lib.utils_lib import (
   JsonFormat,
   create_md5,
@@ -35,7 +34,6 @@ class MockServer:
   def __init__(self, work_dir='.', port=5000, response_delay=0, static_load_speed=0):
     # 工作目录相关配置
     self.work_dir = work_dir
-    self.api_cache_path = r'{}{}'.format(work_dir, API_CACHE_DATA_PATH)
     self.static_url_path = STATIC_DIR
     # ip 相关配置
     self.ip_address = get_ip_address()
@@ -117,6 +115,8 @@ class MockServer:
     api_dict = {}
     # 所有的 mock 数据列表
     mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
+    # 查询完毕，关闭 DB 连接（触发 checkpoint，释放文件锁）
+    _close_mock_db(work_dir=self.work_dir)
     # 行遍历
     for row_data in mock_api_data_list:
       response = row_data.get('response')
@@ -145,37 +145,13 @@ class MockServer:
         response = assets_reg.sub(assets_replace_method, response)
       api_dict[request_key][response_key] = json.loads(response)
 
-    # 写入生成的 api 映射数据
-    with open(self.api_cache_path, 'w', encoding='utf-8') as fl:
-      fl.write(JsonFormat.dumps(api_dict))
-
     return api_dict
-
-  # 获取本地服务 api 数据字典
-  def get_server_api_dict(self, read_cache=False):
-    # 不读取缓存文件，重新生成一份 api_dict
-    if not read_cache:
-      return self.create_api_dict()
-
-    # 本地不存在已经生成的 api 映射表，当场生成一份
-    if not os.path.exists(self.api_cache_path):
-      return self.create_api_dict()
-
-    # 读取生成的 api 映射数据
-    with open(self.api_cache_path, 'r', encoding='utf-8') as fl:
-      data = fl.read()
-      try:
-        api_dict = json.loads(data)
-        return api_dict
-      except Exception as e:
-        print('@@get_server_api_dict error', e)
-        return self.create_api_dict()
 
   # 启动本地 mock 服务
   @create_thread
-  def start_server(self, read_cache=False):
+  def start_server(self):
     print('>' * 10, '本地 mock 服务启动...')
-    api_dict = self.get_server_api_dict(read_cache)
+    api_dict = self.create_api_dict()
     # 工作目录的绝对路径
     root_path = os.path.abspath(self.work_dir)
     static_folder = self.static_url_path.lstrip('/')

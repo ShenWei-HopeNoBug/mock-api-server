@@ -1,19 +1,15 @@
 # -*- coding: utf-8 -*-
 import os
 import webbrowser
-import pandas as pd
-import json
 from pathlib import Path
 
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
 from PyQt5.QtCore import QSharedMemory
-from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)
-from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS
+from lib.db_lib import MockDB
+from config.work_file import DB_DATA_PATH
 from lib.decorate import error_catch
 from lib.utils_lib import (
   JsonFormat,
-  generate_uuid,
-  fix_dict_field,
   find_process,
   create_md5,
   is_local_server_running,
@@ -23,6 +19,30 @@ import psutil
 import win32gui
 import win32process
 import win32con
+
+# 模块级懒加载单例缓存，以 work_dir 绝对路径为 key
+_mock_db_cache: dict = {}
+
+
+def _get_mock_db(work_dir: str = '.') -> MockDB:
+  cache_key = os.path.abspath(work_dir)
+  if cache_key not in _mock_db_cache:
+    db_path = f'{work_dir}{DB_DATA_PATH}'
+    _mock_db_cache[cache_key] = MockDB(db_path)
+  return _mock_db_cache[cache_key]
+
+
+def _close_mock_db(work_dir='.'):
+  cache_key = os.path.abspath(work_dir)
+  mock_db = _mock_db_cache.pop(cache_key, None)
+  if mock_db:
+    mock_db.close()
+
+
+def close_all_mock_db():
+  for mock_db in _mock_db_cache.values():
+    mock_db.close()
+  _mock_db_cache.clear()
 
 
 @error_catch(error_msg='检查应用是否已经在运行异常', error_return=False)
@@ -141,56 +161,14 @@ def get_process_windows(pid):
 
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
 def get_mitmproxy_api_data_list(work_dir='.', reverse=False):
-  api_list = []
-  # 数据源地址
-  mitmproxy_data_path = f'{work_dir}{MITMPROXY_DATA_PATH}'
-  if not os.path.exists(mitmproxy_data_path):
-    return []
-  # 读取抓包数据
-  data = pd.read_json(mitmproxy_data_path)
-
-  # 行遍历
-  for row_index, row_data in data.iterrows():
-    record = fix_dict_field(dict_data=dict(row_data), fields=MITMPROXY_DATA_FIELDS)
-    api_list.append(record)
-
-  # 是否倒序
-  if reverse:
-    api_list = api_list[::-1]
-
-  return api_list
+  mock_db: MockDB = _get_mock_db(work_dir)
+  return mock_db.get_api_list(type='MITMPROXY', reverse=reverse)
 
 
 @error_catch(error_msg='读取 user api 数据失败', error_return=[])
 def get_user_api_data_list(work_dir='.', reverse=False):
-  # 读取用户手动 mock 的接口数据
-  user_data_path = '{}{}'.format(work_dir, USER_API_DATA_PATH)
-  if not os.path.exists(user_data_path):
-    return []
-
-  with open(user_data_path, 'r', encoding='utf-8') as fl:
-    user_api_list = json.loads(fl.read())
-    # 是否倒序
-    if reverse:
-      user_api_list = user_api_list[::-1]
-    return user_api_list
-
-
-@error_catch(error_msg='保存 user api 数据失败', error_return=False)
-def save_user_api_data_list(work_dir='.', user_api_list=None) -> bool:
-  # 入参校验
-  if type(user_api_list) != list:
-    return False
-
-  user_data_path = '{}{}'.format(work_dir, USER_API_DATA_PATH)
-  if not os.path.exists(user_data_path):
-    return False
-
-  with open(user_data_path, 'w', encoding='utf-8') as fl:
-    data = JsonFormat.dumps(user_api_list)
-    fl.write(data)
-
-  return True
+  mock_db: MockDB = _get_mock_db(work_dir)
+  return mock_db.get_api_list(type='USER', reverse=reverse)
 
 
 @error_catch(error_msg='更新 user api 数据失败', error_return=False)
@@ -203,30 +181,8 @@ def update_user_api_data(work_dir='.', update_data=None) -> bool:
   if not update_id:
     return False
 
-  user_api_list = get_user_api_data_list(work_dir=work_dir)
-  index = -1
-  # 查找待更新数据
-  for i, user_api in enumerate(user_api_list):
-    o_id = user_api.get('id', '')
-    if update_id == o_id:
-      index = i
-      break
-
-  if index == -1:
-    return False
-
-  o_data = user_api_list[index]
-  user_api_list[index] = {
-    "id": o_data.get('id'),
-    "type": update_data.get('type') or o_data.get('type'),
-    "url": update_data.get('url') or o_data.get('url'),
-    "method": update_data.get('method') or o_data.get('method'),
-    "params": update_data.get('params') or o_data.get('params'),
-    "response": update_data.get('response') or o_data.get('response'),
-  }
-
-  # 更新数据
-  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
+  mock_db: MockDB = _get_mock_db(work_dir)
+  return mock_db.update_api(update_data)
 
 
 @error_catch(error_msg='新增 user api 数据失败', error_return=False)
@@ -234,17 +190,16 @@ def add_user_api_data(work_dir='.', add_data=None) -> bool:
   if type(add_data) != dict:
     return False
 
-  user_api_list = get_user_api_data_list(work_dir=work_dir)
-  data = {
-    "id": generate_uuid(),
+  record = {
     "type": add_data.get('type', 'USER'),
     "url": add_data.get('url', ''),
     "method": add_data.get('method', 'GET'),
     "params": add_data.get('params', JsonFormat.dumps({})),
     "response": add_data.get('response', JsonFormat.dumps({})),
   }
-  user_api_list.append(data)
-  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
+  mock_db: MockDB = _get_mock_db(work_dir)
+  mock_db.upsert_api(record)
+  return True
 
 
 @error_catch(error_msg='删除 user api 数据失败', error_return=False)
@@ -252,26 +207,15 @@ def delete_user_api_data(work_dir='.', delete_id: str = '') -> bool:
   if type(delete_id) != str or not delete_id:
     return False
 
-  user_api_list = get_user_api_data_list(work_dir=work_dir)
-  index = -1
-  # 查找待更新数据
-  for i, user_api in enumerate(user_api_list):
-    api_id = user_api.get('id', '')
-    if api_id == delete_id:
-      index = i
-      break
-
-  if index == -1:
-    return False
-
-  del user_api_list[index]
-  return save_user_api_data_list(work_dir=work_dir, user_api_list=user_api_list)
+  mock_db: MockDB = _get_mock_db(work_dir)
+  return mock_db.delete_api(delete_id)
 
 
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
 def get_mock_api_data_list(work_dir='.'):
-  api_list = get_mitmproxy_api_data_list(work_dir=work_dir)
-  api_list.extend(get_user_api_data_list(work_dir=work_dir))
+  mock_db: MockDB = _get_mock_db(work_dir)
+  api_list = mock_db.get_api_list(type='MITMPROXY')
+  api_list.extend(mock_db.get_api_list(type='USER'))
 
   return api_list
 
@@ -311,22 +255,10 @@ def open_operation_manual_html(root_dir='.'):
   return True
 
 
-# 修复异常的抓包数据
+# 修复异常的抓包数据（SQLite schema 已保证数据完整性，改为 no-op）
 @error_catch(error_msg='修复异常抓包数据失败', error_return=False)
 def fix_user_api_data(work_dir='.') -> bool:
-  user_api_list = get_user_api_data_list(work_dir=work_dir)
-  update_list = []
-  for user_api in user_api_list:
-    update_list.append({
-      "id": user_api.get('id', generate_uuid()),
-      "type": user_api.get('type'),
-      "url": user_api.get('url'),
-      "method": user_api.get('method'),
-      "params": user_api.get('params'),
-      "response": user_api.get('response'),
-    })
-
-  return save_user_api_data_list(work_dir=work_dir, user_api_list=update_list)
+  return True
 
 
 @error_catch(error_msg='批量设置菜单元素配置失败')
