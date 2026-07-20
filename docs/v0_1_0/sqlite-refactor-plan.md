@@ -89,9 +89,13 @@ PRAGMA user_version = 1;
 >
 > **mock_server 进程特殊说明**：`create_api_dict` 仅启动时读一次 DB，之后 Flask 请求只查内存 `api_dict`，无运行时 DB 访问，无需考虑 Flask `threaded=True` 的多线程问题。**读取完成后立即 `close()` 连接**，既释放文件锁，又触发 SQLite 自动 checkpoint 合并 `-wal` 文件，避免该进程退出后残留 `-wal`。
 >
+> **mock_server 进程连接关闭方式**：`mock_server` 进程通过 `app_lib.get_mock_api_data_list(work_dir=self.work_dir)` 间接调用 `app_lib._get_mock_db(work_dir)` 获取缓存的 `MockDB` 实例，因此 `close()` 也需通过 `app_lib` 暴露的接口完成。在 `app_lib.py` 中新增 `_close_mock_db(work_dir)` 函数，从 `_mock_db_cache` 中取出实例并 `close()`，同时从缓存中移除。`create_api_dict` 在遍历完 `mock_api_data_list` 后、写入 `api_dict` 完成前调用 `app_lib._close_mock_db(self.work_dir)`，确保连接在进程退出前已关闭，不依赖进程终止时的隐式清理。
+>
 > **mitmproxy 进程特殊说明**：`done()` 批量写入完成后同样 `close()` 连接，触发自动 checkpoint。两个子进程均为"用完即关"，运行期间只有主进程持有长期连接。
 >
 > **主进程 `app_lib.py` 中 `MockDB` 实例的获取方式**：`app_lib.py` 中的 `get_mitmproxy_api_data_list` / `get_user_api_data_list` / `get_mock_api_data_list` / `add_user_api_data` / `update_user_api_data` / `delete_user_api_data` 等函数签名保持不变（均接收 `work_dir` 参数），函数内部需要获取 `MockDB` 实例来执行 DB 操作。采用**模块级懒加载单例**：在 `app_lib.py` 模块级维护一个 `_mock_db_cache: dict`，以 `work_dir` 的**绝对路径**为 key 缓存 `MockDB` 实例，首次调用时创建，后续复用。这样同一 `work_dir` 下所有函数共享同一个 `MockDB` 连接（即同一个进程级单例），与上方"进程级单例"策略一致；`download_lib.py` / `server_lib.py` 等通过 `app_lib.py` 函数间接访问 DB 的调用方无需感知 `MockDB` 的存在。`request_catch.py` / `mock_server.py` 等子进程各自直接实例化 `MockDB`，不经过此缓存。
+>
+> **主进程连接退出时关闭**：主进程的 `MockDB` 连接为长期存活的单例，需在应用退出时显式 `close()` 以触发最终 checkpoint。在 `app_lib.py` 中新增 `close_all_mock_db()` 函数，遍历 `_mock_db_cache` 中所有实例执行 `close()` 并清空缓存。`qt_win/app.py` 的 `closeEvent` 中在用户确认退出后、设置 `client_exit` 全局变量前调用 `close_all_mock_db()`，确保 `-wal` 文件在进程退出前被合并回主库。
 
 ## 新增文件
 
@@ -272,34 +276,25 @@ def update_api(self, record):
 - 保留 `MITMPROXY_DATA_PATH` / `USER_API_DATA_PATH` / `STATIC_DATA_PATH` 常量（暂不删，避免其他地方引用报错）
 
 ### 2. `lib/work_file_lib.py`
-- `create_work_files` 不再创建上述四个 JSON 文件
-- 新增确保 `mock.db` 初始化的逻辑（通过 `MockDB` 实例化）
-- `check_work_files` 增加对 `mock.db` 的存在性检查：
-  ```python
-  def check_work_files(work_dir=DEFAULT_WORK_DIR):
-    dir_path_list = [r'{}{}'.format(
-      work_dir, detail.get('path')
-    ) for detail in WORK_DIR_DICT.values()]
-    file_path_list = [r'{}{}'.format(
-      work_dir, detail.get('path')
-    ) for detail in WORK_FILE_DICT.values()]
-    check_path_list = [work_dir, *dir_path_list, *file_path_list]
+- `create_work_files` 不再创建上述四个 JSON 文件，**也不创建 `mock.db`**
+- `check_work_files` **不检查 `mock.db`**，保持原有逻辑不变（仅检查 `WORK_DIR_DICT` 中的目录 + `WORK_FILE_DICT` 中的文件）
+- `mock.db` 由首次 `MockDB` 实例化自然创建（`MockDB.__init__` 中 `CREATE TABLE IF NOT EXISTS` 保证建表幂等），`data/` 目录已由 `WORK_DIR_DICT` 中的 `DATA_DIR` 在 `create_work_files` 中创建，`MockDB` 实例化时目录已就绪
 
-    # 单独检查 mock.db（不在 WORK_FILE_DICT 中，不能用 JSON 写入逻辑创建）
-    db_path = r'{}{}'.format(work_dir, DB_DATA_PATH)
-    check_path_list.append(db_path)
-
-    valid = True
-    for path in check_path_list:
-      if not os.path.exists(path):
-        valid = False
-        break
-
-    return valid
-  ```
-  > **`mock.db` 不加入 `WORK_FILE_DICT` 的原因**：`WORK_FILE_DICT` 的创建逻辑（`create_work_files`）对每个文件执行 `JsonFormat.dumps(default_data)` 写入 JSON 内容，`mock.db` 是 SQLite 二进制文件，不能用 JSON 方式创建。因此 `check_work_files` 中单独追加 `db_path` 做存在性检查，`create_work_files` 中单独通过 `MockDB` 实例化来创建（`MockDB.__init__` 中 `CREATE TABLE IF NOT EXISTS` 保证建表幂等）。
+  > **`create_work_files` 不实例化 `MockDB` 的原因**
   >
-  > **`check_work_files` 的影响范围**：`qt_win/app.py` 的 `check_and_create_work_files` 依赖此函数判断是否弹窗提示用户创建工作目录文件。若不补充 `mock.db` 检查，用户在工作目录中手动删除 `mock.db` 后 `check_work_files` 仍返回 `True`，不会触发创建流程，后续 `MockDB` 实例化时才发现文件缺失。补充后可在入口处提前发现并引导用户修复。
+  > `create_work_files` 被**三个进程**调用（`request_catch.py` 的 `init()`、`mock_server.py` 的 `init()`、`qt_win/app.py` 的 `check_and_create_work_files`）。若在此函数中实例化 `MockDB` 创建 `mock.db`，会产生一个**不被管理的临时连接**：
+  > - 在 `request_catch.py` 中，`init()` 先调 `create_work_files`（创建连接 A），随后 `__init__` 又创建 `self.mock_db = MockDB(...)`（连接 B），连接 A 泄漏且无法被外部 `close()`
+  > - 在 `mock_server.py` 中同理，`create_work_files` 创建的连接与后续 `app_lib._get_mock_db` 缓存的连接是不同实例，违反进程级单例策略
+  > - 三个进程各自创建临时连接，增加跨进程文件锁竞争
+  >
+  > 改为仅确保 `data/` 目录存在（已由 `WORK_DIR_DICT` 的 `DATA_DIR` 项处理），让各进程首次 `MockDB` 实例化时自然建库，连接由进程级单例管理，无泄漏风险。
+
+  > **`check_work_files` 不检查 `mock.db` 的原因**
+  >
+  > `mock.db` 的生命周期由 `MockDB` 自管理：`MockDB.__init__` 中 `CREATE TABLE IF NOT EXISTS` + `PRAGMA user_version` 保证建库幂等，文件不存在时自动创建，已存在时跳过建表。这与 JSON 配置文件不同——JSON 文件需要预置默认内容（`WORK_FILE_DICT` 的 `default` 字段），缺失时必须通过 `create_work_files` 写入；`mock.db` 不需要预置数据，空库即为合法初始状态。因此 `check_work_files` 不检查 `mock.db`：
+  > - **首次运行**：`check_work_files` 检查目录和 JSON 配置文件不存在 → 返回 `False` → 弹窗 → 用户确认 → `create_work_files` 创建目录和 JSON 文件 → 后续首次 `MockDB` 实例化自动创建 `mock.db`
+  > - **用户手动删除 `mock.db`**：`check_work_files` 返回 `True`（不检查 `mock.db`），不弹窗 → 后续首次 `MockDB` 实例化自动重建 `mock.db`（空库），数据从备份恢复或重新抓包
+  > - **用户删除 `data/` 目录**：`check_work_files` 返回 `False`（`DATA_DIR` 不存在）→ 弹窗 → `create_work_files` 重建 `data/` 目录 → 后续 `MockDB` 实例化创建 `mock.db`
 
 ### 3. `module/request_catch.py`
 - `__init__`：`self.save_path` / `self.static_save_path` → `self.db_path`，初始化 `self.mock_db = MockDB(self.db_path)`
@@ -376,6 +371,21 @@ def update_api(self, record):
 - `delete_user_api_data` → `mock_db.delete_api(api_id)`
 - `fix_user_api_data` → 改为 no-op 直接返回 `True`（SQLite schema 的 `NOT NULL DEFAULT` + `PRIMARY KEY` 已保证数据完整性，不存在字段缺失/id 缺失问题；保留函数签名避免前端 `fix_mock_data` 事件调用报错，后续前端移除按钮时再一并清理）
 - 移除 `import pandas`、`from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS`、`from lib.utils_lib import fix_dict_field`
+- 新增 `_close_mock_db(work_dir)` 函数，从 `_mock_db_cache` 中取出对应 `MockDB` 实例并 `close()`，同时从缓存中移除。供 `mock_server` 进程的 `create_api_dict` 在读取完成后调用，确保子进程连接及时关闭：
+  ```python
+  def _close_mock_db(work_dir='.'):
+    cache_key = os.path.abspath(work_dir)
+    mock_db = _mock_db_cache.pop(cache_key, None)
+    if mock_db:
+      mock_db.close()
+  ```
+- 新增 `close_all_mock_db()` 函数，遍历 `_mock_db_cache` 关闭所有缓存的 `MockDB` 实例并清空缓存。供主进程 `qt_win/app.py` 的 `closeEvent` 在应用退出时调用，触发最终 checkpoint：
+  ```python
+  def close_all_mock_db():
+    for mock_db in _mock_db_cache.values():
+      mock_db.close()
+    _mock_db_cache.clear()
+  ```
 - 函数签名保持不变，调用方无需改动
 
 ### 6. `module/mock_server.py`
@@ -415,6 +425,16 @@ def update_api(self, record):
   - `response_key` 通过现有 `__get_params_json_string` + `__get_response_dict_key` 实时计算，自动适配 `http_params_match_mode`
   - `route` 始终从 `url` 实时计算（`remove_url_domain` + `remove_url_query`）
   - 移除 `api_cache.json` 文件写入（`with open(self.api_cache_path, ...) → fl.write(...)`）
+  - **读取完成后关闭 DB 连接**：`create_api_dict` 在遍历完 `mock_api_data_list` 后调用 `app_lib._close_mock_db(self.work_dir)`，关闭并移除 `_mock_db_cache` 中的实例。`close()` 触发 SQLite 自动 checkpoint，将 `-wal` 合并回主库，避免该进程退出后残留 `-wal` 文件。关闭连接放在数据遍历完成之后、`api_dict` 构建完成之前，确保 DB 读取已全部结束：
+    ```python
+    api_dict = {}
+    mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
+    # 查询完毕，关闭 DB 连接（触发 checkpoint，释放文件锁）
+    _close_mock_db(work_dir=self.work_dir)
+    for row_data in mock_api_data_list:
+      ...
+    ```
+    > **关闭时机在遍历前而非遍历后**：`get_mock_api_data_list` 返回的是 `list`（已在内存中），`_close_mock_db` 后遍历 `mock_api_data_list` 不再访问 DB，数据完整无影响。将 `close()` 提前到遍历前而非 `create_api_dict` 末尾，可更早释放文件锁，减少与其他进程的锁竞争窗口。
 - `get_server_api_dict(read_cache)` → **整个方法移除**，`start_server` 直接调用 `create_api_dict()`
 - `start_server(self, read_cache=False)` → 移除 `read_cache` 参数，签名改为 `start_server(self)`
 - 移除 `API_CACHE_DATA_PATH` 导入
@@ -435,6 +455,25 @@ def update_api(self, record):
 - 移除两处 `self.cacheCheckBox.setDisabled(disabled)` 调用
 - `server_config` 字典中移除 `"read_cache": self.cache` 字段
 - `server_process_start` 函数中移除 `read_cache = server_config.get('read_cache', False)`，`server.start_server()` 调用去掉 `read_cache` 参数
+- **新增 `close_all_mock_db` 导入与调用**：在 `closeEvent` 中用户确认退出后、设置 `client_exit` 全局变量前，调用 `close_all_mock_db()` 关闭主进程所有 `MockDB` 连接，触发最终 checkpoint 将 `-wal` 合并回主库：
+  ```python
+  from lib.app_lib import close_all_mock_db
+
+  def closeEvent(self, event: QCloseEvent):
+    reply = QMessageBox.question(...)
+    if reply == QMessageBox.Yes:
+      self.stop_catch_server()
+      self.stop_server()
+      self.stop_app_server()
+      # 关闭主进程所有 DB 连接，触发最终 checkpoint
+      close_all_mock_db()
+      GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
+      time.sleep(0.5)
+      event.accept()
+    else:
+      event.ignore()
+  ```
+  > **`close_all_mock_db` 的调用位置**：放在 `stop_catch_server()` / `stop_server()` / `stop_app_server()` 之后，确保子进程已停止、不再有并发 DB 写入；放在 `GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)` 之前，确保 checkpoint 在进程退出前完成。
 
 ### 8. `lib/server_lib.py`
 - `get_static_data_list` → 内部改 `mock_db.get_static_list()`，签名不变
