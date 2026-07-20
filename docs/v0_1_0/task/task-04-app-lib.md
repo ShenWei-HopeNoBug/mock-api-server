@@ -57,7 +57,7 @@ return api_list
 
 > 原 JSON 方案中同一 `url+method+params` 的记录在内存缓冲阶段已去重，文件中无重复记录，排序方向不影响正确性。SQLite 方案中 DB 会累积跨 session 的重复记录（同 `url+method+params`，不同 `id`），排序方向直接影响覆盖语义，必须用 `ASC` 排序。
 
-- `save_user_api_data_list` → 废弃
+- `save_user_api_data_list` → **删除**（重构后 `update_user_api_data` / `add_user_api_data` / `delete_user_api_data` / `fix_user_api_data` 均改用 `MockDB` 方法，不再通过此函数全量覆写 JSON 文件，无调用方）
 - `add_user_api_data` → 构造 record（不含 id）→ `mock_db.upsert_api(record)`（id 由 MockDB 内部生成），调用后 `return True`，保持原 `bool` 返回类型不变（`upsert_api` 返回的 id 不透传给前端）
 - `update_user_api_data` → 构造 record（含 id）→ `mock_db.update_api(record)`
 - `delete_user_api_data` → `mock_db.delete_api(api_id)`
@@ -66,8 +66,11 @@ return api_list
 ## 移除的导入
 
 - 移除 `import pandas`
+- 移除 `import json`（原 `get_user_api_data_list` / `save_user_api_data_list` 使用 `json.loads` / `json.dumps`，重构后改用 `MockDB`，不再直接操作 JSON）
+- 移除 `from config.work_file import (MITMPROXY_DATA_PATH, USER_API_DATA_PATH)`（原 `get_mitmproxy_api_data_list` / `get_user_api_data_list` / `save_user_api_data_list` 使用，重构后无引用）
 - 移除 `from config.enum.MITMPROXY import MITMPROXY_DATA_FIELDS`
 - 移除 `from lib.utils_lib import fix_dict_field`
+- 移除 `from lib.utils_lib import generate_uuid`（原 `add_user_api_data` / `fix_user_api_data` 使用，重构后 id 由 `MockDB` 内部生成，不再调用）
 
 ## 新增连接关闭函数
 

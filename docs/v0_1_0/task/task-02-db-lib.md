@@ -280,7 +280,8 @@ with self._lock:
   conn = self._conn
   conn.execute('BEGIN TRANSACTION')
   try:
-    conn.executemany(sql, records)
+    # records 为字符串列表（url 列表），executemany 要求每条记录为序列，需包装为单元素 tuple
+    conn.executemany(sql, [(url,) for url in records])
     conn.execute('COMMIT')
   except Exception:
     conn.execute('ROLLBACK')
@@ -292,3 +293,4 @@ with self._lock:
 - 单事务保证原子性，避免部分写入的中间状态
 - `executemany` 批量执行，缩短跨进程锁竞争窗口
 - commit 后执行 `PRAGMA wal_checkpoint(PASSIVE)` 合并 `-wal`
+- **`executemany` 参数包装**：调用方（`request_catch.done()`）传入的是 `list[str]`（url 字符串列表），`sqlite3.executemany` 要求每条记录为序列（tuple/list），若直接传字符串会被当作字符序列——第一个字符被当作 `url` 参数写入，导致数据损坏。因此内部用 `[(url,) for url in records]` 将每个 url 包装为单元素 tuple

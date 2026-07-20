@@ -19,6 +19,8 @@
 - `WORK_FILE_DICT` 中移除 `MITMPROXY_DATA` / `USER_API_DATA` / `STATIC_DATA` / `API_CACHE_DATA` 四项
   > 此时 `app_lib.py` / `mitmproxy_lib.py` / `server_lib.py` / `request_catch.py` / `mock_server.py` 均已改为使用 `MockDB`，不再读写这些 JSON 文件，可安全移除。
 - 保留 `MITMPROXY_DATA_PATH` / `USER_API_DATA_PATH` / `STATIC_DATA_PATH` 常量（暂不删，避免其他地方引用报错）
+- 移除 `MITMPROXY_FILE_PATH` / `STATIC_FILE_NAME` / `API_CACHE_FILE_NAME` 三个"文件名"常量
+  > `MITMPROXY_FILE_PATH` / `STATIC_FILE_NAME` 仅被 `request_catch.py` 的 `SimpleFolderBackup` 引用（task-06 已移除）；`API_CACHE_FILE_NAME` 仅用于构造 `API_CACHE_DATA_PATH`，而 `API_CACHE_DATA_PATH` 在本任务中已从 `WORK_FILE_DICT` 移除且 `mock_server.py` 不再引用（task-07 已移除），三者均无引用方，可安全删除
 
 ## `lib/work_file_lib.py`（从 task-03 延后）
 

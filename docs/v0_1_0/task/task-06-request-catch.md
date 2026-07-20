@@ -92,3 +92,15 @@ def done(self):
 - 移除 `init()` 中 `self.simple_folder_backup.watch_diff_backup()` 调用
 - 移除 `done()` 中 `self.simple_folder_backup.watch_diff_backup()` 调用
 - 原因：WAL 模式下 `copytree` 复制 `mock.db` + `-wal` + `-shm` 侧车文件无法保证一致性，后续单独用 SQLite 原生 `backup()` API 或 `VACUUM INTO` 实现一致性快照
+
+## 移除的导入
+
+`SimpleFolderBackup` 移除后，`from config.work_file import (...)` 中以下常量不再有引用，需一并清理：
+
+- 移除 `MITMPROXY_DATA_PATH`（原 `self.save_path` 使用，已移除）
+- 移除 `STATIC_DATA_PATH`（原 `self.static_save_path` 使用，已移除）
+- 移除 `DATA_DIR`（原 `SimpleFolderBackup` 的 `source_dir` 使用，已移除）
+- 移除 `BACKUP_DIR`（原 `SimpleFolderBackup` 的 `backup_dir` 使用，已移除）
+- 移除 `MITMPROXY_FILE_PATH`（原 `SimpleFolderBackup` 的 `watch_backup_files` 使用，已移除）
+- 移除 `STATIC_FILE_NAME`（同上）
+- 保留 `MITMPROXY_CONFIG_PATH`（`load_mitmproxy_config` 仍使用）
