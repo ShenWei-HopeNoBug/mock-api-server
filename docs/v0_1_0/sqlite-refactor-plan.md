@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS api_data (
   params_sorted  TEXT NOT NULL DEFAULT '{}',          -- 排序后 json string（仅用于自然键去重）
   response       TEXT NOT NULL DEFAULT '{}',          -- json string
   route          TEXT NOT NULL DEFAULT '',            -- 去域名后的路径（仅用于自然键去重索引，读取时实时计算）
-  created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  updated_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
+  updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
 
 -- 自然键唯一索引：DB 层保证去重，(type, route, method, params_sorted) 相同则覆盖
@@ -32,17 +32,25 @@ CREATE INDEX IF NOT EXISTS idx_api_type  ON api_data(type);
 CREATE TABLE IF NOT EXISTS static_data (
   url         TEXT PRIMARY KEY,
   type        TEXT NOT NULL DEFAULT 'MITMPROXY',
-  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
+  updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
 ```
+
+> **`created_at` / `updated_at` 使用毫秒精度的原因**
+>
+> `datetime('now','localtime')` 精度仅到秒，批量写入时多条记录可能取到相同时间戳，导致 UI 列表顺序抖动。
+> 改用 `strftime('%Y-%m-%d %H:%M:%f','now','localtime')` 将精度提升到毫秒（`%f` 输出 `SSS` 毫秒部分），输出格式如 `2024-01-15 14:30:22.123`，
+> 大幅降低同时间戳碰撞概率。不使用 `datetime('now','localtime','subsec')` 的原因：`subsec` 修饰符需 SQLite ≥ 3.43.0（2023-08），
+> 本项目运行环境为 Python 3.8，其捆绑的 SQLite 版本通常 < 3.43，`strftime` 的 `%f` 格式符在所有 SQLite 3.x 版本中均支持，兼容性更好。
+> 毫秒精度仍非绝对唯一，排序 tiebreaker（`id DESC`）保留不变。
 
 > **`static_data` 表 `updated_at` 列的原因**
 >
 > `static_data` 以 `url` 为 PRIMARY KEY，重复抓取同一 URL 时若用 `INSERT OR REPLACE` 会删除旧行再插入新行，
 > `created_at` 被重置为当前时间，导致该 URL 在列表中"跳到最新"。改用 `ON CONFLICT(url) DO UPDATE SET updated_at=...`
 > 显式保留原 `created_at`，仅刷新 `updated_at`，保证列表顺序稳定。`get_static_list` 按 `created_at DESC, url DESC`
-> 排序，追加 `url` 作为 tiebreaker 避免同秒记录顺序抖动（与 `api_data` 排序稳定性策略一致）。
+> 排序，追加 `url` 作为 tiebreaker 避免同毫秒记录顺序抖动（与 `api_data` 排序稳定性策略一致）。
 
 - WAL 模式：`PRAGMA journal_mode=WAL`
 - `api_cache.json` 取消，mock 服务启动时查库构建内存映射
@@ -103,7 +111,7 @@ CREATE TABLE IF NOT EXISTS static_data (
 > 与 `batch_upsert_api` 策略一致，将所有静态资源记录包裹在一个事务中批量执行：
 > ```sql
 > INSERT INTO static_data (url, type) VALUES (?, 'MITMPROXY')
-> ON CONFLICT(url) DO UPDATE SET updated_at=datetime('now','localtime')
+> ON CONFLICT(url) DO UPDATE SET updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
 > ```
 > ```python
 > with self._lock:
@@ -141,7 +149,7 @@ CREATE TABLE IF NOT EXISTS static_data (
 > ```
 > SQL：`SELECT id, type, url, method, params, params_sorted, response, route, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at DESC, id DESC`
 >
-> **排序稳定性说明**：`created_at` 精度到秒（`datetime('now','localtime')`），批量写入时多条记录可能取到相同的 `created_at` 值。SQLite 不保证相同排序键的行顺序稳定，每次查询返回的顺序可能不同，导致 UI 列表顺序抖动。追加 `id DESC` 作为 tiebreaker，`id` 为 UUID 全局唯一，保证相同 `created_at` 的行有确定的排列顺序。`reverse=True` 时改为 `ORDER BY created_at ASC, id ASC`，保持双向排序的对称性。
+> **排序稳定性说明**：`created_at` 精度到毫秒（`strftime('%Y-%m-%d %H:%M:%f','now','localtime')`），大幅降低批量写入时多条记录取到相同 `created_at` 值的概率。但毫秒仍非绝对唯一——高并发或批量 `executemany` 极快写入时仍可能碰撞，因此追加 `id DESC` 作为 tiebreaker，`id` 为 UUID 全局唯一，保证相同 `created_at` 的行有确定的排列顺序。`reverse=True` 时改为 `ORDER BY created_at ASC, id ASC`，保持双向排序的对称性。
 > 相比原 JSON 数据格式新增了 `params_sorted` / `route` / `created_at` / `updated_at` 四个字段。
 > 前端 / 预览页面只取 `id` / `type` / `url` / `method` / `params` / `response`，多出的字段不影响渲染。
 > `mock_server.create_api_dict` **不使用** DB 存储的 `route` 字段，始终从 `url` 实时计算 `route`，避免 `remove_url_domain` / `remove_url_query` 逻辑变更后旧数据 `route` 值不一致。`route` 列仅用于自然键唯一索引的去重，不作为读取字段。
@@ -188,7 +196,7 @@ ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
   url=excluded.url, method=excluded.method,
   params=excluded.params, params_sorted=excluded.params_sorted,
   response=excluded.response, route=excluded.route,
-  updated_at=datetime('now','localtime')
+  updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
 ```
 > 冲突时全字段覆盖，确保 DB 中始终是最新一次抓取的完整数据，避免部分字段更新导致的新旧数据混杂。`type` 固定为 `'MITMPROXY'` 无需更新，`created_at` 保留原值维持列表顺序稳定，仅刷新 `updated_at`。
 
@@ -221,7 +229,7 @@ ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
   type=excluded.type, url=excluded.url, method=excluded.method,
   params=excluded.params, params_sorted=excluded.params_sorted,
   response=excluded.response, route=excluded.route,
-  updated_at=datetime('now','localtime')
+  updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
 ```
 - 自然键不冲突 → 插入新记录，`created_at` 取默认值（当前时间）
 - 自然键冲突 → 覆盖旧记录的 type/url/method/params/response/route，**`created_at` 保留原值**，仅刷新 `updated_at`
@@ -234,7 +242,7 @@ ON CONFLICT(type, route, method, params_sorted) DO UPDATE SET
 -- 1. 按 id 更新
 UPDATE api_data SET
   type=?, url=?, method=?, params=?, params_sorted=?, response=?, route=?,
-  updated_at=datetime('now','localtime')
+  updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
 WHERE id=?
 
 -- 2. 若触发 IntegrityError（自然键冲突），先删除与当前编辑记录自然键相同但 id 不同的旧记录
