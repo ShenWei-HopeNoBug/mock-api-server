@@ -4,6 +4,7 @@ import threading
 import contextlib
 from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
+from lib.logger_lib import APP_LOGGER
 
 # 当前 schema 版本
 CURRENT_SCHEMA_VERSION = 1
@@ -27,10 +28,15 @@ class MockDB:
     self._conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
     # schema 版本管理
     self._check_schema_version()
+    APP_LOGGER.info(f'MockDB 初始化完成: {db_path}')
 
   def _init_schema(self):
-    schema_sql = read_text('schema', f'v{CURRENT_SCHEMA_VERSION}.sql')
-    self._conn.executescript(schema_sql)
+    try:
+      schema_sql = read_text('schema', f'v{CURRENT_SCHEMA_VERSION}.sql')
+      self._conn.executescript(schema_sql)
+    except Exception as e:
+      APP_LOGGER.error(f'MockDB 建表失败 (schema v{CURRENT_SCHEMA_VERSION}): {e}')
+      raise
 
   def _check_schema_version(self):
     row = self._conn.execute('PRAGMA user_version').fetchone()
@@ -42,7 +48,7 @@ class MockDB:
     elif db_version < CURRENT_SCHEMA_VERSION:
       pass
     else:
-      print(f'@@MockDB: 数据库版本({db_version})比代码版本({CURRENT_SCHEMA_VERSION})新，降级运行可能存在风险')
+      APP_LOGGER.warning(f'MockDB 数据库版本({db_version})比代码版本({CURRENT_SCHEMA_VERSION})新，降级运行可能存在风险')
 
   # 执行 PASSIVE checkpoint，供批量写入后调用
   def _wal_checkpoint_passive(self):
@@ -57,8 +63,9 @@ class MockDB:
       try:
         yield conn
         conn.execute('COMMIT')
-      except Exception:
+      except Exception as e:
         conn.execute('ROLLBACK')
+        APP_LOGGER.error(f'MockDB 事务回滚: {e}')
         raise
 
   # 新增插入（纯 INSERT，不去重），返回生成的 id
@@ -94,6 +101,7 @@ class MockDB:
     try:
       with self._transaction() as conn:
         conn.executemany(sql, data)
+      APP_LOGGER.info(f'MockDB batch_upsert_api 写入 {len(records)} 条')
     finally:
       self._wal_checkpoint_passive()
 
@@ -186,6 +194,7 @@ class MockDB:
     try:
       with self._transaction() as conn:
         conn.executemany(sql, data)
+      APP_LOGGER.info(f'MockDB batch_upsert_static 写入 {len(records)} 条')
     finally:
       self._wal_checkpoint_passive()
 
