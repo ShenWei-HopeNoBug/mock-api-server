@@ -8,7 +8,7 @@ from config.work_file import (
 from config.default import (DEFAULT_HTTP_PARAMS_MATCH_MODE)
 from config.enum import SERVER
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
-from lib.decorate import create_thread
+from lib.decorate import create_thread, error_catch
 from lib.download_lib import get_static_match_regexp
 from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
@@ -150,16 +150,17 @@ class MockServer:
 
       # 请求查询键名
       request_key: str = self.__get_request_dict_key(route, method)
-      # 响应数据查询键名
-      response_key: str = self.__get_response_dict_key(
-        method,
-        self.__get_params_json_string(params),
-      )
 
       # 创建 api 映射表
       if request_key not in api_dict:
         api_dict[request_key] = {}
+
       try:
+        # 响应数据查询键名
+        response_key: str = self.__get_response_dict_key(
+          method,
+          self.__get_params_json_string(params),
+        )
         # 替换静态资源链接
         if len(self.include_files):
           response = assets_reg.sub(assets_replace_method, response)
@@ -192,14 +193,14 @@ class MockServer:
       route_path = '/' + path
       # 非文件请求，跳过
       if not is_file_request(route_path):
-        return
+        return 'Not Found', 404
 
       # 文件名
       file_name: str = route_path.split('/')[-1]
       file_path: str = os.path.abspath(f'{self.work_dir}{self.static_url_path}/{file_name}')
 
       if not os.path.exists(file_path):
-        return
+        return 'Not Found', 404
 
       search_key = create_md5(path)
 
@@ -306,6 +307,7 @@ class MockServer:
       APP_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)
 
+  @error_catch(error_msg='__get_params_json_string 解析异常', error_return='{}')
   def __get_params_json_string(self, params: Union[dict, str]) -> str:
     """
     获取接口传参的 json 字符串
