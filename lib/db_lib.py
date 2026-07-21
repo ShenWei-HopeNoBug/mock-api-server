@@ -69,7 +69,8 @@ class MockDB:
   # 执行 PASSIVE checkpoint，供批量写入后调用
   def _wal_checkpoint_passive(self):
     """执行 PASSIVE checkpoint，将 -wal 日志合并回主库"""
-    self._conn.execute('PRAGMA wal_checkpoint(PASSIVE)')
+    with self._lock:
+      self._conn.execute('PRAGMA wal_checkpoint(PASSIVE)')
 
   # 事务上下文管理器，自动处理 BEGIN/COMMIT/ROLLBACK 和线程锁
   @contextlib.contextmanager
@@ -93,7 +94,7 @@ class MockDB:
         raise
 
   # 新增插入（纯 INSERT，不去重），返回生成的 id
-  def upsert_api(self, record: ApiRecord) -> str:
+  def insert_api(self, record: ApiRecord) -> str:
     """插入一条 API 数据，返回生成的 id"""
     api_id = generate_uuid()
     data = {**DATABASE.API_INSERT_DEFAULTS, **record}
@@ -134,7 +135,10 @@ class MockDB:
     except Exception:
       return False
     finally:
-      self._wal_checkpoint_passive()
+      try:
+        self._wal_checkpoint_passive()
+      except Exception as e:
+        APP_LOGGER.error(f'MockDB batch_insert_api checkpoint 失败: {e}')
 
   # 查询 api 数据列表
   def get_api_list(self, api_type: str = None, reverse: bool = False) -> List[ApiData]:
@@ -221,7 +225,7 @@ class MockDB:
       return True
 
   # 批量写静态资源到 DB
-  def batch_upsert_static(self, records: list) -> bool:
+  def batch_insert_static(self, records: list) -> bool:
     """
     批量写入静态资源 URL，写入后触发 PASSIVE checkpoint
 
@@ -240,12 +244,15 @@ class MockDB:
     try:
       with self._transaction() as conn:
         conn.executemany(insert_sql, insert_data)
-      APP_LOGGER.info(f'MockDB batch_upsert_static 写入 {len(records)} 条')
+      APP_LOGGER.info(f'MockDB batch_insert_static 写入 {len(records)} 条')
       return True
     except Exception:
       return False
     finally:
-      self._wal_checkpoint_passive()
+      try:
+        self._wal_checkpoint_passive()
+      except Exception as e:
+        APP_LOGGER.error(f'MockDB batch_insert_static checkpoint 失败: {e}')
 
   # 查静态资源列表
   def get_static_list(self, reverse: bool = False) -> List[StaticData]:

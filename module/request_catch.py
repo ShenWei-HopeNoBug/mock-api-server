@@ -163,7 +163,7 @@ class RequestRecorder:
     # 缓冲结构: {md5_key: record, ...}
     urls = [record.get('url') for record in self.static_cache_dict.values()]
     print('----> 正在保存静态资源数据，共 {} 条'.format(len(urls)))
-    self.mock_db.batch_upsert_static(urls)
+    self.mock_db.batch_insert_static(urls)
     self.static_cache_dict = {}
 
     # 批量写入完成后关闭连接，触发 SQLite 自动 checkpoint 将 -wal 合并回主库

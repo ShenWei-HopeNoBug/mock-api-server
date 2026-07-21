@@ -198,7 +198,7 @@ def add_user_api_data(work_dir='.', add_data=None) -> bool:
     "response": add_data.get('response', JsonFormat.dumps({})),
   }
   mock_db: MockDB = _get_mock_db(work_dir)
-  mock_db.upsert_api(record)
+  mock_db.insert_api(record)
   return True
 
 
