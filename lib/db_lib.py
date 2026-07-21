@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import sqlite3
 import threading
 import contextlib
@@ -9,6 +10,7 @@ from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
 from config.enum import DATABASE
+from config.work_file import DB_DATA_PATH
 from app_types.db_types import ApiRecord, ApiData, StaticData
 
 # 当前 schema 版本
@@ -317,3 +319,30 @@ class MockDB:
       if not self._closed:
         self._conn.close()
         self._closed = True
+
+
+class MockDBCache:
+  """MockDB 实例缓存管理（静态类，以 work_dir 绝对路径为 key 懒加载）"""
+
+  _cache: dict = {}
+
+  @classmethod
+  def get(cls, work_dir: str = '.') -> MockDB:
+    cache_key = os.path.abspath(work_dir)
+    if cache_key not in cls._cache:
+      db_path = f'{work_dir}{DB_DATA_PATH}'
+      cls._cache[cache_key] = MockDB(db_path)
+    return cls._cache[cache_key]
+
+  @classmethod
+  def close(cls, work_dir: str = '.') -> None:
+    cache_key = os.path.abspath(work_dir)
+    mock_db = cls._cache.pop(cache_key, None)
+    if mock_db:
+      mock_db.close()
+
+  @classmethod
+  def close_all(cls) -> None:
+    for mock_db in cls._cache.values():
+      mock_db.close()
+    cls._cache.clear()

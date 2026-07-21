@@ -5,8 +5,7 @@ from pathlib import Path
 
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
 from PyQt5.QtCore import QSharedMemory
-from lib.db_lib import MockDB
-from config.work_file import DB_DATA_PATH
+from lib.db_lib import MockDB, MockDBCache
 from lib.decorate import error_catch
 from lib.utils_lib import (
   JsonFormat,
@@ -19,30 +18,6 @@ import psutil
 import win32gui
 import win32process
 import win32con
-
-# 模块级懒加载单例缓存，以 work_dir 绝对路径为 key
-_mock_db_cache: dict = {}
-
-
-def _get_mock_db(work_dir: str = '.') -> MockDB:
-  cache_key = os.path.abspath(work_dir)
-  if cache_key not in _mock_db_cache:
-    db_path = f'{work_dir}{DB_DATA_PATH}'
-    _mock_db_cache[cache_key] = MockDB(db_path)
-  return _mock_db_cache[cache_key]
-
-
-def _close_mock_db(work_dir='.'):
-  cache_key = os.path.abspath(work_dir)
-  mock_db = _mock_db_cache.pop(cache_key, None)
-  if mock_db:
-    mock_db.close()
-
-
-def close_all_mock_db():
-  for mock_db in _mock_db_cache.values():
-    mock_db.close()
-  _mock_db_cache.clear()
 
 
 @error_catch(error_msg='检查应用是否已经在运行异常', error_return=False)
@@ -161,13 +136,13 @@ def get_process_windows(pid):
 
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
 def get_mitmproxy_api_data_list(work_dir='.', reverse=False):
-  mock_db: MockDB = _get_mock_db(work_dir)
+  mock_db: MockDB = MockDBCache.get(work_dir)
   return mock_db.get_api_list(api_type='MITMPROXY', reverse=reverse)
 
 
 @error_catch(error_msg='读取 user api 数据失败', error_return=[])
 def get_user_api_data_list(work_dir='.', reverse=False):
-  mock_db: MockDB = _get_mock_db(work_dir)
+  mock_db: MockDB = MockDBCache.get(work_dir)
   return mock_db.get_api_list(api_type='USER', reverse=reverse)
 
 
@@ -181,7 +156,7 @@ def update_user_api_data(work_dir='.', update_data=None) -> bool:
   if not update_id:
     return False
 
-  mock_db: MockDB = _get_mock_db(work_dir)
+  mock_db: MockDB = MockDBCache.get(work_dir)
   return mock_db.update_api(update_data)
 
 
@@ -197,7 +172,7 @@ def add_user_api_data(work_dir='.', add_data=None) -> bool:
     "params": add_data.get('params', JsonFormat.dumps({})),
     "response": add_data.get('response', JsonFormat.dumps({})),
   }
-  mock_db: MockDB = _get_mock_db(work_dir)
+  mock_db: MockDB = MockDBCache.get(work_dir)
   mock_db.insert_api(record)
   return True
 
@@ -207,13 +182,13 @@ def delete_user_api_data(work_dir='.', delete_id: str = '') -> bool:
   if type(delete_id) != str or not delete_id:
     return False
 
-  mock_db: MockDB = _get_mock_db(work_dir)
+  mock_db: MockDB = MockDBCache.get(work_dir)
   return mock_db.delete_api(delete_id)
 
 
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
 def get_mock_api_data_list(work_dir='.'):
-  mock_db: MockDB = _get_mock_db(work_dir)
+  mock_db: MockDB = MockDBCache.get(work_dir)
   api_list = mock_db.get_api_list(api_type='MITMPROXY')
   api_list.extend(mock_db.get_api_list(api_type='USER'))
 

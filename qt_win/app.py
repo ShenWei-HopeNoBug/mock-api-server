@@ -29,8 +29,8 @@ from lib.app_lib import (
   set_menu_config,
   set_menu_item_disabled,
   is_app_server_running,
-  close_all_mock_db,
 )
+from lib.db_lib import MockDBCache
 from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
 from config.menu import (FILE, EDIT, HELP)
@@ -653,7 +653,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.stop_server()
       self.stop_app_server()
       # 关闭所有 MockDB 连接，触发最终 checkpoint
-      close_all_mock_db()
+      MockDBCache.close_all()
       # 设置退出程序的全局变量
       GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
       time.sleep(0.5)

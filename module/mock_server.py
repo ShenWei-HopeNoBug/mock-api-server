@@ -12,7 +12,8 @@ from lib.decorate import create_thread
 from lib.download_lib import get_static_match_regexp
 from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
-from lib.app_lib import get_mock_api_data_list, _close_mock_db
+from lib.app_lib import get_mock_api_data_list
+from lib.db_lib import MockDBCache
 from lib.utils_lib import (
   JsonFormat,
   create_md5,
@@ -26,7 +27,10 @@ from lib.utils_lib import (
 )
 
 import json
-from typing import Any, Dict, List, Union
+import re
+from typing import List, Union
+from app_types.db_types import ApiData
+from app_types.mock_server_types import MockApiDict
 from flask import (Flask, request, send_from_directory, jsonify)
 from flask_cors import CORS
 
@@ -99,7 +103,7 @@ class MockServer:
       self.static_match_route = route_list
 
   # 创建并保存 api_dict
-  def create_api_dict(self) -> Dict[str, Dict[str, Any]]:
+  def create_api_dict(self) -> MockApiDict:
     assets_reg = get_static_match_regexp(self.include_files)
     # 区分是否延时两种静态资源的路由
     assets_route: str = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
@@ -107,17 +111,17 @@ class MockServer:
     assets_base_url: str = f'{self.static_host}{assets_route}'
 
     # 静态资源文本替换规则
-    def assets_replace_method(match: Any) -> str:
+    def assets_replace_method(match: re.Match[str]) -> str:
       assets_url = match[0]
       file_name = assets_url.split('/')[-1]
 
       return f'{assets_base_url}/{file_name}'
 
-    api_dict: Dict[str, Dict[str, Any]] = {}
+    api_dict: MockApiDict = {}
     # 所有的 mock 数据列表
-    mock_api_data_list: List[dict] = get_mock_api_data_list(work_dir=self.work_dir)
+    mock_api_data_list: List[ApiData] = get_mock_api_data_list(work_dir=self.work_dir)
     # 查询完毕，关闭 DB 连接（触发 checkpoint，释放文件锁）
-    _close_mock_db(work_dir=self.work_dir)
+    MockDBCache.close(work_dir=self.work_dir)
     # 行遍历
     for row_data in mock_api_data_list:
       response = row_data.get('response', '{}')
