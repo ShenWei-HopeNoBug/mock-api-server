@@ -5,6 +5,7 @@ import contextlib
 from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
+from types.db_types import ApiRecord, ApiData, StaticData
 
 # 当前 schema 版本
 CURRENT_SCHEMA_VERSION = 1
@@ -69,7 +70,7 @@ class MockDB:
         raise
 
   # 新增插入（纯 INSERT，不去重），返回生成的 id
-  def upsert_api(self, record: dict) -> str:
+  def upsert_api(self, record: ApiRecord) -> str:
     api_id = generate_uuid()
     type_ = record.get('type', 'USER')
     url = record.get('url', '')
@@ -84,7 +85,7 @@ class MockDB:
     return api_id
 
   # 批量写入抓包数据到 DB
-  def batch_upsert_api(self, records: list) -> None:
+  def batch_upsert_api(self, records: list[ApiRecord]) -> None:
     if not records:
       return
     sql = '''
@@ -106,7 +107,7 @@ class MockDB:
       self._wal_checkpoint_passive()
 
   # 查询 api 数据列表
-  def get_api_list(self, type: str = None, reverse: bool = False) -> list:
+  def get_api_list(self, type: str = None, reverse: bool = False) -> list[ApiData]:
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     if type is not None:
       sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
@@ -132,7 +133,7 @@ class MockDB:
     return result
 
   # 按 id 更新 api 数据（字段级合并）
-  def update_api(self, record: dict) -> bool:
+  def update_api(self, record: ApiRecord) -> bool:
     with self._transaction() as conn:
       # 1. 查询旧记录
       row = conn.execute(
@@ -199,7 +200,7 @@ class MockDB:
       self._wal_checkpoint_passive()
 
   # 查静态资源列表
-  def get_static_list(self) -> list:
+  def get_static_list(self) -> list[StaticData]:
     sql = 'SELECT url, type, created_at, updated_at FROM static_data ORDER BY created_at DESC, url DESC'
     with self._lock:
       cursor = self._conn.execute(sql)
