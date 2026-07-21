@@ -2,6 +2,7 @@
 import sqlite3
 import threading
 import contextlib
+import copy
 import functools
 from typing import List
 from importlib.resources import read_text
@@ -22,7 +23,7 @@ def _ensure_open(default=None):
     def wrapper(self, *args, **kwargs):
       if self._closed:
         APP_LOGGER.warning(f'MockDB 已关闭，{method.__name__} 未执行')
-        return default
+        return copy.deepcopy(default)
       return method(self, *args, **kwargs)
 
     return wrapper
@@ -228,7 +229,7 @@ class MockDB:
       merged['params'] = JsonFormat.format_json_string(merged['params'])
 
       # 3. 写入合并后的完整记录
-      conn.execute(
+      cursor = conn.execute(
         '''UPDATE api_data
            SET type=?,
                url=?,
@@ -240,6 +241,8 @@ class MockDB:
         (merged['type'], merged['url'], merged['method'],
          merged['params'], merged['response'], api_id),
       )
+      if cursor.rowcount == 0:
+        return False
       return True
 
   # 按 id 删除 api 数据

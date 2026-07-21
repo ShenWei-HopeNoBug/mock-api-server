@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import copy
 import threading
 import datetime
 from lib.logger_lib import APP_LOGGER
@@ -15,8 +16,8 @@ def error_catch(error_msg='', error_return=None, print_error_msg=True):
         if print_error_msg:
           message = error_msg or 'Error'
           current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-          APP_LOGGER.error('[{}] ERROR {}：{}'.format(current_time, message, e))
-        return error_return
+          APP_LOGGER.error(f'[{current_time}] ERROR {message}：{e}')
+        return copy.deepcopy(error_return)
 
     return wrapper
 
