@@ -221,37 +221,48 @@ class MockDB:
       return True
 
   # 批量写静态资源到 DB
-  def batch_upsert_static(self, records: list) -> None:
-    """批量写入静态资源 URL，按 url 做 UPSERT，写入后触发 PASSIVE checkpoint"""
+  def batch_upsert_static(self, records: list) -> bool:
+    """
+    批量写入静态资源 URL，写入后触发 PASSIVE checkpoint
+
+    纯 INSERT 不去重，id 统一用 generate_uuid 生成。
+    返回 True 表示写入成功，False 表示空数据或写入异常。
+    """
     if not records:
-      return
-    sql = '''
-          INSERT INTO static_data (url, type)
-          VALUES (?, 'MITMPROXY') ON CONFLICT(url) DO
-          UPDATE SET updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime') \
-          '''
-    data = [(url,) for url in records]
+      return False
+
+    insert_sql = 'INSERT INTO static_data (id, url, type) VALUES (?, ?, ?)'
+    insert_data = []
+    for url in records:
+      static_id = generate_uuid()
+      insert_data.append((static_id, url, 'MITMPROXY'))
+
     try:
       with self._transaction() as conn:
-        conn.executemany(sql, data)
+        conn.executemany(insert_sql, insert_data)
       APP_LOGGER.info(f'MockDB batch_upsert_static 写入 {len(records)} 条')
+      return True
+    except Exception:
+      return False
     finally:
       self._wal_checkpoint_passive()
 
   # 查静态资源列表
-  def get_static_list(self) -> List[StaticData]:
-    """查询全部静态资源列表，按创建时间倒序排列"""
-    sql = 'SELECT url, type, created_at, updated_at FROM static_data ORDER BY created_at DESC, url DESC'
+  def get_static_list(self, reverse: bool = False) -> List[StaticData]:
+    """查询全部静态资源列表，可按时间正序/倒序排列"""
+    order = 'DESC, url DESC' if reverse else 'ASC, url ASC'
+    sql = f'SELECT id, url, type, created_at, updated_at FROM static_data ORDER BY created_at {order}'
     with self._lock:
       cursor = self._conn.execute(sql)
       rows = cursor.fetchall()
     result = []
     for row in rows:
       result.append({
-        'url': row[0],
-        'type': row[1],
-        'created_at': row[2],
-        'updated_at': row[3],
+        'id': row[0],
+        'url': row[1],
+        'type': row[2],
+        'created_at': row[3],
+        'updated_at': row[4],
       })
     return result
 

@@ -12,8 +12,11 @@ CREATE TABLE IF NOT EXISTS api_data (
 CREATE INDEX IF NOT EXISTS idx_api_type ON api_data(type);
 
 CREATE TABLE IF NOT EXISTS static_data (
-  url         TEXT PRIMARY KEY,
+  id          TEXT PRIMARY KEY,
+  url         TEXT NOT NULL DEFAULT '',
   type        TEXT NOT NULL DEFAULT 'MITMPROXY',
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
   updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_static_url ON static_data(url);

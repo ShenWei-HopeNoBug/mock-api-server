@@ -42,7 +42,8 @@ class StaticData(TypedDict):
 
   用于 get_static_list 的返回值。
   """
-  url: str  # 静态资源 URL（主键）
+  id: str  # 记录唯一标识
+  url: str  # 静态资源 URL
   type: str  # 数据来源类型
   created_at: str  # 创建时间
   updated_at: str  # 更新时间
