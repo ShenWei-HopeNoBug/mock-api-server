@@ -9,7 +9,7 @@ class ApiRecord(TypedDict, total=False):
   """
   API 数据写入参数
 
-  用于 upsert_api / update_api / batch_upsert_api 的入参。
+  用于 upsert_api / update_api / batch_insert_api 的入参。
   total=False 表示所有字段可选，调用方按需传入。
   """
   id: str  # 记录唯一标识（upsert 时由代码生成，batch 时由外部传入）

@@ -105,26 +105,30 @@ class MockDB:
       )
     return api_id
 
-  # 批量写入抓包数据到 DB
-  def batch_upsert_api(self, records: List[ApiRecord]) -> None:
-    """批量写入 mitmproxy 抓包数据，按 id 做 UPSERT，写入后触发 PASSIVE checkpoint"""
+  # 批量写入 API 数据到 DB
+  def batch_insert_api(self, records: List[ApiRecord]) -> None:
+    """
+    批量插入 API 数据，写入后触发 PASSIVE checkpoint
+
+    不判断 id 是否重复，全部走 INSERT。重复数据的判断由应用层自行处理。
+    id 统一用 generate_uuid 生成，字段缺失时用 API_INSERT_DEFAULTS 兜底，params 做 JSON 格式化。
+    """
     if not records:
       return
-    sql = '''
-          INSERT INTO api_data (id, type, url, method, params, response)
-          VALUES (?, 'MITMPROXY', ?, ?, ?, ?) ON CONFLICT(id) DO
-          UPDATE SET
-              url=excluded.url,
-              method =excluded.method,
-              params=excluded.params,
-              response=excluded.response,
-              updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime') \
-          '''
-    data = [(r['id'], r['url'], r['method'], r['params'], r['response']) for r in records]
+
+    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response) VALUES (?, ?, ?, ?, ?, ?)'
+    insert_data = []
+    for r in records:
+      api_id = generate_uuid()
+      data = {**DATABASE.API_INSERT_DEFAULTS, **r}
+      data['id'] = api_id
+      data['params'] = JsonFormat.format_json_string(data['params'])
+      insert_data.append((api_id, data['type'], data['url'], data['method'], data['params'], data['response']))
+
     try:
       with self._transaction() as conn:
-        conn.executemany(sql, data)
-      APP_LOGGER.info(f'MockDB batch_upsert_api 写入 {len(records)} 条')
+        conn.executemany(insert_sql, insert_data)
+      APP_LOGGER.info(f'MockDB batch_insert_api 写入 {len(records)} 条')
     finally:
       self._wal_checkpoint_passive()
 

@@ -153,7 +153,10 @@ class RequestRecorder:
         records.append(record)
 
     print('----> 正在保存抓包数据，共 {} 条'.format(len(records)))
-    self.mock_db.batch_upsert_api(records)
+    '''
+    @todo 这个地方要处理下 records，要把带 id 的数据去掉，抓包的时候如果有覆盖也要删除 id
+    '''
+    self.mock_db.batch_insert_api(records)
     self.response_cache_dict = {}
 
     # 从 static_cache_dict 提取全部静态资源 URL
