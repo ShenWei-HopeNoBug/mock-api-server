@@ -1,8 +1,15 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 from mitmproxy import http
+from app_types.db_types import ApiRecord
+from app_types.mitmproxy_types import (
+  MitmproxyConfig,
+  ResponseCacheDict,
+  StaticCacheDict,
+  StaticRecord,
+)
 from mitmproxy.tools.dump import DumpMaster
 from config.work_file import (
   MITMPROXY_CONFIG_PATH,
@@ -22,7 +29,7 @@ from lib.utils_lib import (
 
 # 处理请求抓包工具类
 class RequestRecorder:
-  def __init__(self, work_dir='.'):
+  def __init__(self, work_dir: str = '.'):
     # 工作目录
     self.work_dir: str = work_dir
     # SQLite 数据库路径
@@ -34,44 +41,44 @@ class RequestRecorder:
     # 抓包结束标记
     self.mitmproxy_stop_signal: bool = False
     # 抓包缓存数据 dict
-    # 结构: {search_key: {md5_key: record, ...}, ...}
-    self.response_cache_dict: Dict[str, Dict[str, dict]] = {}
+    # 结构: {search_key: {md5_key: ApiRecord, ...}, ...}
+    self.response_cache_dict: ResponseCacheDict = {}
     # 抓包包含的 path（正则字符串或正则字符串列表）
     self.include_path: Union[str, List[str]] = ''
     # 静态资源包含的 path（正则字符串列表）
     self.static_include_path: List[str] = []
     # 抓取静态资源缓存数据 dict
-    # 结构: {md5_key: record, ...}
-    self.static_cache_dict: Dict[str, dict] = {}
+    # 结构: {md5_key: StaticRecord, ...}
+    self.static_cache_dict: StaticCacheDict = {}
 
     # -------------------
     # 初始化
     # -------------------
     self.init()
 
-  def init(self):
+  def init(self) -> None:
     # 检查工作目录文件完整性
     create_work_files(self.work_dir)
     # 加载抓包配置
     self.load_mitmproxy_config()
 
   # 加载抓包配置
-  def load_mitmproxy_config(self):
+  def load_mitmproxy_config(self) -> None:
     # 抓包配置文件路径
-    mitmproxy_config_path = os.path.abspath(r'{}{}'.format(self.work_dir, MITMPROXY_CONFIG_PATH))
+    mitmproxy_config_path: str = os.path.abspath(r'{}{}'.format(self.work_dir, MITMPROXY_CONFIG_PATH))
     with open(mitmproxy_config_path, 'r', encoding='utf-8') as fl:
-      mitmproxy_config = json.loads(fl.read())
+      mitmproxy_config: MitmproxyConfig = json.loads(fl.read())
       self.include_path = mitmproxy_config.get('include_path', '')
       self.static_include_path = mitmproxy_config.get('static_include_path', [])
 
   # 接口请求
-  def request(self, flow: http.HTTPFlow):
+  def request(self, flow: http.HTTPFlow) -> None:
     # 抓包结束，跳出
     if self.mitmproxy_stop_signal:
       return
 
     # 读取全局停止信号，收到信号后不再保存任何数据
-    mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
+    mitmproxy_stop_signal: bool = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     self.mitmproxy_stop_signal = mitmproxy_stop_signal
     # 收到结束抓包的信号，尝试关闭抓包服务
     if self.mitmproxy_master and mitmproxy_stop_signal:
@@ -83,26 +90,26 @@ class RequestRecorder:
     self.__check_and_save_static(flow)
 
   # 接口返回
-  def response(self, flow: http.HTTPFlow):
+  def response(self, flow: http.HTTPFlow) -> None:
     # 读取全局停止信号，收到信号后不再保存任何数据
     self.mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包结束，跳出
     if self.mitmproxy_stop_signal:
       return
 
-    url = flow.request.url
+    url: str = flow.request.url
     # 请求检查
     if not self.__check_response(flow.request, flow.response):
       print('不满足抓取条件：{}'.format(url))
       return
 
     # 请求链接
-    method = flow.request.method
+    method: str = flow.request.method
 
     # 请求参数，统一用 json string
     params: str = JsonFormat.dumps({})
 
-    request_content_type = flow.request.headers.get('content-type') or ''
+    request_content_type: str = flow.request.headers.get('content-type') or ''
     if method == 'POST':
       if 'application/x-www-form-urlencoded' in request_content_type:
         params = JsonFormat.dumps(dict(flow.request.urlencoded_form or {}))
@@ -111,15 +118,15 @@ class RequestRecorder:
         params = JsonFormat.format_json_string(params_json)
       elif 'multipart/form-data' in request_content_type:
         print('content-type 为 multipart/form-data，针对内部的 file 传参作特殊处理：\n{}'.format(url))
-        multipart_dict = get_multipart_dict(flow.request.multipart_form)
+        multipart_dict: dict = get_multipart_dict(flow.request.multipart_form)
         params = JsonFormat.dumps(multipart_dict)
     elif method == 'GET':
       params = JsonFormat.dumps(dict(flow.request.query.copy()))
 
     # 响应内容，统一用 json string
-    response = flow.response.get_text()
+    response: str = flow.response.get_text()
 
-    record = {
+    record: ApiRecord = {
       "type": "MITMPROXY",
       "url": url,
       "method": method,
@@ -130,12 +137,12 @@ class RequestRecorder:
     mitmproxy_lib.save_response_to_cache(record, self.response_cache_dict)
 
   # 抓包结束
-  def done(self):
+  def done(self) -> None:
     print('mitmproxy done!')
 
     # 从 response_cache_dict 提取全部抓包记录
-    # 缓冲结构: {search_key: {md5_key: record, ...}, ...}
-    records = []
+    # 缓冲结构: {search_key: {md5_key: ApiRecord, ...}, ...}
+    records: List[ApiRecord] = []
     for response_data in self.response_cache_dict.values():
       for record in response_data.values():
         records.append(record)
@@ -145,8 +152,8 @@ class RequestRecorder:
     self.response_cache_dict = {}
 
     # 从 static_cache_dict 提取全部静态资源 URL
-    # 缓冲结构: {md5_key: record, ...}
-    urls = [record.get('url') for record in self.static_cache_dict.values()]
+    # 缓冲结构: {md5_key: StaticRecord, ...}
+    urls: List[str] = [record.get('url') for record in self.static_cache_dict.values()]
     print('----> 正在保存静态资源数据，共 {} 条'.format(len(urls)))
     self.mock_db.batch_insert_static(urls)
     self.static_cache_dict = {}
@@ -156,9 +163,9 @@ class RequestRecorder:
     self.mock_db.close()
 
   # 检查请求是否需要被抓取保存
-  def __check_response(self, request, response):
+  def __check_response(self, request: http.Request, response: http.Response) -> bool:
     # 请求链接
-    url = request.url
+    url: str = request.url
 
     # 排除文件类型的请求
     if is_file_request(url):
@@ -168,7 +175,7 @@ class RequestRecorder:
     if not is_url_match(url, self.include_path):
       return False
 
-    response_content_type = response.headers.get('Content-Type') or ''
+    response_content_type: str = response.headers.get('Content-Type') or ''
     # 忽略 json 以外的响应内容
     if 'application/json' not in response_content_type:
       return False
@@ -176,8 +183,8 @@ class RequestRecorder:
     return True
 
   # 检查和保存静态资源数据
-  def __check_and_save_static(self, flow: http.HTTPFlow):
-    url = flow.request.url
+  def __check_and_save_static(self, flow: http.HTTPFlow) -> None:
+    url: str = flow.request.url
     # 非文件请求，跳过
     if not is_file_request(url):
       return
@@ -186,7 +193,7 @@ class RequestRecorder:
     if not is_url_match(url, self.static_include_path):
       return
 
-    record = {
+    record: StaticRecord = {
       "type": "MITMPROXY",
       "url": url,
     }

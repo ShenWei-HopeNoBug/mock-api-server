@@ -4,11 +4,17 @@ from lib.utils_lib import (
   create_md5,
   error_catch,
 )
+from app_types.db_types import ApiRecord
+from app_types.mitmproxy_types import (
+  ResponseCacheDict,
+  StaticCacheDict,
+  StaticRecord,
+)
 
 
 # 保存抓包数据到缓存
 @error_catch(error_msg='保存抓包数据到缓存失败')
-def save_response_to_cache(record: dict, cache: dict) -> None:
+def save_response_to_cache(record: ApiRecord, cache: ResponseCacheDict) -> None:
   url: str = record.get('url', '')
   method: str = record.get('method', '')
   params: str = record.get('params', JsonFormat.dumps({}))
@@ -28,8 +34,8 @@ def save_response_to_cache(record: dict, cache: dict) -> None:
 
 
 # 保存静态资源数据到缓存
-def save_static_to_cache(record: dict, cache: dict) -> None:
-  url = record.get('url', '')
+def save_static_to_cache(record: StaticRecord, cache: StaticCacheDict) -> None:
+  url: str = record.get('url', '')
   if not url:
     return
   search_key = create_md5(url)
