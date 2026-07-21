@@ -22,7 +22,7 @@ from lib.utils_lib import (
 
 # 处理请求抓包工具类
 class RequestRecorder:
-  def __init__(self, use_history=True, work_dir='.'):
+  def __init__(self, work_dir='.'):
     # 工作目录
     self.work_dir: str = work_dir
     # SQLite 数据库路径
@@ -45,17 +45,13 @@ class RequestRecorder:
     # -------------------
     # 初始化
     # -------------------
-    self.init(use_history)
+    self.init()
 
-  def init(self, use_history=True):
+  def init(self):
     # 检查工作目录文件完整性
     create_work_files(self.work_dir)
     # 加载抓包配置
     self.load_mitmproxy_config()
-
-    # 以历史数据为基础继续抓包
-    if use_history:
-      self.load_history_cache()
 
   # 加载抓包配置
   def load_mitmproxy_config(self):
@@ -65,18 +61,6 @@ class RequestRecorder:
       mitmproxy_config = json.loads(fl.read())
       self.include_path = mitmproxy_config.get('include_path', '')
       self.static_include_path = mitmproxy_config.get('static_include_path', [])
-
-  # 从 DB 加载历史数据初始化抓包缓存
-  def load_history_cache(self):
-    # 从 DB 加载历史 response 数据，填充内存缓冲用于抓包去重
-    mitmproxy_data = self.mock_db.get_api_list(api_type='MITMPROXY')
-    for row_data in mitmproxy_data:
-      mitmproxy_lib.save_response_to_cache(row_data, self.response_cache_dict)
-
-    # 从 DB 加载历史静态资源数据，填充内存缓冲用于去重
-    static_data = self.mock_db.get_static_list()
-    for row_data in static_data:
-      mitmproxy_lib.save_static_to_cache(row_data, self.static_cache_dict)
 
   # 接口请求
   def request(self, flow: http.HTTPFlow):

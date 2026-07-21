@@ -62,8 +62,6 @@ def server_process_start(server_config: dict):
 class MainWindow(QMainWindow, Ui_MainWindow):
   # 抓包服务运行信号
   mitmproxy_server_status_signal: pyqtSignal = pyqtSignal(str)
-  # 是否追加抓包信号
-  use_history_signal: pyqtSignal = pyqtSignal(bool)
   # 下载静态资源信号
   downloading_signal: pyqtSignal = pyqtSignal(str)
   # mock 服务运行信号
@@ -92,8 +90,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # STOP_WAIT：正在停止
     # -----------------
     self.mitmproxy_server_status = 'READY'
-    # 是否以追加模式抓包
-    self.use_history = True
     # 下载静态资源是否压缩图片
     self.compress_image = True
     # -----------------
@@ -251,9 +247,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def catch_server_port_change(value):
       self.catch_server_port = value
 
-    def use_history_checkbox_click():
-      self.use_history = not self.use_history
-
     def compress_image_button_click():
       self.compress_image = not self.compress_image
 
@@ -280,9 +273,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticLoadSpeedSpinBox.valueChanged.connect(static_load_speed_change)
     # 抓包服务按钮
     self.catchServerButton.clicked.connect(self.catch_server_button_click)
-    # 抓包是否采用追加模式
-    self.useHistoryCheckBox.setChecked(self.use_history)
-    self.useHistoryCheckBox.clicked.connect(use_history_checkbox_click)
     # 压缩静态资源按钮
     self.compressCheckBox.setChecked(self.compress_image)
     self.compressCheckBox.clicked.connect(compress_image_button_click)
@@ -427,7 +417,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.catchServerButton.setDisabled(mitmproxy_btn_disabled)
 
     self.catchServerPortSpinBox.setDisabled(disabled)
-    self.useHistoryCheckBox.setDisabled(disabled)
 
     set_menu_item_disabled(self.file_menu, [
       {"action_name": FILE.CHANGE_WORK_DIR, "disabled": disabled},
@@ -508,7 +497,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       "host": "0.0.0.0",
       "port": self.catch_server_port,
       "work_dir": self.work_dir,
-      "use_history": self.use_history,
       "mitmproxy_log": ENV.MITMPROXY_LOG,
     }
 
