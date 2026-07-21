@@ -166,11 +166,15 @@ class MockDB:
 
     前端只传修改的字段时旧值保留，记录不存在时返回 False。
     """
+    api_id = record.get('id')
+    if not api_id:
+      return False
+
     with self._transaction() as conn:
       # 1. 查询旧记录
       row = conn.execute(
         'SELECT type, url, method, params, response FROM api_data WHERE id=?',
-        (record.get('id'),),
+        (api_id,),
       ).fetchone()
       if row is None:
         return False
@@ -183,7 +187,8 @@ class MockDB:
         'params': row[3],
         'response': row[4],
       }
-      merged = {**old, **{k: v for k, v in record.items() if k != 'id' and v}}
+      merged = {**old, **{k: v for k, v in record.items() if k != 'id' and v is not None}}
+      merged['params'] = JsonFormat.format_json_string(merged['params'])
 
       # 3. 写入合并后的完整记录
       conn.execute(
@@ -196,7 +201,7 @@ class MockDB:
                updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
            WHERE id = ?''',
         (merged['type'], merged['url'], merged['method'],
-         merged['params'], merged['response'], record.get('id')),
+         merged['params'], merged['response'], api_id),
       )
       return True
 
