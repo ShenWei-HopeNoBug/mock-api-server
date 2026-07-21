@@ -15,7 +15,6 @@ from lib.utils_lib import (
   JsonFormat,
   is_file_request,
   is_url_match,
-  generate_uuid,
   get_multipart_dict,
 )
 
@@ -68,9 +67,7 @@ class RequestRecorder:
     if self.mitmproxy_stop_signal:
       return
 
-    # 检查和保存静态资源的请求
-    self.__check_and_save_static(flow)
-
+    # 读取全局停止信号，收到信号后不再保存任何数据
     mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     self.mitmproxy_stop_signal = mitmproxy_stop_signal
     # 收到结束抓包的信号，尝试关闭抓包服务
@@ -78,6 +75,9 @@ class RequestRecorder:
       print('正在关闭 mitmproxy 服务...', flow.request.url)
       self.mitmproxy_master.shutdown()
       return
+
+    # 检查和保存静态资源的请求
+    self.__check_and_save_static(flow)
 
   # 接口返回
   def response(self, flow: http.HTTPFlow):
@@ -115,7 +115,6 @@ class RequestRecorder:
     response = flow.response.get_text()
 
     record = {
-      "id": generate_uuid(),
       "type": "MITMPROXY",
       "url": url,
       "method": method,
@@ -137,9 +136,6 @@ class RequestRecorder:
         records.append(record)
 
     print('----> 正在保存抓包数据，共 {} 条'.format(len(records)))
-    '''
-    @todo 这个地方要处理下 records，要把带 id 的数据去掉，抓包的时候如果有覆盖也要删除 id
-    '''
     self.mock_db.batch_insert_api(records)
     self.response_cache_dict = {}
 
