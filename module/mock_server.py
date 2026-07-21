@@ -240,10 +240,10 @@ class MockServer:
     # 服务进程自杀
     @app.route(f"{SYSTEM_ROUTE}/shutdown", methods=['GET'])
     def server_shutdown():
-      APP_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
 
       @create_thread(daemon=True)
       def delayed_shutdown():
+        APP_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
         time.sleep(0.5)
         self.shutdown()
 
