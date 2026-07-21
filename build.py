@@ -33,6 +33,7 @@ def app_build(window=False, timestamp=''):
     "pyinstaller",
     f"--name={app_name}",
     f"--contents-directory=site-packages",
+    "--add-data", "schema;schema/",
     "main.py",
     "-D",
   ]

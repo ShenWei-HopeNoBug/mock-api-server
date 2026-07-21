@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sqlite3
 import threading
+from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
 
 # 当前 schema 版本
@@ -19,32 +20,16 @@ class MockDB:
     self._conn.execute('PRAGMA busy_timeout=5000')
     # WAL 模式
     self._conn.execute('PRAGMA journal_mode=WAL')
-    # 建表
-    self._conn.execute('''
-      CREATE TABLE IF NOT EXISTS api_data (
-        id             TEXT PRIMARY KEY,
-        type           TEXT NOT NULL DEFAULT 'MITMPROXY',
-        url            TEXT NOT NULL DEFAULT '',
-        method         TEXT NOT NULL DEFAULT 'GET',
-        params         TEXT NOT NULL DEFAULT '{}',
-        response       TEXT NOT NULL DEFAULT '{}',
-        created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
-        updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
-      )
-    ''')
-    self._conn.execute('CREATE INDEX IF NOT EXISTS idx_api_type ON api_data(type)')
-    self._conn.execute('''
-      CREATE TABLE IF NOT EXISTS static_data (
-        url         TEXT PRIMARY KEY,
-        type        TEXT NOT NULL DEFAULT 'MITMPROXY',
-        created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
-        updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
-      )
-    ''')
+    # 建表（从 schema 包读取 .sql 文件）
+    self._init_schema()
     # 启动时强制 checkpoint，清理上次异常退出可能残留的 -wal
     self._conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
     # schema 版本管理
     self._check_schema_version()
+
+  def _init_schema(self):
+    schema_sql = read_text('schema', f'v{CURRENT_SCHEMA_VERSION}.sql')
+    self._conn.executescript(schema_sql)
 
   def _check_schema_version(self):
     row = self._conn.execute('PRAGMA user_version').fetchone()
@@ -89,15 +74,15 @@ class MockDB:
     if not records:
       return
     sql = '''
-      INSERT INTO api_data (id, type, url, method, params, response)
-      VALUES (?, 'MITMPROXY', ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        url=excluded.url,
-        method=excluded.method,
-        params=excluded.params,
-        response=excluded.response,
-        updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
-    '''
+          INSERT INTO api_data (id, type, url, method, params, response)
+          VALUES (?, 'MITMPROXY', ?, ?, ?, ?) ON CONFLICT(id) DO
+          UPDATE SET
+              url=excluded.url,
+              method =excluded.method,
+              params=excluded.params,
+              response=excluded.response,
+              updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime') \
+          '''
     data = [(r['id'], r['url'], r['method'], r['params'], r['response']) for r in records]
     with self._lock:
       conn = self._conn
@@ -170,10 +155,14 @@ class MockDB:
 
         # 3. 写入合并后的完整记录
         conn.execute(
-          '''UPDATE api_data SET
-               type=?, url=?, method=?, params=?, response=?,
-               updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
-             WHERE id=?''',
+          '''UPDATE api_data
+             SET type=?,
+                 url=?,
+                 method=?,
+                 params=?,
+                 response=?,
+                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+             WHERE id = ?''',
           (merged['type'], merged['url'], merged['method'],
            merged['params'], merged['response'], record.get('id')),
         )
@@ -204,9 +193,10 @@ class MockDB:
     if not records:
       return
     sql = '''
-      INSERT INTO static_data (url, type) VALUES (?, 'MITMPROXY')
-      ON CONFLICT(url) DO UPDATE SET updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime')
-    '''
+          INSERT INTO static_data (url, type)
+          VALUES (?, 'MITMPROXY') ON CONFLICT(url) DO
+          UPDATE SET updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime') \
+          '''
     data = [(url,) for url in records]
     with self._lock:
       conn = self._conn
