@@ -120,10 +120,10 @@ class MockServer:
     _close_mock_db(work_dir=self.work_dir)
     # 行遍历
     for row_data in mock_api_data_list:
-      response = row_data.get('response')
+      response = row_data.get('response', '{}')
       method = row_data.get('method')
-      params = row_data.get('params')
-      url = row_data.get('url')
+      params = row_data.get('params', '{}')
+      url = row_data.get('url', '')
       # 去掉域名
       route = remove_url_domain(url)
       # GET 请求去掉 query 参数
@@ -141,10 +141,10 @@ class MockServer:
       # 创建 api 映射表
       if request_key not in api_dict:
         api_dict[request_key] = {}
-      # 替换静态资源链接
-      if len(self.include_files):
-        response = assets_reg.sub(assets_replace_method, response)
       try:
+        # 替换静态资源链接
+        if len(self.include_files):
+          response = assets_reg.sub(assets_replace_method, response)
         api_dict[request_key][response_key] = json.loads(response)
       except (json.JSONDecodeError, TypeError) as e:
         print(f'mock 数据 JSON 解析失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
@@ -195,8 +195,8 @@ class MockServer:
         if delay > max_delay:
           delay = max_delay
         print(f'静态资源延时属性  文件大小：{file_size}KB  延时时间：{delay}s')
-        time.sleep(delay)
         static_match_cache.add(search_key)
+        time.sleep(delay)
 
       return send_from_directory(static_folder, file_name)
 
@@ -223,6 +223,7 @@ class MockServer:
     def server_shutdown():
       APP_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
       self.shutdown()
+      return jsonify({'data': 'shutting down'})
 
     # 统一 mock 匹配接口
     @app.route(f"{MOCK_API_ROUTE}/<path:path>", methods=['GET', 'POST'])
@@ -287,23 +288,29 @@ class MockServer:
       APP_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)
 
-  # 获取接口传参的 json 字符串
   def __get_params_json_string(self, params: Union[dict, str]) -> str:
-    # 精确匹配模式下，对字典的 key 进行排序
-    if type(params) == dict:
-      # 传参数据为字典类型
+    """
+    获取接口传参的 json 字符串
+    将 dict 或 json str 统一序列化为标准 json 字符串
+    用于生成 response_key 进行 mock 数据匹配
+    精确匹配模式下对 key 排序，消除参数 key 顺序差异
+    非精确模式仅做格式化
+    """
+    if isinstance(params, dict):
+      # dict -> json str，精确模式下按 key 排序
       if self.http_params_match_mode == SERVER.HTTP_PARAMS_EXACT_MATCH:
         return JsonFormat.sort_dumps(params)
       else:
         return JsonFormat.dumps(params)
-    elif type(params) == str:
-      # 传参数据为字符串类型
+    elif isinstance(params, str):
+      # json str -> 反序列化再序列化，精确模式下按 key 排序
       if self.http_params_match_mode == SERVER.HTTP_PARAMS_EXACT_MATCH:
         return JsonFormat.format_and_sort_json_string(params)
       else:
         return JsonFormat.format_json_string(params)
     else:
-      return params
+      # 非预期类型，返回空 json 字符串兜底
+      return '{}'
 
   # 获取请求查询键名
   @staticmethod
