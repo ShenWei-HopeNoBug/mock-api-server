@@ -39,7 +39,7 @@ class MockServer:
     self.ip_address = get_ip_address()
     self.port = port
     # 静态资源相关配置
-    self.static_host = 'http://{}:{}'.format(self.ip_address, self.port)
+    self.static_host = f'http://{self.ip_address}:{self.port}'
     # 启动服务时解析的静态资源文件类型
     self.include_files = []
     # 动态匹配静态资源请求的路由
@@ -64,7 +64,7 @@ class MockServer:
 
   # 加载 mock 服务配置
   def load_mock_server_config(self):
-    mock_server_config_path = r'{}{}'.format(self.work_dir, MOCK_SERVER_CONFIG_PATH)
+    mock_server_config_path = f'{self.work_dir}{MOCK_SERVER_CONFIG_PATH}'
 
     # 读取服务配置
     with open(mock_server_config_path, 'r', encoding='utf-8') as fl:
@@ -103,14 +103,14 @@ class MockServer:
     # 区分是否延时两种静态资源的路由
     assets_route = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
     # 静态资源 base_url
-    assets_base_url = '{}{}'.format(self.static_host, assets_route)
+    assets_base_url = f'{self.static_host}{assets_route}'
 
     # 静态资源文本替换规则
     def assets_replace_method(match):
       assets_url = match[0]
       file_name = assets_url.split('/')[-1]
 
-      return '{}/{}'.format(assets_base_url, file_name)
+      return f'{assets_base_url}/{file_name}'
 
     api_dict = {}
     # 所有的 mock 数据列表
@@ -143,7 +143,10 @@ class MockServer:
       # 替换静态资源链接
       if len(self.include_files):
         response = assets_reg.sub(assets_replace_method, response)
-      api_dict[request_key][response_key] = json.loads(response)
+      try:
+        api_dict[request_key][response_key] = json.loads(response)
+      except (json.JSONDecodeError, TypeError) as e:
+        print(f'mock 数据 JSON 解析失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
 
     return api_dict
 
@@ -159,7 +162,7 @@ class MockServer:
 
     # 配置跨域(/static静态资源文件夹在低版本的Flask加不加都一样)
     resources = {
-      r"{}/*".format(self.static_url_path): {"origins": "*"},
+      f"{self.static_url_path}/*": {"origins": "*"},
     }
 
     # 静态资源匹配缓存
@@ -174,7 +177,7 @@ class MockServer:
 
       # 文件名
       file_name = route_path.split('/')[-1]
-      file_path = os.path.abspath(r'{}{}/{}'.format(self.work_dir, self.static_url_path, file_name))
+      file_path = os.path.abspath(f'{self.work_dir}{self.static_url_path}/{file_name}')
 
       if not os.path.exists(file_path):
         return
@@ -190,7 +193,7 @@ class MockServer:
         max_delay = 120
         if delay > max_delay:
           delay = max_delay
-        print('静态资源延时属性  文件大小：{}KB  延时时间：{}s'.format(file_size, delay))
+        print(f'静态资源延时属性  文件大小：{file_size}KB  延时时间：{delay}s')
         time.sleep(delay)
         static_match_cache.add(search_key)
 
@@ -203,9 +206,9 @@ class MockServer:
         continue
 
       # 为静态资源请求路由加跨域头
-      resources[r"{}/*".format(static_route)] = {"origins": "*"}
+      resources[f"{static_route}/*"] = {"origins": "*"}
       # 创建静态资源请求接口
-      app.route('{}/<path:path>'.format(static_route), methods=['GET'])(static_match)
+      app.route(f'{static_route}/<path:path>', methods=['GET'])(static_match)
 
     # 添加跨域头
     CORS(app, resources=resources)
@@ -233,7 +236,7 @@ class MockServer:
       request_key = self.__get_request_dict_key(route, method)
       # 请求路径 mock 数据中不存在
       if request_key not in api_dict:
-        return
+        return jsonify({'error': 'Not Found'}), 404
 
       params = self.__get_params_json_string({})
       request_content_type = request.headers.get('content-type') or ''
@@ -248,7 +251,7 @@ class MockServer:
             file = request.files.get('file')
             if file:
               content = remove_byte_empty_content(file.read())
-              file_md5 = 'file-{}'.format(create_md5(content))
+              file_md5 = f'file-{create_md5(content)}'
               multipart_dict['file'] = file_md5
               print('params 存在 file 传参：', multipart_dict)
             params = self.__get_params_json_string(multipart_dict)
@@ -261,7 +264,7 @@ class MockServer:
 
       # 接口响应延时
       if self.response_delay > 0:
-        print('接口响应延时：{}ms, route：{}'.format(self.response_delay, route))
+        print(f'接口响应延时：{self.response_delay}ms, route：{route}')
         time.sleep(self.response_delay / 1000)
 
       # 命中 mock 数据直接返回
@@ -270,7 +273,7 @@ class MockServer:
         return response
       else:
         # 没命中 mock 数据，直接返回最后一条数据
-        print('mock 数据命中失败：\n - {} {} {}'.format(method, route, params))
+        print(f'mock 数据命中失败：\n - {method} {route} {params}')
         last_response_key = list(api_dict[request_key].keys())[-1]
         return api_dict[request_key][last_response_key]
 
@@ -304,9 +307,9 @@ class MockServer:
   # 获取请求查询键名
   @staticmethod
   def __get_request_dict_key(route: str, method: str) -> str:
-    return create_md5('{}{}'.format(route, method))
+    return create_md5(f'{route}{method}')
 
   # 获取响应数据映射表键名
   @staticmethod
   def __get_response_dict_key(method: str, params: str):
-    return create_md5('{}{}'.format(method, params))
+    return create_md5(f'{method}{params}')
