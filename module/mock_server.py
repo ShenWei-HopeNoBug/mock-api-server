@@ -26,28 +26,29 @@ from lib.utils_lib import (
 )
 
 import json
+from typing import Any, Dict, List, Union
 from flask import (Flask, request, send_from_directory, jsonify)
 from flask_cors import CORS
 
 
 class MockServer:
-  def __init__(self, work_dir='.', port=5000, response_delay=0, static_load_speed=0):
+  def __init__(self, work_dir: str = '.', port: int = 5000, response_delay: int = 0, static_load_speed: int = 0):
     # 工作目录相关配置
-    self.work_dir = work_dir
-    self.static_url_path = STATIC_DIR
+    self.work_dir: str = work_dir
+    self.static_url_path: str = STATIC_DIR
     # ip 相关配置
-    self.ip_address = get_ip_address()
-    self.port = port
+    self.ip_address: str = get_ip_address()
+    self.port: int = port
     # 静态资源相关配置
-    self.static_host = f'http://{self.ip_address}:{self.port}'
+    self.static_host: str = f'http://{self.ip_address}:{self.port}'
     # 启动服务时解析的静态资源文件类型
-    self.include_files = []
+    self.include_files: List[str] = []
     # 动态匹配静态资源请求的路由
-    self.static_match_route = []
+    self.static_match_route: List[str] = []
     # 全局接口响应延时
-    self.response_delay = response_delay
+    self.response_delay: int = response_delay
     # 全局静态资源请求加载速率
-    self.static_load_speed = static_load_speed
+    self.static_load_speed: int = static_load_speed
     # http 请求参数匹配模式
     self.http_params_match_mode: int = DEFAULT_HTTP_PARAMS_MATCH_MODE
 
@@ -56,31 +57,31 @@ class MockServer:
     # -------------------
     self.init()
 
-  def init(self):
+  def init(self) -> None:
     # 工作目录文件检查
     create_work_files(self.work_dir)
     # 加载 mock 服务配置
     self.load_mock_server_config()
 
   # 加载 mock 服务配置
-  def load_mock_server_config(self):
+  def load_mock_server_config(self) -> None:
     mock_server_config_path = f'{self.work_dir}{MOCK_SERVER_CONFIG_PATH}'
 
     # 读取服务配置
     with open(mock_server_config_path, 'r', encoding='utf-8') as fl:
       mock_server_config = json.loads(fl.read())
-      include_files = mock_server_config.get('include_files', [])
+      include_files: List[str] = mock_server_config.get('include_files', [])
       self.include_files = list(set(include_files))
       self.http_params_match_mode = mock_server_config.get(
         'http_params_match_mode',
         DEFAULT_HTTP_PARAMS_MATCH_MODE,
       )
 
-      static_match_route = mock_server_config.get('static_match_route', [])
+      static_match_route: List[str] = mock_server_config.get('static_match_route', [])
       static_match_route = list(set(static_match_route))
       # 内置已经占用命名的路由
-      filter_route_list = [SYSTEM_ROUTE, MOCK_API_ROUTE, self.static_url_path]
-      route_list = []
+      filter_route_list: List[str] = [SYSTEM_ROUTE, MOCK_API_ROUTE, self.static_url_path]
+      route_list: List[str] = []
       # 去除内部已经占用的路由
       for route in static_match_route:
         valid = True
@@ -98,23 +99,23 @@ class MockServer:
       self.static_match_route = route_list
 
   # 创建并保存 api_dict
-  def create_api_dict(self):
+  def create_api_dict(self) -> Dict[str, Dict[str, Any]]:
     assets_reg = get_static_match_regexp(self.include_files)
     # 区分是否延时两种静态资源的路由
-    assets_route = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
+    assets_route: str = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
     # 静态资源 base_url
-    assets_base_url = f'{self.static_host}{assets_route}'
+    assets_base_url: str = f'{self.static_host}{assets_route}'
 
     # 静态资源文本替换规则
-    def assets_replace_method(match):
+    def assets_replace_method(match: Any) -> str:
       assets_url = match[0]
       file_name = assets_url.split('/')[-1]
 
       return f'{assets_base_url}/{file_name}'
 
-    api_dict = {}
+    api_dict: Dict[str, Dict[str, Any]] = {}
     # 所有的 mock 数据列表
-    mock_api_data_list = get_mock_api_data_list(work_dir=self.work_dir)
+    mock_api_data_list: List[dict] = get_mock_api_data_list(work_dir=self.work_dir)
     # 查询完毕，关闭 DB 连接（触发 checkpoint，释放文件锁）
     _close_mock_db(work_dir=self.work_dir)
     # 行遍历
@@ -152,12 +153,12 @@ class MockServer:
 
   # 启动本地 mock 服务
   @create_thread
-  def start_server(self):
+  def start_server(self) -> None:
     print('>' * 10, '本地 mock 服务启动...')
     api_dict = self.create_api_dict()
     # 工作目录的绝对路径
-    root_path = os.path.abspath(self.work_dir)
-    static_folder = self.static_url_path.lstrip('/')
+    root_path: str = os.path.abspath(self.work_dir)
+    static_folder: str = self.static_url_path.lstrip('/')
     app = Flask(__name__, static_folder=static_folder, static_url_path=self.static_url_path, root_path=root_path)
 
     # 配置跨域(/static静态资源文件夹在低版本的Flask加不加都一样)
@@ -169,15 +170,15 @@ class MockServer:
     static_match_cache = set()
 
     # 动态匹配静态资源
-    def static_match(path):
+    def static_match(path: str):
       route_path = '/' + path
       # 非文件请求，跳过
       if not is_file_request(route_path):
         return
 
       # 文件名
-      file_name = route_path.split('/')[-1]
-      file_path = os.path.abspath(f'{self.work_dir}{self.static_url_path}/{file_name}')
+      file_name: str = route_path.split('/')[-1]
+      file_path: str = os.path.abspath(f'{self.work_dir}{self.static_url_path}/{file_name}')
 
       if not os.path.exists(file_path):
         return
@@ -186,11 +187,11 @@ class MockServer:
 
       # 静态资源响应延时
       if (self.static_load_speed > 0) and (search_key not in static_match_cache):
-        file_size = os.path.getsize(file_path) / 1024
-        delay = file_size / self.static_load_speed
+        file_size: float = os.path.getsize(file_path) / 1024
+        delay: float = file_size / self.static_load_speed
 
         # 限制最大延时时间
-        max_delay = 120
+        max_delay: int = 120
         if delay > max_delay:
           delay = max_delay
         print(f'静态资源延时属性  文件大小：{file_size}KB  延时时间：{delay}s')
@@ -280,14 +281,14 @@ class MockServer:
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   # 停止本地 mock 服务
-  def shutdown(self):
+  def shutdown(self) -> None:
     result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING')
     if result:
       APP_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)
 
   # 获取接口传参的 json 字符串
-  def __get_params_json_string(self, params: dict or str) -> str:
+  def __get_params_json_string(self, params: Union[dict, str]) -> str:
     # 精确匹配模式下，对字典的 key 进行排序
     if type(params) == dict:
       # 传参数据为字典类型
@@ -311,5 +312,5 @@ class MockServer:
 
   # 获取响应数据映射表键名
   @staticmethod
-  def __get_response_dict_key(method: str, params: str):
+  def __get_response_dict_key(method: str, params: str) -> str:
     return create_md5(f'{method}{params}')
