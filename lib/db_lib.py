@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sqlite3
 import threading
+import contextlib
 from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
 
@@ -47,6 +48,19 @@ class MockDB:
   def _wal_checkpoint_passive(self):
     self._conn.execute('PRAGMA wal_checkpoint(PASSIVE)')
 
+  # 事务上下文管理器，自动处理 BEGIN/COMMIT/ROLLBACK 和线程锁
+  @contextlib.contextmanager
+  def _transaction(self):
+    with self._lock:
+      conn = self._conn
+      conn.execute('BEGIN TRANSACTION')
+      try:
+        yield conn
+        conn.execute('COMMIT')
+      except Exception:
+        conn.execute('ROLLBACK')
+        raise
+
   # 新增插入（纯 INSERT，不去重），返回生成的 id
   def upsert_api(self, record: dict) -> str:
     api_id = generate_uuid()
@@ -55,18 +69,11 @@ class MockDB:
     method = record.get('method', 'GET')
     params = JsonFormat.format_json_string(record.get('params', '{}'))
     response = record.get('response', '{}')
-    with self._lock:
-      conn = self._conn
-      conn.execute('BEGIN TRANSACTION')
-      try:
-        conn.execute(
-          'INSERT INTO api_data (id, type, url, method, params, response) VALUES (?, ?, ?, ?, ?, ?)',
-          (api_id, type_, url, method, params, response),
-        )
-        conn.execute('COMMIT')
-      except Exception:
-        conn.execute('ROLLBACK')
-        raise
+    with self._transaction() as conn:
+      conn.execute(
+        'INSERT INTO api_data (id, type, url, method, params, response) VALUES (?, ?, ?, ?, ?, ?)',
+        (api_id, type_, url, method, params, response),
+      )
     return api_id
 
   # 批量写入抓包数据到 DB
@@ -84,17 +91,11 @@ class MockDB:
               updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime') \
           '''
     data = [(r['id'], r['url'], r['method'], r['params'], r['response']) for r in records]
-    with self._lock:
-      conn = self._conn
-      conn.execute('BEGIN TRANSACTION')
-      try:
+    try:
+      with self._transaction() as conn:
         conn.executemany(sql, data)
-        conn.execute('COMMIT')
-      except Exception:
-        conn.execute('ROLLBACK')
-        raise
-      finally:
-        self._wal_checkpoint_passive()
+    finally:
+      self._wal_checkpoint_passive()
 
   # 查询 api 数据列表
   def get_api_list(self, type: str = None, reverse: bool = False) -> list:
@@ -124,69 +125,53 @@ class MockDB:
 
   # 按 id 更新 api 数据（字段级合并）
   def update_api(self, record: dict) -> bool:
-    with self._lock:
-      conn = self._conn
-      conn.execute('BEGIN TRANSACTION')
-      try:
-        # 1. 查询旧记录
-        row = conn.execute(
-          'SELECT type, url, method, params, response FROM api_data WHERE id=?',
-          (record.get('id'),),
-        ).fetchone()
-        if row is None:
-          conn.execute('ROLLBACK')
-          return False
+    with self._transaction() as conn:
+      # 1. 查询旧记录
+      row = conn.execute(
+        'SELECT type, url, method, params, response FROM api_data WHERE id=?',
+        (record.get('id'),),
+      ).fetchone()
+      if row is None:
+        return False
 
-        # 2. 字段级合并：前端只传修改的字段时，旧值保留
-        old = {
-          'type': row[0],
-          'url': row[1],
-          'method': row[2],
-          'params': row[3],
-          'response': row[4],
-        }
-        merged = {
-          'type': record.get('type') or old['type'],
-          'url': record.get('url') or old['url'],
-          'method': record.get('method') or old['method'],
-          'params': record.get('params') or old['params'],
-          'response': record.get('response') or old['response'],
-        }
+      # 2. 字段级合并：前端只传修改的字段时，旧值保留
+      old = {
+        'type': row[0],
+        'url': row[1],
+        'method': row[2],
+        'params': row[3],
+        'response': row[4],
+      }
+      merged = {
+        'type': record.get('type') or old['type'],
+        'url': record.get('url') or old['url'],
+        'method': record.get('method') or old['method'],
+        'params': record.get('params') or old['params'],
+        'response': record.get('response') or old['response'],
+      }
 
-        # 3. 写入合并后的完整记录
-        conn.execute(
-          '''UPDATE api_data
-             SET type=?,
-                 url=?,
-                 method=?,
-                 params=?,
-                 response=?,
-                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
-             WHERE id = ?''',
-          (merged['type'], merged['url'], merged['method'],
-           merged['params'], merged['response'], record.get('id')),
-        )
-        conn.execute('COMMIT')
-        return True
-      except Exception:
-        conn.execute('ROLLBACK')
-        raise
+      # 3. 写入合并后的完整记录
+      conn.execute(
+        '''UPDATE api_data
+           SET type=?,
+               url=?,
+               method=?,
+               params=?,
+               response=?,
+               updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+           WHERE id = ?''',
+        (merged['type'], merged['url'], merged['method'],
+         merged['params'], merged['response'], record.get('id')),
+      )
+      return True
 
   # 按 id 删除 api 数据
   def delete_api(self, api_id: str) -> bool:
-    with self._lock:
-      conn = self._conn
-      conn.execute('BEGIN TRANSACTION')
-      try:
-        cursor = conn.execute('DELETE FROM api_data WHERE id=?', (api_id,))
-        if cursor.rowcount == 0:
-          conn.execute('ROLLBACK')
-          return False
-        conn.execute('COMMIT')
-        return True
-      except Exception:
-        conn.execute('ROLLBACK')
-        raise
+    with self._transaction() as conn:
+      cursor = conn.execute('DELETE FROM api_data WHERE id=?', (api_id,))
+      if cursor.rowcount == 0:
+        return False
+      return True
 
   # 批量写静态资源到 DB
   def batch_upsert_static(self, records: list) -> None:
@@ -198,17 +183,11 @@ class MockDB:
           UPDATE SET updated_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime') \
           '''
     data = [(url,) for url in records]
-    with self._lock:
-      conn = self._conn
-      conn.execute('BEGIN TRANSACTION')
-      try:
+    try:
+      with self._transaction() as conn:
         conn.executemany(sql, data)
-        conn.execute('COMMIT')
-      except Exception:
-        conn.execute('ROLLBACK')
-        raise
-      finally:
-        self._wal_checkpoint_passive()
+    finally:
+      self._wal_checkpoint_passive()
 
   # 查静态资源列表
   def get_static_list(self) -> list:
