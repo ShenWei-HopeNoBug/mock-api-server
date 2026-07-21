@@ -133,12 +133,12 @@ class MockDB:
       self._wal_checkpoint_passive()
 
   # 查询 api 数据列表
-  def get_api_list(self, type: str = None, reverse: bool = False) -> List[ApiData]:
-    """查询 API 数据列表，可按 type 过滤、按时间正序/倒序排列"""
+  def get_api_list(self, api_type: str = None, reverse: bool = False) -> List[ApiData]:
+    """查询 API 数据列表，可按 api_type 过滤、按时间正序/倒序排列"""
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
-    if type is not None:
+    if api_type is not None:
       sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
-      params = (type,)
+      params = (api_type,)
     else:
       sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data ORDER BY created_at {order}'
       params = ()

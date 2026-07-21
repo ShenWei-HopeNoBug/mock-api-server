@@ -69,7 +69,7 @@ class RequestRecorder:
   # 从 DB 加载历史数据初始化抓包缓存
   def load_history_cache(self):
     # 从 DB 加载历史 response 数据，填充内存缓冲用于抓包去重
-    mitmproxy_data = self.mock_db.get_api_list(type='MITMPROXY')
+    mitmproxy_data = self.mock_db.get_api_list(api_type='MITMPROXY')
     for row_data in mitmproxy_data:
       mitmproxy_lib.save_response_to_cache(row_data, self.response_cache_dict)
 

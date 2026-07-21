@@ -162,13 +162,13 @@ def get_process_windows(pid):
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
 def get_mitmproxy_api_data_list(work_dir='.', reverse=False):
   mock_db: MockDB = _get_mock_db(work_dir)
-  return mock_db.get_api_list(type='MITMPROXY', reverse=reverse)
+  return mock_db.get_api_list(api_type='MITMPROXY', reverse=reverse)
 
 
 @error_catch(error_msg='读取 user api 数据失败', error_return=[])
 def get_user_api_data_list(work_dir='.', reverse=False):
   mock_db: MockDB = _get_mock_db(work_dir)
-  return mock_db.get_api_list(type='USER', reverse=reverse)
+  return mock_db.get_api_list(api_type='USER', reverse=reverse)
 
 
 @error_catch(error_msg='更新 user api 数据失败', error_return=False)
@@ -214,8 +214,8 @@ def delete_user_api_data(work_dir='.', delete_id: str = '') -> bool:
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
 def get_mock_api_data_list(work_dir='.'):
   mock_db: MockDB = _get_mock_db(work_dir)
-  api_list = mock_db.get_api_list(type='MITMPROXY')
-  api_list.extend(mock_db.get_api_list(type='USER'))
+  api_list = mock_db.get_api_list(api_type='MITMPROXY')
+  api_list.extend(mock_db.get_api_list(api_type='USER'))
 
   return api_list
 
