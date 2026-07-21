@@ -28,7 +28,7 @@ from lib.utils_lib import (
 
 import json
 import re
-from typing import List, Union
+from typing import List, Pattern, Union
 from app_types.db_types import ApiData
 from app_types.mock_server_types import MockApiDict
 from flask import (Flask, request, send_from_directory, jsonify)
@@ -117,14 +117,14 @@ class MockServer:
        - 若配置了 include_files，对 response 做静态资源链接替换
        - 解析 response JSON 存入 api_dict[request_key][response_key]
     """
-    assets_reg: re.Pattern[str] = get_static_match_regexp(self.include_files)
+    assets_reg: Pattern[str] = get_static_match_regexp(self.include_files)
     # 区分是否延时两种静态资源的路由
     assets_route: str = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
     # 静态资源 base_url
     assets_base_url: str = f'{self.static_host}{assets_route}'
 
     # 静态资源文本替换规则
-    def assets_replace_method(match: re.Match[str]) -> str:
+    def assets_replace_method(match: re.Match) -> str:
       assets_url = match[0]
       file_name = assets_url.split('/')[-1]
 
@@ -241,7 +241,13 @@ class MockServer:
     @app.route(f"{SYSTEM_ROUTE}/shutdown", methods=['GET'])
     def server_shutdown():
       APP_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
-      self.shutdown()
+
+      @create_thread(daemon=True)
+      def delayed_shutdown():
+        time.sleep(0.5)
+        self.shutdown()
+
+      delayed_shutdown()
       return jsonify({'data': 'shutting down'})
 
     # 统一 mock 匹配接口
