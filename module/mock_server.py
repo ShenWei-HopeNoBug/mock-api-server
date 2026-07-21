@@ -104,7 +104,20 @@ class MockServer:
 
   # 创建并保存 api_dict
   def create_api_dict(self) -> MockApiDict:
-    assets_reg = get_static_match_regexp(self.include_files)
+    """
+    构建 mock api 映射表
+
+    1. 准备静态资源替换规则：编译 include_files 正则，确定静态资源路由前缀（延时/非延时），
+       定义替换回调，将响应中的原始静态资源 URL 重写为本地服务地址。
+    2. 从 DB 加载全部 mock 数据，查询完毕后关闭 DB 连接（触发 checkpoint，释放文件锁）。
+    3. 逐条遍历 mock 数据：
+       - 用 API_INSERT_DEFAULTS 兜底缺失字段
+       - 去掉 URL 域名得到路由，GET 请求额外去掉 query 参数
+       - 由 route + method 生成 request_key，由 method + params 生成 response_key
+       - 若配置了 include_files，对 response 做静态资源链接替换
+       - 解析 response JSON 存入 api_dict[request_key][response_key]
+    """
+    assets_reg: re.Pattern[str] = get_static_match_regexp(self.include_files)
     # 区分是否延时两种静态资源的路由
     assets_route: str = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
     # 静态资源 base_url
@@ -118,26 +131,27 @@ class MockServer:
       return f'{assets_base_url}/{file_name}'
 
     api_dict: MockApiDict = {}
-    # 所有的 mock 数据列表
+    # 所有的 mock 数据列表（MITMPROXY 在前、USER 在后，各自按 created_at 旧→新排序）
     mock_api_data_list: List[ApiData] = get_mock_api_data_list(work_dir=self.work_dir)
     # 查询完毕，关闭 DB 连接（触发 checkpoint，释放文件锁）
     MockDBCache.close(work_dir=self.work_dir)
     # 行遍历
     for row_data in mock_api_data_list:
-      response = row_data.get('response', '{}')
-      method = row_data.get('method')
-      params = row_data.get('params', '{}')
-      url = row_data.get('url', '')
+      data = {**SERVER.MOCK_API_DATA_DEFAULTS, **row_data}
+      response: str = data['response']
+      method: str = data['method']
+      params: str = data['params']
+      url: str = data['url']
       # 去掉域名
-      route = remove_url_domain(url)
+      route: str = remove_url_domain(url)
       # GET 请求去掉 query 参数
       if method == 'GET':
         route = remove_url_query(route)
 
       # 请求查询键名
-      request_key = self.__get_request_dict_key(route, method)
+      request_key: str = self.__get_request_dict_key(route, method)
       # 响应数据查询键名
-      response_key = self.__get_response_dict_key(
+      response_key: str = self.__get_response_dict_key(
         method,
         self.__get_params_json_string(params),
       )
