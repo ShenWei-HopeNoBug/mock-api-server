@@ -135,7 +135,7 @@ def find_connection_process(ip: str = '0.0.0.0', port: int = 5000) -> List[psuti
       continue
 
     laddr = conn.laddr
-    if not laddr or isinstance(laddr, tuple):
+    if not laddr or laddr == ():
       continue
 
     # 匹配指定 ip 和 端口号的进程
@@ -165,7 +165,7 @@ def check_local_connection(ip: str = '0.0.0.0', port: int = 5000) -> bool:
       continue
 
     laddr = conn.laddr
-    if not laddr or isinstance(laddr, tuple):
+    if not laddr or laddr == ():
       continue
     # 匹配指定 ip 和 端口号的进程
     if port == laddr.port and ip == laddr.ip:
