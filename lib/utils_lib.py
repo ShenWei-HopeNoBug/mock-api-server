@@ -14,13 +14,13 @@ import socket
 from lib.decorate import error_catch
 import datetime
 import uuid
-from typing import Union, Optional
+from typing import Union, Optional, Any, List
 
 
 # 生成数据的 uuid
 def generate_uuid() -> str:
   name = '{}-{}'.format(uuid.uuid4(), uuid.uuid1())
-  return str(uuid.uuid5(uuid.NAMESPACE_DNS, name))
+  return '{}'.format(uuid.uuid5(uuid.NAMESPACE_DNS, name))
 
 
 # 限制数值范围
@@ -47,7 +47,9 @@ def get_ip_address() -> str:
 
 
 # 获取字符串的 md5
-def create_md5(string: str = '') -> str:
+def create_md5(string: Union[str, bytes] = '') -> str:
+  if isinstance(string, bytes):
+    return hashlib.md5(string).hexdigest()
   return hashlib.md5(str(string).encode('utf-8')).hexdigest()
 
 
@@ -193,7 +195,7 @@ def compress_image(input_path: str, output_path: str, quality: int = 80) -> bool
 
 # 配置文件管理器
 class ConfigFileManager:
-  def __init__(self, path: str, config: dict = None) -> None:
+  def __init__(self, path: str, config: Optional[dict] = None) -> None:
     self.path = path
     self.config = copy.deepcopy(config or {})
 
@@ -210,7 +212,7 @@ class ConfigFileManager:
       fl.write(JsonFormat.dumps(copy.deepcopy(self.config)))
 
   @error_catch(error_msg='查找变量失败！', error_return=None)
-  def get(self, key: str) -> any:
+  def get(self, key: str) -> Any:
     if not key:
       return None
 
@@ -221,7 +223,7 @@ class ConfigFileManager:
     return dict_data.get(key, None)
 
   @error_catch(error_msg='更新变量失败！')
-  def set(self, key: str, value: any) -> None:
+  def set(self, key: str, value: Any) -> None:
     if not key:
       return
 
@@ -244,7 +246,7 @@ class ConfigFileManager:
 
   # 为 list 类型的数据 append 新数据，返回操作是否成功状态
   @error_catch(error_msg='列表数据 append 失败', error_return=False)
-  def append_list_value(self, key: str, value: any, check_repeat: bool = True) -> bool:
+  def append_list_value(self, key: str, value: Any, check_repeat: bool = True) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
     if not type(list_data) is list:
@@ -261,7 +263,7 @@ class ConfigFileManager:
 
   # 为 list 类型的数据更新指定 index 数据，返回操作是否成功状态
   @error_catch(error_msg='列表数据 update 失败', error_return=False)
-  def update_list_value(self, key: str, value: any, index: int = -1, check_repeat: bool = True) -> bool:
+  def update_list_value(self, key: str, value: Any, index: int = -1, check_repeat: bool = True) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
     if not type(list_data) is list:
@@ -310,17 +312,17 @@ class ConfigFileManager:
 
 # 校验链接是否满足匹配条件
 @error_catch(error_msg='校验链接是否满足匹配条件失败', error_return=False)
-def is_url_match(url: str, includes: list or str) -> bool:
+def is_url_match(url: str, includes: Union[List[str], str]) -> bool:
   # 入参校验
   if not len(url) or not len(includes):
     return False
 
   # 校验规则为字符串
-  if type(includes) == str:
+  if isinstance(includes, str):
     include_reg = re.compile(includes)
     return bool(include_reg.search(url))
   # 校验规则为字符串列表
-  elif type(includes) == list:
+  elif isinstance(includes, list):
     pattern = r'({})'.format('|'.join(includes))
     include_reg = re.compile(pattern)
     return bool(include_reg.search(url))
