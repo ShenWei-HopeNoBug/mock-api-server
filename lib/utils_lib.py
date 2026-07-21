@@ -14,6 +14,7 @@ import socket
 from lib.decorate import error_catch
 import datetime
 import uuid
+from typing import Union, Optional
 
 
 # 生成数据的 uuid
@@ -24,10 +25,10 @@ def generate_uuid() -> str:
 
 # 限制数值范围
 def limit_num_range(
-    num: int or float,
-    min_limit: int or float,
-    max_limit: int or float
-) -> int or float:
+    num: Union[int, float],
+    min_limit: Union[int, float],
+    max_limit: Union[int, float]
+) -> Union[int, float]:
   if num > max_limit:
     return max_limit
   elif num < min_limit:
@@ -37,7 +38,7 @@ def limit_num_range(
 
 
 # 获取本机 ip 地址
-def get_ip_address():
+def get_ip_address() -> str:
   # 获取主机名
   hostname = socket.gethostname()
   # 获取IP地址
@@ -46,40 +47,40 @@ def get_ip_address():
 
 
 # 获取字符串的 md5
-def create_md5(string: str = ''):
+def create_md5(string: str = '') -> str:
   return hashlib.md5(str(string).encode('utf-8')).hexdigest()
 
 
 # 生成时间戳
-def create_timestamp(time_format: str = '%Y%m%d%H%M%S'):
+def create_timestamp(time_format: str = '%Y%m%d%H%M%S') -> str:
   return datetime.datetime.now().strftime(time_format)
 
 
 # 获取链接的域名
-def get_url_domain(url: str = ''):
+def get_url_domain(url: str = '') -> str:
   domain = urlparse(url).netloc
   return domain
 
 
 # 去掉链接里面的域名
-def remove_url_domain(url: str = ''):
+def remove_url_domain(url: str = '') -> str:
   parse_data = urlparse(url)
   return parse_data.path
 
 
 # 去掉链接里面的 query 参数
-def remove_url_query(url=''):
+def remove_url_query(url: str = '') -> str:
   return re.sub(r'\?.*$', '', url)
 
 
 # 检查并创建文件夹
-def check_and_create_dir(path):
+def check_and_create_dir(path: str) -> None:
   if not os.path.exists(path):
     os.makedirs(path)
 
 
 @error_catch(error_msg='是否为文件请求判断失败', error_return=False)
-def is_file_request(url=''):
+def is_file_request(url: str = '') -> bool:
   # 去掉 query 参数的请求
   pure_url = url.split(r'?')[0]
   # 去掉协议头
@@ -96,12 +97,12 @@ def is_file_request(url=''):
 class JsonFormat:
   # 将数据格式化为标准的 json string
   @staticmethod
-  def dumps(data: dict or list) -> str:
+  def dumps(data: Union[dict, list]) -> str:
     return json.dumps(data, ensure_ascii=False)
 
   # 格式化 json string 数据(业务映射)
   @staticmethod
-  def format_json_string(json_string: str):
+  def format_json_string(json_string: str) -> str:
     return JsonFormat.dumps(json.loads(json_string))
 
   # 格式化 dict 数据(业务映射)
@@ -110,7 +111,7 @@ class JsonFormat:
     return json.loads(JsonFormat.dumps(dict_data))
 
   @staticmethod
-  def sort_dumps(data: dict or list) -> str:
+  def sort_dumps(data: Union[dict, list]) -> str:
     return json.dumps(data, ensure_ascii=False, sort_keys=True)
 
   @staticmethod
@@ -124,7 +125,7 @@ class JsonFormat:
 
 # 找到监听指定 ip 和 端口号网络服务的进程列表
 @error_catch(error_msg='查找服务进程失败', error_return=[])
-def find_connection_process(ip='0.0.0.0', port=5000):
+def find_connection_process(ip: str = '0.0.0.0', port: int = 5000) -> list:
   process_list = []
   connections = psutil.net_connections()
   for conn in connections:
@@ -142,7 +143,7 @@ def find_connection_process(ip='0.0.0.0', port=5000):
 
 
 @error_catch(error_msg='根据pid查找进程异常', error_return=None)
-def find_process(pid: int):
+def find_process(pid: int) -> Optional[psutil.Process]:
   try:
     return psutil.Process(pid)
   except psutil.NoSuchProcess:
@@ -150,7 +151,7 @@ def find_process(pid: int):
 
 
 # 检测本地指定 ip 和 端口号网络服务是否已经被占用
-def check_local_connection(ip='0.0.0.0', port=5000):
+def check_local_connection(ip: str = '0.0.0.0', port: int = 5000) -> bool:
   connections = psutil.net_connections()
   for conn in connections:
     if not conn.status == 'LISTEN':
@@ -166,7 +167,7 @@ def check_local_connection(ip='0.0.0.0', port=5000):
 
 # 压缩图片
 @error_catch(error_msg='压缩图片时出错', error_return=False)
-def compress_image(input_path, output_path, quality=80):
+def compress_image(input_path: str, output_path: str, quality: int = 80) -> bool:
   img_excepts = ['.png', '.jpg', '.jpeg']
   img_pattern = r'({})$'.format('|'.join(img_excepts))
   img_compare = re.compile(img_pattern, flags=re.IGNORECASE)
@@ -192,11 +193,11 @@ def compress_image(input_path, output_path, quality=80):
 
 # 配置文件管理器
 class ConfigFileManager:
-  def __init__(self, path: str, config: dict = None):
+  def __init__(self, path: str, config: dict = None) -> None:
     self.path = path
     self.config = copy.deepcopy(config or {})
 
-  def init(self, replace: bool = False):
+  def init(self, replace: bool = False) -> None:
     work_dir = os.path.dirname(self.path)
     # 检查并创建系统文件夹
     check_and_create_dir(work_dir)
@@ -220,7 +221,7 @@ class ConfigFileManager:
     return dict_data.get(key, None)
 
   @error_catch(error_msg='更新变量失败！')
-  def set(self, key: str, value: any):
+  def set(self, key: str, value: any) -> None:
     if not key:
       return
 
@@ -243,7 +244,7 @@ class ConfigFileManager:
 
   # 为 list 类型的数据 append 新数据，返回操作是否成功状态
   @error_catch(error_msg='列表数据 append 失败', error_return=False)
-  def append_list_value(self, key: str, value: any, check_repeat=True) -> bool:
+  def append_list_value(self, key: str, value: any, check_repeat: bool = True) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
     if not type(list_data) is list:
@@ -260,7 +261,7 @@ class ConfigFileManager:
 
   # 为 list 类型的数据更新指定 index 数据，返回操作是否成功状态
   @error_catch(error_msg='列表数据 update 失败', error_return=False)
-  def update_list_value(self, key: str, value: any, index: int = -1, check_repeat=True) -> bool:
+  def update_list_value(self, key: str, value: any, index: int = -1, check_repeat: bool = True) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
     if not type(list_data) is list:
@@ -328,7 +329,7 @@ def is_url_match(url: str, includes: list or str) -> bool:
 
 
 @error_catch(error_msg='去除 bytes 内容空字符失败', error_return=bytes())
-def remove_byte_empty_content(b):
+def remove_byte_empty_content(b: bytes) -> bytes:
   if type(b) != bytes:
     return b
 
@@ -336,7 +337,7 @@ def remove_byte_empty_content(b):
 
 
 @error_catch(error_msg='获取 multipart_dict 失败', error_return={})
-def get_multipart_dict(multipart_form) -> dict:
+def get_multipart_dict(multipart_form: dict) -> dict:
   multipart_dict = {}
   for key, value in multipart_form.items():
     key_decode = key.decode('utf-8')
@@ -388,7 +389,7 @@ def is_local_server_running(
 
 
 @error_catch(error_msg='关闭本地服务异常！')
-def shutdown_local_server(port: int = 5000):
+def shutdown_local_server(port: int = 5000) -> None:
   process_list = find_connection_process(ip='0.0.0.0', port=port)
   if len(process_list) == 0:
     print(f"未找到本地服务进程！port={port}")

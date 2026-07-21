@@ -96,20 +96,26 @@ class RequestRecorder:
     method: str = flow.request.method
 
     # 请求参数，统一用 json string
-    params: str = JsonFormat.dumps({})
+    params: str = '{}'
 
+    # 根据请求的 content-type 提取参数，统一转为 json string
     request_content_type: str = (flow.request.headers.get('content-type') or '').lower()
     if method == 'POST':
+      # 表单提交：键值对形式，直接转 dict
       if 'application/x-www-form-urlencoded' in request_content_type:
         params = JsonFormat.dumps(dict(flow.request.urlencoded_form or {}))
+      # JSON 请求体：原始文本可能是非标准 JSON，format_json_string 做容错格式化
       elif 'application/json' in request_content_type:
-        params_json: str = flow.request.get_text() or JsonFormat.dumps({})
+        params_json: str = flow.request.get_text() or '{}'
         params = JsonFormat.format_json_string(params_json)
+      # 文件上传：multipart 内可能含文件字段，get_multipart_dict 对 file 传参做特殊处理（提取文件名等）
       elif 'multipart/form-data' in request_content_type:
         print('content-type 为 multipart/form-data，针对内部的 file 传参作特殊处理：\n{}'.format(url))
         multipart_dict: dict = get_multipart_dict(flow.request.multipart_form)
         params = JsonFormat.dumps(multipart_dict)
+      # 其他 POST content-type（如 text/plain、application/xml 等）不提取参数，保持默认空对象
     elif method == 'GET':
+      # GET 请求参数在 query string 中，直接转 dict
       params = JsonFormat.dumps(dict(flow.request.query.copy()))
 
     # 响应内容，统一用 json string
