@@ -2,6 +2,7 @@
 import sqlite3
 import threading
 import contextlib
+from typing import List
 from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
@@ -12,11 +13,22 @@ CURRENT_SCHEMA_VERSION = 1
 
 
 class MockDB:
-  # SQLite 数据访问层，封装所有 DB 读写操作
+  """
+  SQLite 数据访问层，封装所有 DB 读写操作
+
+  使用 WAL 模式 + autocommit，事务由 _transaction 上下文管理器显式控制。
+  线程安全：通过 threading.Lock 保护所有读写操作。
+  """
+
   def __init__(self, db_path: str):
-    self._db_path = db_path
-    self._lock = threading.Lock()
-    self._conn = sqlite3.connect(db_path, check_same_thread=False)
+    # 数据库文件路径
+    self._db_path: str = db_path
+    # 线程锁，保护所有读写操作
+    self._lock: threading.Lock = threading.Lock()
+    # SQLite 连接，允许跨线程访问
+    self._conn: sqlite3.Connection = sqlite3.connect(db_path, check_same_thread=False)
+    # 连接是否已关闭，用于 close() 幂等判断
+    self._closed: bool = False
     # autocommit 模式，事务由代码显式控制
     self._conn.isolation_level = None
     # 跨进程锁竞争时等待 5s
@@ -32,6 +44,7 @@ class MockDB:
     APP_LOGGER.info(f'MockDB 初始化完成: {db_path}')
 
   def _init_schema(self):
+    """从 schema 包读取 .sql 文件执行建表 DDL"""
     try:
       schema_sql = read_text('schema', f'v{CURRENT_SCHEMA_VERSION}.sql')
       self._conn.executescript(schema_sql)
@@ -40,6 +53,7 @@ class MockDB:
       raise
 
   def _check_schema_version(self):
+    """检查数据库 schema 版本，首次写入版本号，降级时输出警告"""
     row = self._conn.execute('PRAGMA user_version').fetchone()
     db_version = row[0] if row else 0
     if db_version == 0:
@@ -53,11 +67,19 @@ class MockDB:
 
   # 执行 PASSIVE checkpoint，供批量写入后调用
   def _wal_checkpoint_passive(self):
+    """执行 PASSIVE checkpoint，将 -wal 日志合并回主库"""
     self._conn.execute('PRAGMA wal_checkpoint(PASSIVE)')
 
   # 事务上下文管理器，自动处理 BEGIN/COMMIT/ROLLBACK 和线程锁
   @contextlib.contextmanager
   def _transaction(self):
+    """
+    事务上下文管理器
+
+    自动处理 BEGIN/COMMIT/ROLLBACK 和线程锁。
+    用法: with self._transaction() as conn: conn.execute(...)
+    异常时自动 ROLLBACK 并记录日志。
+    """
     with self._lock:
       conn = self._conn
       conn.execute('BEGIN TRANSACTION')
@@ -71,6 +93,7 @@ class MockDB:
 
   # 新增插入（纯 INSERT，不去重），返回生成的 id
   def upsert_api(self, record: ApiRecord) -> str:
+    """插入一条 API 数据，返回生成的 id"""
     api_id = generate_uuid()
     type_ = record.get('type', 'USER')
     url = record.get('url', '')
@@ -85,7 +108,8 @@ class MockDB:
     return api_id
 
   # 批量写入抓包数据到 DB
-  def batch_upsert_api(self, records: list[ApiRecord]) -> None:
+  def batch_upsert_api(self, records: List[ApiRecord]) -> None:
+    """批量写入 mitmproxy 抓包数据，按 id 做 UPSERT，写入后触发 PASSIVE checkpoint"""
     if not records:
       return
     sql = '''
@@ -107,7 +131,8 @@ class MockDB:
       self._wal_checkpoint_passive()
 
   # 查询 api 数据列表
-  def get_api_list(self, type: str = None, reverse: bool = False) -> list[ApiData]:
+  def get_api_list(self, type: str = None, reverse: bool = False) -> List[ApiData]:
+    """查询 API 数据列表，可按 type 过滤、按时间正序/倒序排列"""
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     if type is not None:
       sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
@@ -134,6 +159,11 @@ class MockDB:
 
   # 按 id 更新 api 数据（字段级合并）
   def update_api(self, record: ApiRecord) -> bool:
+    """
+    按 id 更新 API 数据，字段级合并
+
+    前端只传修改的字段时旧值保留，记录不存在时返回 False。
+    """
     with self._transaction() as conn:
       # 1. 查询旧记录
       row = conn.execute(
@@ -176,6 +206,7 @@ class MockDB:
 
   # 按 id 删除 api 数据
   def delete_api(self, api_id: str) -> bool:
+    """按 id 删除 API 数据，记录不存在时返回 False"""
     with self._transaction() as conn:
       cursor = conn.execute('DELETE FROM api_data WHERE id=?', (api_id,))
       if cursor.rowcount == 0:
@@ -184,6 +215,7 @@ class MockDB:
 
   # 批量写静态资源到 DB
   def batch_upsert_static(self, records: list) -> None:
+    """批量写入静态资源 URL，按 url 做 UPSERT，写入后触发 PASSIVE checkpoint"""
     if not records:
       return
     sql = '''
@@ -200,7 +232,8 @@ class MockDB:
       self._wal_checkpoint_passive()
 
   # 查静态资源列表
-  def get_static_list(self) -> list[StaticData]:
+  def get_static_list(self) -> List[StaticData]:
+    """查询全部静态资源列表，按创建时间倒序排列"""
     sql = 'SELECT url, type, created_at, updated_at FROM static_data ORDER BY created_at DESC, url DESC'
     with self._lock:
       cursor = self._conn.execute(sql)
@@ -217,7 +250,8 @@ class MockDB:
 
   # 关闭 DB 连接，触发 SQLite 自动 checkpoint
   def close(self):
+    """关闭 DB 连接，触发 SQLite 自动 checkpoint，幂等可重复调用"""
     with self._lock:
-      if self._conn:
+      if not self._closed:
         self._conn.close()
-        self._conn = None
+        self._closed = True
