@@ -124,6 +124,7 @@ class RequestRecorder:
       params = JsonFormat.dumps(dict(flow.request.query.copy()))
 
     # 响应内容，统一用 json string
+    # __check_response 已确保 flow.response 非空
     response: str = flow.response.get_text()
 
     record: ApiRecord = {
@@ -163,7 +164,11 @@ class RequestRecorder:
     self.mock_db.close()
 
   # 检查请求是否需要被抓取保存
-  def __check_response(self, request: http.Request, response: http.Response) -> bool:
+  def __check_response(self, request: http.Request, response: Optional[http.Response]) -> bool:
+    # response 为空，跳过
+    if response is None:
+      return False
+
     # 请求链接
     url: str = request.url
 
