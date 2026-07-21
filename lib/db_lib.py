@@ -106,15 +106,16 @@ class MockDB:
     return api_id
 
   # 批量写入 API 数据到 DB
-  def batch_insert_api(self, records: List[ApiRecord]) -> None:
+  def batch_insert_api(self, records: List[ApiRecord]) -> bool:
     """
     批量插入 API 数据，写入后触发 PASSIVE checkpoint
 
     不判断 id 是否重复，全部走 INSERT。重复数据的判断由应用层自行处理。
     id 统一用 generate_uuid 生成，字段缺失时用 API_INSERT_DEFAULTS 兜底，params 做 JSON 格式化。
+    返回 True 表示写入成功，False 表示空数据或写入异常。
     """
     if not records:
-      return
+      return False
 
     insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response) VALUES (?, ?, ?, ?, ?, ?)'
     insert_data = []
@@ -129,6 +130,9 @@ class MockDB:
       with self._transaction() as conn:
         conn.executemany(insert_sql, insert_data)
       APP_LOGGER.info(f'MockDB batch_insert_api 写入 {len(records)} 条')
+      return True
+    except Exception:
+      return False
     finally:
       self._wal_checkpoint_passive()
 
@@ -208,6 +212,8 @@ class MockDB:
   # 按 id 删除 api 数据
   def delete_api(self, api_id: str) -> bool:
     """按 id 删除 API 数据，记录不存在时返回 False"""
+    if not api_id:
+      return False
     with self._transaction() as conn:
       cursor = conn.execute('DELETE FROM api_data WHERE id=?', (api_id,))
       if cursor.rowcount == 0:
