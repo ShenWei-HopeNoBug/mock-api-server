@@ -2,6 +2,7 @@
 import sqlite3
 import threading
 import contextlib
+import functools
 from typing import List
 from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
@@ -11,6 +12,22 @@ from types.db_types import ApiRecord, ApiData, StaticData
 
 # 当前 schema 版本
 CURRENT_SCHEMA_VERSION = 1
+
+
+def _ensure_open(default=None):
+  """MockDB 方法保护装饰器，DB 已关闭时返回 default 而非抛异常"""
+
+  def decorator(method):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+      if self._closed:
+        APP_LOGGER.warning(f'MockDB 已关闭，{method.__name__} 未执行')
+        return default
+      return method(self, *args, **kwargs)
+
+    return wrapper
+
+  return decorator
 
 
 class MockDB:
@@ -67,6 +84,7 @@ class MockDB:
       APP_LOGGER.warning(f'MockDB 数据库版本({db_version})比代码版本({CURRENT_SCHEMA_VERSION})新，降级运行可能存在风险')
 
   # 执行 PASSIVE checkpoint，供批量写入后调用
+  @_ensure_open()
   def _wal_checkpoint_passive(self):
     """执行 PASSIVE checkpoint，将 -wal 日志合并回主库"""
     with self._lock:
@@ -89,24 +107,32 @@ class MockDB:
         yield conn
         conn.execute('COMMIT')
       except Exception as e:
-        conn.execute('ROLLBACK')
+        try:
+          conn.execute('ROLLBACK')
+        except Exception as rb_err:
+          APP_LOGGER.error(f'MockDB ROLLBACK 失败: {rb_err}')
         APP_LOGGER.error(f'MockDB 事务回滚: {e}')
         raise
 
-  # 新增插入（纯 INSERT，不去重），返回生成的 id
-  def insert_api(self, record: ApiRecord) -> str:
-    """插入一条 API 数据，返回生成的 id"""
+  # 新增插入（纯 INSERT，不去重），返回是否成功
+  @_ensure_open(default=False)
+  def insert_api(self, record: ApiRecord) -> bool:
+    """插入一条 API 数据，成功返回 True，失败返回 False"""
     api_id = generate_uuid()
     data = {**DATABASE.API_INSERT_DEFAULTS, **record}
     data['params'] = JsonFormat.format_json_string(data['params'])
-    with self._transaction() as conn:
-      conn.execute(
-        'INSERT INTO api_data (id, type, url, method, params, response) VALUES (?, ?, ?, ?, ?, ?)',
-        (api_id, data['type'], data['url'], data['method'], data['params'], data['response']),
-      )
-    return api_id
+    try:
+      with self._transaction() as conn:
+        conn.execute(
+          'INSERT INTO api_data (id, type, url, method, params, response) VALUES (?, ?, ?, ?, ?, ?)',
+          (api_id, data['type'], data['url'], data['method'], data['params'], data['response']),
+        )
+      return True
+    except Exception:
+      return False
 
   # 批量写入 API 数据到 DB
+  @_ensure_open(default=False)
   def batch_insert_api(self, records: List[ApiRecord]) -> bool:
     """
     批量插入 API 数据，写入后触发 PASSIVE checkpoint
@@ -141,6 +167,7 @@ class MockDB:
         APP_LOGGER.error(f'MockDB batch_insert_api checkpoint 失败: {e}')
 
   # 查询 api 数据列表
+  @_ensure_open(default=[])
   def get_api_list(self, api_type: str = None, reverse: bool = False) -> List[ApiData]:
     """查询 API 数据列表，可按 api_type 过滤、按时间正序/倒序排列"""
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
@@ -168,6 +195,7 @@ class MockDB:
     return result
 
   # 按 id 更新 api 数据（字段级合并）
+  @_ensure_open(default=False)
   def update_api(self, record: ApiRecord) -> bool:
     """
     按 id 更新 API 数据，字段级合并
@@ -215,6 +243,7 @@ class MockDB:
       return True
 
   # 按 id 删除 api 数据
+  @_ensure_open(default=False)
   def delete_api(self, api_id: str) -> bool:
     """按 id 删除 API 数据，记录不存在时返回 False"""
     if not api_id:
@@ -226,6 +255,7 @@ class MockDB:
       return True
 
   # 批量写静态资源到 DB
+  @_ensure_open(default=False)
   def batch_insert_static(self, urls: List[str]) -> bool:
     """
     批量写入静态资源 URL，写入后触发 PASSIVE checkpoint
@@ -256,6 +286,7 @@ class MockDB:
         APP_LOGGER.error(f'MockDB batch_insert_static checkpoint 失败: {e}')
 
   # 查静态资源列表
+  @_ensure_open(default=[])
   def get_static_list(self, reverse: bool = False) -> List[StaticData]:
     """查询全部静态资源列表，可按时间正序/倒序排列"""
     order = 'DESC, url DESC' if reverse else 'ASC, url ASC'
