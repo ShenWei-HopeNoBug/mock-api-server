@@ -9,7 +9,7 @@ from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
 from config.enum import DATABASE
-from types.db_types import ApiRecord, ApiData, StaticData
+from app_types.db_types import ApiRecord, ApiData, StaticData
 
 # 当前 schema 版本
 CURRENT_SCHEMA_VERSION = 1
