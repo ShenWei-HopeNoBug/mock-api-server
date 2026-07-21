@@ -73,17 +73,8 @@ class RequestRecorder:
 
   # 接口请求
   def request(self, flow: http.HTTPFlow) -> None:
-    # 抓包结束，跳出
-    if self.mitmproxy_stop_signal:
-      return
-
-    # 读取全局停止信号，收到信号后不再保存任何数据
-    mitmproxy_stop_signal: bool = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
-    self.mitmproxy_stop_signal = mitmproxy_stop_signal
-    # 收到结束抓包的信号，尝试关闭抓包服务
-    if self.mitmproxy_master and mitmproxy_stop_signal:
-      print('正在关闭 mitmproxy 服务...', flow.request.url)
-      self.mitmproxy_master.shutdown()
+    # 读取全局停止信号，收到信号后尝试关闭抓包服务并不再保存任何数据
+    if self.__check_stop_signal():
       return
 
     # 检查和保存静态资源的请求
@@ -91,10 +82,8 @@ class RequestRecorder:
 
   # 接口返回
   def response(self, flow: http.HTTPFlow) -> None:
-    # 读取全局停止信号，收到信号后不再保存任何数据
-    self.mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
-    # 抓包结束，跳出
-    if self.mitmproxy_stop_signal:
+    # 读取全局停止信号，收到信号后尝试关闭抓包服务并不再保存任何数据
+    if self.__check_stop_signal():
       return
 
     url: str = flow.request.url
@@ -109,7 +98,7 @@ class RequestRecorder:
     # 请求参数，统一用 json string
     params: str = JsonFormat.dumps({})
 
-    request_content_type: str = flow.request.headers.get('content-type') or ''
+    request_content_type: str = (flow.request.headers.get('content-type') or '').lower()
     if method == 'POST':
       if 'application/x-www-form-urlencoded' in request_content_type:
         params = JsonFormat.dumps(dict(flow.request.urlencoded_form or {}))
@@ -125,7 +114,7 @@ class RequestRecorder:
 
     # 响应内容，统一用 json string
     # __check_response 已确保 flow.response 非空
-    response: str = flow.response.get_text()
+    response: str = '{}' if not flow.response else flow.response.get_text() or '{}'
 
     record: ApiRecord = {
       "type": "MITMPROXY",
@@ -163,6 +152,17 @@ class RequestRecorder:
     # mitmproxy 进程为"用完即关"，运行期间不再访问 DB
     self.mock_db.close()
 
+  # 检查全局停止信号，收到信号时尝试关闭抓包服务
+  def __check_stop_signal(self) -> bool:
+    mitmproxy_stop_signal: bool = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
+    self.mitmproxy_stop_signal = mitmproxy_stop_signal
+    if mitmproxy_stop_signal:
+      if self.mitmproxy_master:
+        print('正在关闭 mitmproxy 服务...')
+        self.mitmproxy_master.shutdown()
+      return True
+    return False
+
   # 检查请求是否需要被抓取保存
   def __check_response(self, request: http.Request, response: Optional[http.Response]) -> bool:
     # response 为空，跳过
@@ -182,7 +182,7 @@ class RequestRecorder:
 
     response_content_type: str = response.headers.get('Content-Type') or ''
     # 忽略 json 以外的响应内容
-    if 'application/json' not in response_content_type:
+    if 'application/json' not in response_content_type.lower():
       return False
 
     return True
