@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+from typing import Dict, List, Optional, Union
 from mitmproxy import http
 from mitmproxy.tools.dump import DumpMaster
 from config.work_file import (
@@ -29,17 +30,19 @@ class RequestRecorder:
     # MockDB 实例
     self.mock_db: MockDB = MockDB(self.db_path)
     # 抓包服务 master 实例
-    self.mitmproxy_master: DumpMaster or None = None
+    self.mitmproxy_master: Optional[DumpMaster] = None
     # 抓包结束标记
     self.mitmproxy_stop_signal: bool = False
     # 抓包缓存数据 dict
-    self.response_cache_dict: dict = {}
-    # 抓包包含的 path
-    self.include_path: str or list = ''
-    # 静态资源包含的 path
-    self.static_include_path: list = []
+    # 结构: {search_key: {md5_key: record, ...}, ...}
+    self.response_cache_dict: Dict[str, Dict[str, dict]] = {}
+    # 抓包包含的 path（正则字符串或正则字符串列表）
+    self.include_path: Union[str, List[str]] = ''
+    # 静态资源包含的 path（正则字符串列表）
+    self.static_include_path: List[str] = []
     # 抓取静态资源缓存数据 dict
-    self.static_cache_dict: dict = {}
+    # 结构: {md5_key: record, ...}
+    self.static_cache_dict: Dict[str, dict] = {}
 
     # -------------------
     # 初始化
@@ -81,6 +84,8 @@ class RequestRecorder:
 
   # 接口返回
   def response(self, flow: http.HTTPFlow):
+    # 读取全局停止信号，收到信号后不再保存任何数据
+    self.mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包结束，跳出
     if self.mitmproxy_stop_signal:
       return
