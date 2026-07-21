@@ -178,15 +178,16 @@ class MockDB:
     if not api_id:
       return False
 
-    with self._transaction() as conn:
-      # 1. 查询旧记录
-      row = conn.execute(
+    # 1. 事务外查询旧记录，不存在则直接返回，避免空事务
+    with self._lock:
+      row = self._conn.execute(
         'SELECT type, url, method, params, response FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
-      if row is None:
-        return False
+    if row is None:
+      return False
 
+    with self._transaction() as conn:
       # 2. 字段级合并：record 中非空字段覆盖旧值，id 仅作 WHERE 条件不参与合并
       old = {
         'type': row[0],
@@ -225,26 +226,26 @@ class MockDB:
       return True
 
   # 批量写静态资源到 DB
-  def batch_insert_static(self, records: list) -> bool:
+  def batch_insert_static(self, urls: List[str]) -> bool:
     """
     批量写入静态资源 URL，写入后触发 PASSIVE checkpoint
 
     纯 INSERT 不去重，id 统一用 generate_uuid 生成。
     返回 True 表示写入成功，False 表示空数据或写入异常。
     """
-    if not records:
+    if not urls:
       return False
 
     insert_sql = 'INSERT INTO static_data (id, url, type) VALUES (?, ?, ?)'
     insert_data = []
-    for url in records:
+    for url in urls:
       static_id = generate_uuid()
       insert_data.append((static_id, url, 'MITMPROXY'))
 
     try:
       with self._transaction() as conn:
         conn.executemany(insert_sql, insert_data)
-      APP_LOGGER.info(f'MockDB batch_insert_static 写入 {len(records)} 条')
+      APP_LOGGER.info(f'MockDB batch_insert_static 写入 {len(urls)} 条')
       return True
     except Exception:
       return False
