@@ -6,6 +6,7 @@ from typing import List
 from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
+from config.enum import DATABASE
 from types.db_types import ApiRecord, ApiData, StaticData
 
 # 当前 schema 版本
@@ -95,15 +96,12 @@ class MockDB:
   def upsert_api(self, record: ApiRecord) -> str:
     """插入一条 API 数据，返回生成的 id"""
     api_id = generate_uuid()
-    type_ = record.get('type', 'USER')
-    url = record.get('url', '')
-    method = record.get('method', 'GET')
-    params = JsonFormat.format_json_string(record.get('params', '{}'))
-    response = record.get('response', '{}')
+    data = {**DATABASE.API_INSERT_DEFAULTS, **record}
+    data['params'] = JsonFormat.format_json_string(data['params'])
     with self._transaction() as conn:
       conn.execute(
         'INSERT INTO api_data (id, type, url, method, params, response) VALUES (?, ?, ?, ?, ?, ?)',
-        (api_id, type_, url, method, params, response),
+        (api_id, data['type'], data['url'], data['method'], data['params'], data['response']),
       )
     return api_id
 
@@ -173,7 +171,7 @@ class MockDB:
       if row is None:
         return False
 
-      # 2. 字段级合并：前端只传修改的字段时，旧值保留
+      # 2. 字段级合并：record 中非空字段覆盖旧值，id 仅作 WHERE 条件不参与合并
       old = {
         'type': row[0],
         'url': row[1],
@@ -181,13 +179,7 @@ class MockDB:
         'params': row[3],
         'response': row[4],
       }
-      merged = {
-        'type': record.get('type') or old['type'],
-        'url': record.get('url') or old['url'],
-        'method': record.get('method') or old['method'],
-        'params': record.get('params') or old['params'],
-        'response': record.get('response') or old['response'],
-      }
+      merged = {**old, **{k: v for k, v in record.items() if k != 'id' and v}}
 
       # 3. 写入合并后的完整记录
       conn.execute(
