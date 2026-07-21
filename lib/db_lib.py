@@ -272,13 +272,15 @@ class MockDB:
     insert_sql = 'INSERT INTO static_data (id, url, type) VALUES (?, ?, ?)'
     insert_data = []
     for url in urls:
+      if not url or not url.strip():
+        continue
       static_id = generate_uuid()
       insert_data.append((static_id, url, 'MITMPROXY'))
 
     try:
       with self._transaction() as conn:
         conn.executemany(insert_sql, insert_data)
-      APP_LOGGER.info(f'MockDB batch_insert_static 写入 {len(urls)} 条')
+      APP_LOGGER.info(f'MockDB batch_insert_static 写入 {len(insert_data)}/{len(urls)} 条')
       return True
     except Exception:
       return False
