@@ -127,7 +127,7 @@ class JsonFormat:
 
 # 找到监听指定 ip 和 端口号网络服务的进程列表
 @error_catch(error_msg='查找服务进程失败', error_return=[])
-def find_connection_process(ip: str = '0.0.0.0', port: int = 5000) -> list:
+def find_connection_process(ip: str = '0.0.0.0', port: int = 5000) -> List[psutil.Process]:
   process_list = []
   connections = psutil.net_connections()
   for conn in connections:
@@ -135,9 +135,14 @@ def find_connection_process(ip: str = '0.0.0.0', port: int = 5000) -> list:
       continue
 
     laddr = conn.laddr
+    if not laddr or isinstance(laddr, tuple):
+      continue
+
     # 匹配指定 ip 和 端口号的进程
     if port == laddr.port and ip == laddr.ip:
       # 本地服务进程
+      if conn.pid is None:
+        continue
       proc = psutil.Process(conn.pid)
       process_list.append(proc)
 
@@ -160,6 +165,8 @@ def check_local_connection(ip: str = '0.0.0.0', port: int = 5000) -> bool:
       continue
 
     laddr = conn.laddr
+    if not laddr or isinstance(laddr, tuple):
+      continue
     # 匹配指定 ip 和 端口号的进程
     if port == laddr.port and ip == laddr.ip:
       return True
