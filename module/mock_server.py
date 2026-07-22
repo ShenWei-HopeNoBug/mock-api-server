@@ -28,6 +28,7 @@ from lib.utils_lib import (
 
 import json
 import re
+import threading
 from typing import List, Pattern, Union
 from app_types.db_types import ApiData
 from app_types.mock_server_types import MockApiDict
@@ -168,6 +169,8 @@ class MockServer:
       except (json.JSONDecodeError, TypeError) as e:
         print(f'mock 数据 JSON 解析失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
 
+    # 过滤掉所有 mock 数据均解析失败而残留的空字典，避免 request_api 取最后一条时 IndexError
+    api_dict = {k: v for k, v in api_dict.items() if v}
     return api_dict
 
   # 启动本地 mock 服务
@@ -187,6 +190,8 @@ class MockServer:
 
     # 静态资源匹配缓存
     static_match_cache = set()
+    # 保护 static_match_cache 的 check-then-add 原子性，防止多线程并发请求同一文件时延时被执行多次
+    static_match_lock = threading.Lock()
 
     # 动态匹配静态资源
     def static_match(path: str):
@@ -205,17 +210,23 @@ class MockServer:
       search_key = create_md5(path)
 
       # 静态资源响应延时
-      if (self.static_load_speed > 0) and (search_key not in static_match_cache):
-        file_size: float = os.path.getsize(file_path) / 1024
-        delay: float = file_size / self.static_load_speed
+      if self.static_load_speed > 0:
+        # 加锁保证 check-then-add 原子性，延时 sleep 在锁外执行不阻塞其他文件请求
+        with static_match_lock:
+          already_cached = search_key in static_match_cache
+          if not already_cached:
+            static_match_cache.add(search_key)
 
-        # 限制最大延时时间
-        max_delay: int = 120
-        if delay > max_delay:
-          delay = max_delay
-        print(f'静态资源延时属性  文件大小：{file_size}KB  延时时间：{delay}s')
-        static_match_cache.add(search_key)
-        time.sleep(delay)
+        if not already_cached:
+          file_size: float = os.path.getsize(file_path) / 1024
+          delay: float = file_size / self.static_load_speed
+
+          # 限制最大延时时间
+          max_delay: int = 120
+          if delay > max_delay:
+            delay = max_delay
+          print(f'静态资源延时属性  文件大小：{file_size}KB  延时时间：{delay}s')
+          time.sleep(delay)
 
       return send_from_directory(static_folder, file_name)
 
@@ -301,6 +312,8 @@ class MockServer:
       else:
         # 没命中 mock 数据，直接返回最后一条数据
         print(f'mock 数据命中失败：\n - {method} {route} {params}')
+        if not api_dict[request_key]:
+          return jsonify({'error': 'No valid mock data'}), 404
         last_response_key = list(api_dict[request_key].keys())[-1]
         return api_dict[request_key][last_response_key]
 
