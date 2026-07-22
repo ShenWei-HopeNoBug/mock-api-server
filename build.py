@@ -28,19 +28,32 @@ VERSION = '{version}'
   print(f'写入构建配置模块：\n{content}')
 
 
+def _build_app_name(window, timestamp):
+  """根据 window 和 timestamp 计算应用名称和版本标签"""
+  version = globals.version
+  win_ext = '.win' if window else ''
+  time_ext = f'.{timestamp}' if timestamp else ''
+  app_version_tag = f'{version}-{timestamp}' if timestamp else version
+  app_name = f'mockServer{win_ext}{time_ext}-{version}'
+  return {
+    'app_name': app_name,
+    'app_version_tag': app_version_tag,
+  }
+
+
 def _modify_spec_for_exe_only(spec_path, new_name, console):
   """修改 PyInstaller spec 文件，只构建 EXE 跳过 COLLECT
 
   - 修改 EXE 的 name 和 console 参数
   - 移除 COLLECT 段（不再复制 site-packages，复用第一个包的完整依赖）
-  - 保留 content_directory 设置（确保 exe 能在共享目录中找到 site-packages）
+  - 保留 contents_directory 设置（确保 exe 能在共享目录中找到 site-packages）
   """
   with open(spec_path, 'r', encoding='utf-8') as f:
     content = f.read()
 
   # 提取 contents_directory 设置（可能在 EXE 或 COLLECT 中）
   cd_match = re.search(r"contents_directory=['\"]([^'\"]*)['\"]", content)
-  content_directory = cd_match.group(1) if cd_match else None
+  contents_directory = cd_match.group(1) if cd_match else None
 
   # 移除 COLLECT 段（从 "coll = COLLECT(" 到文件末尾）
   collect_match = re.search(r'\ncoll = COLLECT\(', content)
@@ -54,12 +67,12 @@ def _modify_spec_for_exe_only(spec_path, new_name, console):
   content = re.sub(r"console=(True|False)", f"console={console}", content, count=1)
 
   # 如果 contents_directory 原本只在 COLLECT 中，移除后需要补到 EXE 段
-  if content_directory and 'contents_directory=' not in content:
+  if contents_directory and 'contents_directory=' not in content:
     lines = content.split('\n')
     for i in range(len(lines)):
       # 找到 EXE 块的闭合括号（第一个单独的 ')' 行）
       if lines[i].strip() == ')' and i > 0:
-        lines.insert(i, f"    contents_directory='{content_directory}',")
+        lines.insert(i, f"    contents_directory='{contents_directory}',")
         break
     content = '\n'.join(lines)
 
@@ -76,13 +89,9 @@ def _modify_spec_for_exe_only(spec_path, new_name, console):
 
 
 def app_build(window=False, timestamp=''):
-  # 当前版本号
-  version = globals.version
-  win_ext = '.win' if window else ''
-  time_ext = f'.{timestamp}' if timestamp else ''
-  # 版本tag
-  app_version_tag = f'{version}-{timestamp}' if timestamp else version
-  app_name = f'mockServer{win_ext}{time_ext}-{version}'
+  name_info = _build_app_name(window, timestamp)
+  app_name = name_info['app_name']
+  app_version_tag = name_info['app_version_tag']
 
   # 生成此变体的构建配置
   generate_build_config(mitmproxy_log=window, version=app_version_tag)
@@ -100,7 +109,9 @@ def app_build(window=False, timestamp=''):
     args.append("-w")
 
   # 开始打包
-  subprocess.run(args)
+  result = subprocess.run(args)
+  if result.returncode != 0:
+    raise RuntimeError(f'PyInstaller 构建失败（returncode={result.returncode}）')
 
   spec_file = f'./{app_name}.spec'
   # 不删除 spec 文件，供第二次构建复用
@@ -113,7 +124,6 @@ def app_build(window=False, timestamp=''):
 
   return {
     "app_name": app_name,
-    "version": version,
     "spec_file": spec_file,
   }
 
@@ -127,13 +137,9 @@ def app_build(window=False, timestamp=''):
 
 
 def exe_only_build(spec_file, window, timestamp=''):
-  # 当前版本号
-  version = globals.version
-  win_ext = '.win' if window else ''
-  time_ext = f'.{timestamp}' if timestamp else ''
-  # 版本tag
-  app_version_tag = f'{version}-{timestamp}' if timestamp else version
-  app_name = f'mockServer{win_ext}{time_ext}-{version}'
+  name_info = _build_app_name(window, timestamp)
+  app_name = name_info['app_name']
+  app_version_tag = name_info['app_version_tag']
 
   # 生成此变体的构建配置（会编译进新 exe 的 PYZ 中）
   generate_build_config(mitmproxy_log=window, version=app_version_tag)
@@ -142,7 +148,9 @@ def exe_only_build(spec_file, window, timestamp=''):
   _modify_spec_for_exe_only(spec_file, app_name, window)
 
   # 使用修改后的 spec 文件构建（--noconfirm 覆盖已有产物）
-  subprocess.run(["pyinstaller", spec_file, "--noconfirm"])
+  result = subprocess.run(["pyinstaller", spec_file, "--noconfirm"])
+  if result.returncode != 0:
+    raise RuntimeError(f'PyInstaller 构建失败（returncode={result.returncode}）')
 
   # 清理 spec 文件
   if os.path.exists(spec_file):
@@ -170,7 +178,6 @@ def exe_only_build(spec_file, window, timestamp=''):
 
   return {
     "app_name": app_name,
-    "version": version,
     "exe_path": exe_path,
   }
 
@@ -179,34 +186,35 @@ def exe_only_build(spec_file, window, timestamp=''):
 def batch_build():
   current = create_timestamp('%Y%m%d%H%M%S')
 
-  # 第一个包：完整构建（生成 exe + site-packages + spec 文件）
-  # 以不带黑窗的正常版本作为基础包，最终目录以此命名
-  build_info = app_build(window=False, timestamp=current)
-  build_app_name = build_info.get('app_name')
-  spec_file = build_info.get('spec_file')
+  try:
+    # 第一个包：完整构建（生成 exe + site-packages + spec 文件）
+    # 以不带黑窗的正常版本作为基础包，最终目录以此命名
+    build_info = app_build(window=False, timestamp=current)
+    build_app_name = build_info.get('app_name')
+    spec_file = build_info.get('spec_file')
 
-  # 第二个包：仅构建 EXE，复用第一个包的 site-packages
-  # 通过修改 spec 跳过 COLLECT，不重复复制依赖文件
-  win_build_info = exe_only_build(spec_file, window=True, timestamp=current)
-  win_build_app_name = win_build_info.get('app_name')
-  win_exe_path = win_build_info.get('exe_path')
+    # 第二个包：仅构建 EXE，复用第一个包的 site-packages
+    # 通过修改 spec 跳过 COLLECT，不重复复制依赖文件
+    win_build_info = exe_only_build(spec_file, window=True, timestamp=current)
+    win_exe_path = win_build_info.get('exe_path')
 
-  # 将带黑窗的 exe 移动到不带黑窗的打包目录下（共用 site-packages）
-  move_dir = f'./dist/{build_app_name}'
+    # 将带黑窗的 exe 移动到不带黑窗的打包目录下（共用 site-packages）
+    move_dir = f'./dist/{build_app_name}'
 
-  path_valid = os.path.exists(move_dir) and os.path.exists(win_exe_path)
-  print(f'路径检测：\n ---> from：{win_exe_path}  \n ---> to：{move_dir} \n valid：{path_valid}')
+    path_valid = os.path.exists(move_dir) and os.path.exists(win_exe_path)
+    print(f'路径检测：\n ---> from：{win_exe_path}  \n ---> to：{move_dir} \n valid：{path_valid}')
 
-  if os.path.exists(move_dir) and os.path.exists(win_exe_path):
-    print(f'开始移动打包产物：\n{win_exe_path} -> {move_dir}')
-    shutil.move(win_exe_path, move_dir)
-  else:
-    print('警告：未找到第二个 exe 文件，可能 spec 修改未生效')
-
-  # 清理临时构建配置模块
-  if os.path.exists(BUILD_CONFIG_MODULE):
-    os.remove(BUILD_CONFIG_MODULE)
-    print(f'删除文件：{BUILD_CONFIG_MODULE}')
+    if os.path.exists(move_dir) and os.path.exists(win_exe_path):
+      print(f'开始移动打包产物：\n{win_exe_path} -> {move_dir}')
+      shutil.move(win_exe_path, move_dir)
+    else:
+      print('警告：未找到第二个 exe 文件，可能 spec 修改未生效')
+  finally:
+    # 无论构建成功或失败，都清理临时构建配置模块
+    # 否则残留的 _build_config.py 会导致开发模式下 app_env 误导入构建配置
+    if os.path.exists(BUILD_CONFIG_MODULE):
+      os.remove(BUILD_CONFIG_MODULE)
+      print(f'删除文件：{BUILD_CONFIG_MODULE}')
 
 
 if __name__ == '__main__':
