@@ -277,7 +277,7 @@ class MockServer:
         return jsonify({'error': 'Not Found'}), 404
 
       params = self.__get_params_json_string({})
-      request_content_type = request.headers.get('content-type') or ''
+      request_content_type = (request.headers.get('content-type') or '').lower()
       if method == 'POST':
         if 'application/x-www-form-urlencoded' in request_content_type:
           params = self.__get_params_json_string(request.form or {})
