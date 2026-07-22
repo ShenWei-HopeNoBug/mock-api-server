@@ -29,6 +29,7 @@ from lib.utils_lib import (
 import json
 import re
 import threading
+from collections import OrderedDict
 from typing import List, Pattern, Union
 from app_types.db_types import ApiData
 from app_types.mock_server_types import MockApiDict
@@ -188,8 +189,10 @@ class MockServer:
       f"{self.static_url_path}/*": {"origins": "*"},
     }
 
-    # 静态资源匹配缓存
-    static_match_cache = set()
+    # 静态资源匹配缓存（按插入顺序保留，超出上限时淘汰最旧数据）
+    static_match_cache: OrderedDict = OrderedDict()
+    # 缓存上限，超出时清除最旧的数据
+    static_match_cache_limit: int = 1000
     # 保护 static_match_cache 的 check-then-add 原子性，防止多线程并发请求同一文件时延时被执行多次
     static_match_lock = threading.Lock()
 
@@ -215,7 +218,10 @@ class MockServer:
         with static_match_lock:
           already_cached = search_key in static_match_cache
           if not already_cached:
-            static_match_cache.add(search_key)
+            static_match_cache[search_key] = True
+            # 超出上限时淘汰最旧的数据
+            if len(static_match_cache) > static_match_cache_limit:
+              static_match_cache.popitem(last=False)
 
         if not already_cached:
           file_size: float = os.path.getsize(file_path) / 1024
