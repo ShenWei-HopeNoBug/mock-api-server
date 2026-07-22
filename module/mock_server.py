@@ -295,6 +295,9 @@ class MockServer:
             params = self.__get_params_json_string(multipart_dict)
           except Exception as e:
             print('Mock Server 解析 multipart/form-data 传参异常', e)
+        else:
+          # 未识别的 content-type，无法提取参数，直接返回 404 避免误匹配空参数 mock 数据
+          return jsonify({'error': 'Unsupported content-type'}), 404
       elif method == 'GET':
         params = self.__get_params_json_string(dict(request.args or {}))
 
@@ -308,14 +311,14 @@ class MockServer:
       # 命中 mock 数据直接返回
       if response_key in api_dict[request_key]:
         response = api_dict[request_key][response_key]
-        return response
+        return jsonify(response)
       else:
         # 没命中 mock 数据，直接返回最后一条数据
         print(f'mock 数据命中失败：\n - {method} {route} {params}')
         if not api_dict[request_key]:
           return jsonify({'error': 'No valid mock data'}), 404
         last_response_key = list(api_dict[request_key].keys())[-1]
-        return api_dict[request_key][last_response_key]
+        return jsonify(api_dict[request_key][last_response_key])
 
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
