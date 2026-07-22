@@ -1,23 +1,10 @@
 # -*- coding: utf-8 -*-
-import json
-import os
-import sys
 
-
-def _load_build_config():
-  """读取打包时通过 --add-data 注入的构建配置，开发模式返回空字典走默认值"""
-  if getattr(sys, 'frozen', False):
-    base = sys._MEIPASS
-  else:
-    base = os.path.dirname(os.path.abspath(__file__))
-  path = os.path.join(base, 'build_config.json')
-  if os.path.exists(path):
-    with open(path, encoding='utf-8') as f:
-      return json.load(f)
-  return {}
-
-
-_cfg = _load_build_config()
-
-MITMPROXY_LOG = _cfg.get('MITMPROXY_LOG', False)
-VERSION = _cfg.get('VERSION', 'v0.0.0')
+# 构建配置由 build.py 在打包时生成 _build_config.py 模块，
+# 编译进每个 exe 的 PYZ 中，实现同目录下多个 exe 各自独立配置。
+# 开发模式下 _build_config.py 不存在，走默认值。
+try:
+  from _build_config import MITMPROXY_LOG, VERSION
+except ImportError:
+  MITMPROXY_LOG = False
+  VERSION = 'v0.0.0'
