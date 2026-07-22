@@ -35,7 +35,7 @@ from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
 from config.menu import (FILE, EDIT, HELP)
 from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
-import ENV
+import app_env
 
 from qt_ui.main_win import main_win_style
 
@@ -497,7 +497,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       "host": "0.0.0.0",
       "port": self.catch_server_port,
       "work_dir": self.work_dir,
-      "mitmproxy_log": ENV.MITMPROXY_LOG,
+      "mitmproxy_log": app_env.MITMPROXY_LOG,
     }
 
     server_process = Process(

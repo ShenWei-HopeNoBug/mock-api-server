@@ -5,7 +5,7 @@ from PyQt5.QtGui import QCursor, QDesktopServices, QFont
 from PyQt5.QtCore import QUrl
 
 from qt_ui.about_win.win_ui import Ui_Dialog
-import ENV
+import app_env
 
 from qt_ui.about_win import about_win_style
 
@@ -41,7 +41,7 @@ class AboutDialog(QDialog, Ui_Dialog):
     # 隐藏帮助问号按钮
     self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
     self.setWindowTitle('应用信息')
-    self.versionLable.setText(ENV.VERSION)
+    self.versionLable.setText(app_env.VERSION)
     self.gitLable = LinkLabel(
       self,
       text='https://github.com/ShenWei-HopeNoBug/mock-api-server',

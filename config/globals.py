@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 
 # 版本号
-version = 'v0.0.5'
+version = 'v0.1.0'

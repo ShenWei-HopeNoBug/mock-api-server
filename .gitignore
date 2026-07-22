@@ -38,3 +38,4 @@ __pycache__
 main.spec
 /test.py
 appServer/*
+/build_config.json

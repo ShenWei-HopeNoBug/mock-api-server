@@ -2,16 +2,22 @@
 import subprocess
 from config import globals
 import os
+import json
 import shutil
 from lib.utils_lib import create_timestamp
 
+BUILD_CONFIG_FILE = './build_config.json'
 
-# 设置环境变量
-def set_env_params(mitmproxy_log=True, version=globals.version):
-  with open('./ENV.py', 'w', encoding='utf-8') as fl:
-    data = f'# -*- coding: utf-8 -*-\nMITMPROXY_LOG = {mitmproxy_log}\nVERSION = \'{version}\''
-    print('写入环境变量：\n', data)
-    fl.write(data)
+
+def generate_build_config(mitmproxy_log, version):
+  """生成构建配置 JSON，打包时通过 --add-data 注入到 exe 中"""
+  config = {
+    'MITMPROXY_LOG': mitmproxy_log,
+    'VERSION': version,
+  }
+  with open(BUILD_CONFIG_FILE, 'w', encoding='utf-8') as f:
+    json.dump(config, f, indent=2, ensure_ascii=False)
+  print(f'写入构建配置：\n{json.dumps(config, indent=2, ensure_ascii=False)}')
 
 
 '''
@@ -29,20 +35,22 @@ def app_build(window=False, timestamp=''):
   # 版本tag
   app_version_tag = f'{version}-{timestamp}' if timestamp else version
   app_name = f'mockServer{win_ext}{time_ext}-{version}'
+
+  # 生成此变体的构建配置
+  generate_build_config(mitmproxy_log=window, version=app_version_tag)
+
   args = [
     "pyinstaller",
     f"--name={app_name}",
     f"--contents-directory=site-packages",
     "--add-data", "schema;schema/",
+    "--add-data", f"{BUILD_CONFIG_FILE};.",
     "main.py",
     "-D",
   ]
   # 打包命令加上黑窗
   if not window:
     args.append("-w")
-
-  # 设置下环境变量
-  set_env_params(mitmproxy_log=window, version=app_version_tag)
 
   # 开始打包
   subprocess.run(args)
@@ -57,9 +65,6 @@ def app_build(window=False, timestamp=''):
   if os.path.exists(build_tmp_dir):
     shutil.rmtree(build_tmp_dir)
     print(f'删除文件夹：{build_tmp_dir}')
-
-  # 环境变量恢复到默认状态
-  set_env_params()
 
   return {
     "app_name": app_name,
@@ -91,6 +96,11 @@ def batch_build():
     shutil.move(win_build_app_path, move_dir)
     print(f'删除文件夹：{win_build_app_dir}')
     shutil.rmtree(win_build_app_dir)
+
+  # 清理临时构建配置
+  if os.path.exists(BUILD_CONFIG_FILE):
+    os.remove(BUILD_CONFIG_FILE)
+    print(f'删除文件：{BUILD_CONFIG_FILE}')
 
 
 if __name__ == '__main__':
