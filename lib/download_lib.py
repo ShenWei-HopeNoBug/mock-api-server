@@ -6,6 +6,7 @@ import re
 import time
 import math
 import requests
+from typing import Any, Callable, Dict, List, Optional
 from requests.exceptions import ConnectionError
 from config.work_file import (
   DOWNLOAD_CONFIG_PATH,
@@ -31,7 +32,7 @@ from lib.system_lib import GLOBALS_CONFIG_MANAGER
 
 
 @error_catch(error_msg='获取导出下载地址列表失败', error_return=[])
-def get_output_data_list(log_path: str, work_dir: str = '.'):
+def get_output_data_list(log_path: str, work_dir: str = '.') -> List[Dict[str, str]]:
   # 检查下载日志路径
   if not os.path.exists(log_path):
     return []
@@ -61,7 +62,7 @@ def get_output_data_list(log_path: str, work_dir: str = '.'):
 
 
 @error_catch(error_msg='导出静态资源失败', error_return=[])
-def output_static_files(output_dir='./output', output_list=None):
+def output_static_files(output_dir: str = './output', output_list: Optional[List[Dict[str, str]]] = None) -> None:
   if output_list is None:
     output_list = []
 
@@ -97,7 +98,7 @@ def is_exit_download() -> bool:
 
 
 @error_catch(error_msg='获取下载配置失败', error_return={})
-def get_download_config(work_dir='.') -> dict:
+def get_download_config(work_dir: str = '.') -> dict:
   download_config_path = f'{work_dir}{DOWNLOAD_CONFIG_PATH}'
   if not os.path.exists(download_config_path):
     return {}
@@ -110,8 +111,8 @@ def get_download_config(work_dir='.') -> dict:
 
 
 # 获取静态资源匹配正则对象
-def get_static_match_regexp(include_files: list):
-  if type(include_files) != list:
+def get_static_match_regexp(include_files: List[str]) -> re.Pattern:
+  if not isinstance(include_files, list):
     include_files = []
   pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(include_files))
   return re.compile(pattern, flags=re.IGNORECASE)
@@ -119,7 +120,7 @@ def get_static_match_regexp(include_files: list):
 
 # 获取下载静态资源列表（包含所有的静态资源，没进行本地已下载校验）
 @error_catch(error_msg='获取下载静态资源列表失败', error_return=[])
-def get_download_assets_list(work_dir='.') -> list:
+def get_download_assets_list(work_dir: str = '.') -> List[str]:
   # 读取下载配置
   download_config = get_download_config(work_dir=work_dir)
   include_files = download_config.get('include_files', [])
@@ -157,7 +158,7 @@ def get_download_assets_list(work_dir='.') -> list:
 
 # 获取待下载静态资源列表（经过本地已下载校验后剔除了已下载的静态资源）
 @error_catch(error_msg='获取待下载静态资源列表失败', error_return=[])
-def get_download_ready_assets(work_dir='.', static_url_path=STATIC_DIR) -> list:
+def get_download_ready_assets(work_dir: str = '.', static_url_path: str = STATIC_DIR) -> List[str]:
   # 获取下载静态资源列表
   assets_list = get_download_assets_list(work_dir=work_dir)
 
@@ -186,8 +187,12 @@ def get_download_ready_assets(work_dir='.', static_url_path=STATIC_DIR) -> list:
 
 # 写入下载日志
 @error_catch(error_msg='写入下载日志失败')
-def white_download_log(work_dir='.', download_log=None, log_name='log'):
-  if type(download_log) != list:
+def white_download_log(
+    work_dir: str = '.',
+    download_log: Optional[List[Dict[str, Any]]] = None,
+    log_name: str = 'log'
+) -> None:
+  if not isinstance(download_log, list):
     download_log = []
 
   # 没有内容不写入
@@ -213,7 +218,7 @@ class DownloadDetailManager:
     # 下载详情
     self.detail: dict = {}
 
-  def update_detail(self, url: str = '', connect_error: bool = False):
+  def update_detail(self, url: str = '', connect_error: bool = False) -> None:
     domain = get_url_domain(url)
     if not domain:
       return
@@ -238,7 +243,7 @@ class DownloadDetailManager:
     domain_detail['timeout'] = self.__compute_timeout(connect_error_count=connect_error_count)
     self.detail[search_key] = domain_detail
 
-  def get_timeout(self, url: str = ''):
+  def get_timeout(self, url: str = '') -> int:
     @error_catch(error_msg='获取连接超时时间失败', error_return=self.timeout)
     def callback():
       domain = get_url_domain(url)
@@ -256,7 +261,7 @@ class DownloadDetailManager:
 
     return callback()
 
-  def __compute_timeout(self, connect_error_count: int = 0):
+  def __compute_timeout(self, connect_error_count: int = 0) -> int:
     # 超出连接失败最大次数，直接把超时时间设置为超小值，方便过无法下载的资源
     if connect_error_count >= DOWNLOAD.CONNECT_ERROR_MAX_LIMIT:
       return 1
@@ -285,8 +290,11 @@ class DownloadDetailManager:
 
 # 获取下载代理配置
 @error_catch(error_msg='获取下载代理配置失败', error_return={})
-def get_download_proxies(url: str, download_proxy_list: list) -> dict:
-  if not url or type(download_proxy_list) != list:
+def get_download_proxies(
+    url: str,
+    download_proxy_list: List[Dict[str, Any]]
+) -> Dict[str, str]:
+  if not url or not isinstance(download_proxy_list, list):
     return {}
 
   proxies = {}
@@ -308,8 +316,8 @@ def download_server_static(
     work_dir: str = '.',
     static_url_path: str = STATIC_DIR,
     compress: bool = True,
-    callback=None,
-):
+    callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+) -> None:
   print('>' * 10, '开始检查和下载静态资源...')
   # 待下载静态资源列表
   download_assets = get_download_ready_assets(
@@ -377,7 +385,9 @@ def download_server_static(
 
     connect_timeout = download_detail_manager.get_timeout(url=asset) if auto_adjust_timeout else base_timeout
     proxies = get_download_proxies(url=asset, download_proxy_list=download_proxy_list)
-    print(f'\n******** 正在下载：{i + 1}/{assets_length} ********\nCONNECT_TIMEOUT：{connect_timeout}s\nURL：{asset}\nPROXIES：{proxies}')
+    print(
+      f'\n******** 正在下载：{i + 1}/{assets_length} ********\nCONNECT_TIMEOUT：{connect_timeout}s\nURL：{asset}\nPROXIES：{proxies}'
+    )
     # 下载静态资源
     try:
       response = requests.get(asset, timeout=(connect_timeout, DOWNLOAD.READ_TIMEOUT), proxies=proxies)

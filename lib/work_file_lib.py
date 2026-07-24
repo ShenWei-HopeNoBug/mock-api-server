@@ -5,7 +5,7 @@ from config.work_file import (DEFAULT_WORK_DIR, WORK_DIR_DICT, WORK_FILE_DICT)
 
 
 # 检查工作目录文件完整性
-def check_work_files(work_dir=DEFAULT_WORK_DIR):
+def check_work_files(work_dir: str = DEFAULT_WORK_DIR) -> bool:
   dir_path_list = [r'{}{}'.format(
     work_dir,
     detail.get('path')
@@ -27,7 +27,7 @@ def check_work_files(work_dir=DEFAULT_WORK_DIR):
 
 
 # 创建工作目录文件
-def create_work_files(work_dir=DEFAULT_WORK_DIR):
+def create_work_files(work_dir: str = DEFAULT_WORK_DIR) -> None:
   dir_path_list = [r'{}{}'.format(
     work_dir,
     detail.get('path'),

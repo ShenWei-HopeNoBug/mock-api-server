@@ -5,7 +5,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 
-def get_stream_logger_handler(log_level=INFO):
+def get_stream_logger_handler(log_level: int = INFO) -> logging.StreamHandler:
   handler = logging.StreamHandler()
   handler.setLevel(log_level)
   formatter = logging.Formatter(
@@ -16,7 +16,7 @@ def get_stream_logger_handler(log_level=INFO):
   return handler
 
 
-def get_file_logger_handler(log_level=INFO):
+def get_file_logger_handler(log_level: int = INFO) -> RotatingFileHandler:
   # 创建日志目录（如果不存在）
   log_dir = Path('logs')
   log_dir.mkdir(exist_ok=True)
@@ -45,7 +45,7 @@ STREAM_LOGGER_HANDLER = get_stream_logger_handler()
 FILE_LOGGER_HANDLER = get_file_logger_handler()
 
 
-def setup_logger(logger_name='logger', log_level=INFO) -> Logger:
+def setup_logger(logger_name: str = 'logger', log_level: int = INFO) -> Logger:
   logger = logging.getLogger(logger_name)
   logger.setLevel(log_level)
   # 如果已经配置过处理器，直接返回

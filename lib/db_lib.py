@@ -5,7 +5,7 @@ import threading
 import contextlib
 import copy
 import functools
-from typing import List
+from typing import Any, Callable, Dict, List, Optional
 from importlib.resources import read_text
 from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
@@ -17,10 +17,10 @@ from app_types.db_types import ApiRecord, ApiData, StaticData
 CURRENT_SCHEMA_VERSION = 1
 
 
-def _ensure_open(default=None):
+def _ensure_open(default: Any = None):
   """MockDB 方法保护装饰器，DB 已关闭时返回 default 而非抛异常"""
 
-  def decorator(method):
+  def decorator(method: Callable) -> Callable:
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
       if self._closed:
@@ -64,7 +64,7 @@ class MockDB:
     self._check_schema_version()
     APP_LOGGER.info(f'MockDB 初始化完成: {db_path}')
 
-  def _init_schema(self):
+  def _init_schema(self) -> None:
     """从 schema 包读取 .sql 文件执行建表 DDL"""
     try:
       schema_sql = read_text('schema', f'v{CURRENT_SCHEMA_VERSION}.sql')
@@ -73,7 +73,7 @@ class MockDB:
       APP_LOGGER.error(f'MockDB 建表失败 (schema v{CURRENT_SCHEMA_VERSION}): {e}')
       raise
 
-  def _check_schema_version(self):
+  def _check_schema_version(self) -> None:
     """检查数据库 schema 版本，首次写入版本号，降级时输出警告"""
     row = self._conn.execute('PRAGMA user_version').fetchone()
     db_version = row[0] if row else 0
@@ -88,7 +88,7 @@ class MockDB:
 
   # 执行 PASSIVE checkpoint，供批量写入后调用
   @_ensure_open()
-  def _wal_checkpoint_passive(self):
+  def _wal_checkpoint_passive(self) -> None:
     """执行 PASSIVE checkpoint，将 -wal 日志合并回主库"""
     with self._lock:
       self._conn.execute('PRAGMA wal_checkpoint(PASSIVE)')
@@ -171,7 +171,7 @@ class MockDB:
 
   # 查询 api 数据列表
   @_ensure_open(default=[])
-  def get_api_list(self, api_type: str = None, reverse: bool = False) -> List[ApiData]:
+  def get_api_list(self, api_type: Optional[str] = None, reverse: bool = False) -> List[ApiData]:
     """查询 API 数据列表，可按 api_type 过滤、按时间正序/倒序排列"""
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     if api_type is not None:
@@ -313,7 +313,7 @@ class MockDB:
     return result
 
   # 关闭 DB 连接，触发 SQLite 自动 checkpoint
-  def close(self):
+  def close(self) -> None:
     """关闭 DB 连接，触发 SQLite 自动 checkpoint，幂等可重复调用"""
     with self._lock:
       if not self._closed:
@@ -324,7 +324,7 @@ class MockDB:
 class MockDBCache:
   """MockDB 实例缓存管理（静态类，以 work_dir 绝对路径为 key 懒加载）"""
 
-  _cache: dict = {}
+  _cache: Dict[str, 'MockDB'] = {}
 
   @classmethod
   def get(cls, work_dir: str = '.') -> MockDB:

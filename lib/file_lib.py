@@ -8,7 +8,7 @@ import sys
 
 def is_dir_path_valid(dir_path: str) -> bool:
   """检查文件夹地址是否合法"""
-  if type(dir_path) != str:
+  if not isinstance(dir_path, str):
     return False
 
   # 地址存在并且是文件夹的地址
@@ -17,7 +17,7 @@ def is_dir_path_valid(dir_path: str) -> bool:
 
 def is_file_path_valid(file_path: str) -> bool:
   """检查文件地址是否合法"""
-  if type(file_path) != str:
+  if not isinstance(file_path, str):
     return False
 
   # 地址存在并且是文件的地址
@@ -25,7 +25,7 @@ def is_file_path_valid(file_path: str) -> bool:
 
 
 @error_catch(error_msg='生成文件hash异常', error_return=None)
-def create_file_hash(file_path: str, hash_algorithm='md5', buffer_size=65536) -> Optional[str]:
+def create_file_hash(file_path: str, hash_algorithm: str = 'md5', buffer_size: int = 65536) -> Optional[str]:
   if not is_file_path_valid(file_path):
     return None
   # 创建哈希对象

@@ -14,7 +14,7 @@ import socket
 from lib.decorate import error_catch
 import datetime
 import uuid
-from typing import Union, Optional, Any, List
+from typing import Union, Optional, Any, Dict, List
 
 
 # 生成数据的 uuid
@@ -99,7 +99,7 @@ def is_file_request(url: str = '') -> bool:
 class JsonFormat:
   # 将数据格式化为标准的 json string
   @staticmethod
-  def dumps(data: Union[dict, list]) -> str:
+  def dumps(data: Union[Dict[str, Any], List[Any]]) -> str:
     return json.dumps(data, ensure_ascii=False)
 
   # 格式化 json string 数据(业务映射)
@@ -109,11 +109,11 @@ class JsonFormat:
 
   # 格式化 dict 数据(业务映射)
   @staticmethod
-  def format_dict(dict_data: dict) -> dict:
+  def format_dict(dict_data: Dict[str, Any]) -> Dict[str, Any]:
     return json.loads(JsonFormat.dumps(dict_data))
 
   @staticmethod
-  def sort_dumps(data: Union[dict, list]) -> str:
+  def sort_dumps(data: Union[Dict[str, Any], List[Any]]) -> str:
     return json.dumps(data, ensure_ascii=False, sort_keys=True)
 
   @staticmethod
@@ -121,7 +121,7 @@ class JsonFormat:
     return JsonFormat.sort_dumps(json.loads(json_string))
 
   @staticmethod
-  def format_and_sort_dict(dict_data: dict) -> dict:
+  def format_and_sort_dict(dict_data: Dict[str, Any]) -> Dict[str, Any]:
     return json.loads(JsonFormat.sort_dumps(dict_data))
 
 
@@ -202,9 +202,9 @@ def compress_image(input_path: str, output_path: str, quality: int = 80) -> bool
 
 # 配置文件管理器
 class ConfigFileManager:
-  def __init__(self, path: str, config: Optional[dict] = None) -> None:
-    self.path = path
-    self.config = copy.deepcopy(config or {})
+  def __init__(self, path: str, config: Optional[Dict[str, Any]] = None) -> None:
+    self.path: str = path
+    self.config: Dict[str, Any] = copy.deepcopy(config or {})
 
   def init(self, replace: bool = False) -> None:
     work_dir = os.path.dirname(self.path)
@@ -246,7 +246,7 @@ class ConfigFileManager:
   def get_list(self, key: str) -> list:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return []
 
     return list_data
@@ -256,7 +256,7 @@ class ConfigFileManager:
   def append_list_value(self, key: str, value: Any, check_repeat: bool = True) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return False
 
     # 检查数据是否重复
@@ -273,7 +273,7 @@ class ConfigFileManager:
   def update_list_value(self, key: str, value: Any, index: int = -1, check_repeat: bool = True) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return False
 
     # 索引范围校验
@@ -294,7 +294,7 @@ class ConfigFileManager:
   def delete_list_value(self, key: str, index: int = -1) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return False
 
     # 索引范围校验
@@ -310,7 +310,7 @@ class ConfigFileManager:
   def clear_list_value(self, key: str) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return False
 
     self.set(key=key, value=[])
@@ -339,14 +339,14 @@ def is_url_match(url: str, includes: Union[List[str], str]) -> bool:
 
 @error_catch(error_msg='去除 bytes 内容空字符失败', error_return=bytes())
 def remove_byte_empty_content(b: bytes) -> bytes:
-  if type(b) != bytes:
+  if not isinstance(b, bytes):
     return b
 
   return b.replace(b'\n', b'').replace(b'\r', b'').replace(b'\t', b'')
 
 
 @error_catch(error_msg='获取 multipart_dict 失败', error_return={})
-def get_multipart_dict(multipart_form: dict) -> dict:
+def get_multipart_dict(multipart_form: Dict[bytes, bytes]) -> Dict[str, str]:
   multipart_dict = {}
   for key, value in multipart_form.items():
     key_decode = key.decode('utf-8')

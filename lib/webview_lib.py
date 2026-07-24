@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import math
+from typing import Dict, Union
 from PyQt5.QtWidgets import QApplication
 
 
-def get_webview_dialog_config() -> dict:
+def get_webview_dialog_config() -> Dict[str, Union[int, float]]:
   primary_screen = QApplication.primaryScreen()
   primary_screen_size = primary_screen.size()
   primary_width = primary_screen_size.width()

@@ -44,7 +44,7 @@ class SimpleFolderBackup:
 
     self.init()
 
-  def init(self):
+  def init(self) -> None:
     self._ensure_directory_exists(self.backup_dir)
     # 记录源文件的文件名
     if is_dir_path_valid(self.source_dir):
@@ -90,7 +90,7 @@ class SimpleFolderBackup:
     relative_file_paths = self.watch_backup_files if watch_backup_files is None else watch_backup_files
 
     # 传参不是数组或者为空数组，直接备份
-    if type(relative_file_paths) != list or not len(relative_file_paths):
+    if not isinstance(relative_file_paths, list) or not len(relative_file_paths):
       return self.backup()
 
     # 当前没有备份文件，直接备份
@@ -211,7 +211,7 @@ class SimpleFolderBackup:
     return latest_data.get('path', None)
 
   @error_catch(error_msg='检查并删除超出备份数量的备份文件异常')
-  def fix_backup_dir_count(self):
+  def fix_backup_dir_count(self) -> None:
     """检查并删除超出备份数量的备份文件"""
     if not self.backup_count:
       return
