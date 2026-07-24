@@ -366,21 +366,24 @@ def is_local_server_running(
     retry: int = 0,
     retry_delay: int = 1,
     retry_condition: str = 'NOT_RUNNING',
+    caller: str = '',
 ) -> bool:
   valid_conditions = ('RUNNING', 'NOT_RUNNING')
   if retry_condition not in valid_conditions:
     print(f"retry_condition 参数非法：{retry_condition}，将使用默认值 NOT_RUNNING")
     retry_condition = 'NOT_RUNNING'
 
+  tag = f"[{caller}] " if caller else ''
+
   def _is_running(count: int = 1) -> bool:
     try:
       response = requests.get(f"http://127.0.0.1:{port}/ping", timeout=3)
       is_running = response.status_code == 200
       status = "运行中" if is_running else "未运行"
-      print(f"第 {count} 次检测：本地{port}端口服务{status}！")
+      print(f"{tag}第 {count} 次检测：本地{port}端口服务{status}！")
       return is_running
     except Exception as e:
-      print(f"第 {count} 次检测：本地{port}端口服务未运行！", e)
+      print(f"{tag}第 {count} 次检测：本地{port}端口服务未运行！", e)
       return False
 
   check_count = 1

@@ -331,7 +331,7 @@ class MockServer:
 
   # 停止本地 mock 服务
   def shutdown(self) -> None:
-    result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING')
+    result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING', caller='MOCK_SERVER_SHUTDOWN')
     if result:
       APP_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)

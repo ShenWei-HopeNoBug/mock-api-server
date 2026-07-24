@@ -597,7 +597,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.server_status_signal.emit('START_WAIT')
     server_process.start()
     time.sleep(1)
-    result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='NOT_RUNNING')
+    result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='NOT_RUNNING', caller='MOCK_SERVER_START')
     APP_LOGGER.info(f"点击启动 MOCK_SERVER 后检测服务当前是否运行：{result}")
     time.sleep(0.5)
     if result:
@@ -625,7 +625,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.server_status_signal.emit('STOP_WAIT')
     shutdown()
     time.sleep(1)
-    result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='RUNNING')
+    result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='RUNNING', caller='MOCK_SERVER_STOP')
     APP_LOGGER.info(f"点击停止 MOCK_SERVER 后检测服务当前是否运行：{result}")
     time.sleep(0.5)
     if result:
