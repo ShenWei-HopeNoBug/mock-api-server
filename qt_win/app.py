@@ -431,16 +431,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 点击 mock 服务按钮
   def server_button_click(self):
+    if self.server_status in ('START_WAIT', 'STOP_WAIT'):
+      return
     if self.server_status == 'READY':
+      self.server_status_signal.emit('START_WAIT')
       self.start_server()
     elif self.server_status == 'RUNNING':
+      self.server_status_signal.emit('STOP_WAIT')
       self.stop_server()
 
   # 点击抓包服务按钮
   def catch_server_button_click(self):
+    if self.mitmproxy_server_status in ('START_WAIT', 'STOP_WAIT'):
+      return
     if self.mitmproxy_server_status == 'READY':
+      self.mitmproxy_server_status_signal.emit('START_WAIT')
       self.start_catch_server()
     elif self.mitmproxy_server_status == 'RUNNING':
+      self.mitmproxy_server_status_signal.emit('STOP_WAIT')
       self.stop_catch_server()
 
   # 检查工作目录文件完整性
@@ -474,13 +482,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 启动抓包服务
   @create_thread
   def start_catch_server(self):
-    # 抓包服务不是待启动状态，跳过
-    if not self.mitmproxy_server_status == 'READY':
-      return
-
     mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
+      self.mitmproxy_server_status_signal.emit('READY')
       return
 
     # 网络监听端口检查
@@ -490,6 +495,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         '端口检查',
         f'{self.catch_server_port} 端口已被占用，启动抓包服务失败！',
       )
+      self.mitmproxy_server_status_signal.emit('READY')
       return
 
     # 抓包服务启动配置
@@ -506,23 +512,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       name='mitmdump_server',
     )
     server_process.start()
-    self.mitmproxy_server_status_signal.emit('START_WAIT')
     time.sleep(3)
     self.mitmproxy_server_status_signal.emit('RUNNING')
 
   # 停止抓包服务
   @create_thread
   def stop_catch_server(self):
-    # 抓包服务不在运行中，跳过
-    if not self.mitmproxy_server_status == 'RUNNING':
-      return
-
     mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
+      self.mitmproxy_server_status_signal.emit('RUNNING')
       return
 
-    self.mitmproxy_server_status_signal.emit('STOP_WAIT')
     # 设置全局 mitmproxy 服务停止信号
     GLOBALS_CONFIG_MANAGER.set(key='mitmproxy_stop_signal', value=True)
     # 向 mitmproxy 抓包服务发送一个本地请求，触发 addons 脚本内关闭服务事件
@@ -541,11 +542,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 下载静态资源
   @create_thread
   def download_static(self):
-    # 正在下载中
+    # 正在下载中，点击触发停止
     if self.download_status == 'DOWNLOAD':
       self.downloading_signal.emit('STOP_WAIT')
       GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=True)
       time.sleep(0.5)
+      return
+
+    # 中间态拦截
+    if self.download_status == 'STOP_WAIT':
       return
 
     self.downloading_signal.emit('DOWNLOAD')
@@ -569,10 +574,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 启动mock服务
   @create_thread
   def start_server(self):
-    # 服务不处于待启动状态，跳过
-    if not self.server_status == 'READY':
-      return
-
     # 网络监听端口检查
     if check_local_connection('0.0.0.0', self.server_port):
       self.message_dialog_signal.emit(
@@ -580,6 +581,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         '端口检查',
         f'{self.server_port} 端口已被占用，启动 mock 服务失败！',
       )
+      self.server_status_signal.emit('READY')
       return
 
     server_config = {
@@ -594,10 +596,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       name='mock_server',
     )
 
-    self.server_status_signal.emit('START_WAIT')
     server_process.start()
     time.sleep(1)
-    result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='NOT_RUNNING', caller='MOCK_SERVER_START')
+    result: bool = is_local_server_running(
+      port=self.server_port,
+      retry=3,
+      retry_condition='NOT_RUNNING',
+      caller='MOCK_SERVER_START'
+    )
     APP_LOGGER.info(f"点击启动 MOCK_SERVER 后检测服务当前是否运行：{result}")
     time.sleep(0.5)
     if result:
@@ -613,19 +619,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 停止mock服务
   @create_thread
   def stop_server(self):
-    # 服务没在运行中，跳过
-    if not self.server_status == 'RUNNING':
-      return
-
     @error_catch(log=False)
     def shutdown():
       """这个请求发送到 mock 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
       requests.get(f'http://127.0.0.1:{self.server_port}/system/shutdown')
 
-    self.server_status_signal.emit('STOP_WAIT')
     shutdown()
     time.sleep(1)
-    result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='RUNNING', caller='MOCK_SERVER_STOP')
+    result: bool = is_local_server_running(
+      port=self.server_port,
+      retry=3,
+      retry_condition='RUNNING',
+      caller='MOCK_SERVER_STOP'
+    )
     APP_LOGGER.info(f"点击停止 MOCK_SERVER 后检测服务当前是否运行：{result}")
     time.sleep(0.5)
     if result:
