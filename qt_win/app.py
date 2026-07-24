@@ -521,13 +521,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
-      self.mitmproxy_server_status_signal.emit('RUNNING')
       return
 
     # 设置全局 mitmproxy 服务停止信号
     GLOBALS_CONFIG_MANAGER.set(key='mitmproxy_stop_signal', value=True)
+
     # 向 mitmproxy 抓包服务发送一个本地请求，触发 addons 脚本内关闭服务事件
-    requests.get(f'http://127.0.0.1:{self.catch_server_port}/index.html')
+    @error_catch(log=False)
+    def trigger_shutdown():
+      requests.get(f'http://127.0.0.1:{self.catch_server_port}/index.html')
+
+    trigger_shutdown()
     time.sleep(3)
     self.mitmproxy_server_status_signal.emit('READY')
 
