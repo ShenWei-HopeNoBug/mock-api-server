@@ -47,7 +47,7 @@ class AppServer:
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   def shutdown(self) -> None:
-    result = is_local_server_running(port=self.port, retry=2, retry_condition='RUNNING')
+    result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING')
     if result:
       APP_LOGGER.info(f"即将关闭 APP_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)
@@ -79,9 +79,15 @@ def start_app_server() -> dict:
     app_server_process.start()
 
   app_server_port = 5050
+  max_port_attempts = 100
+  attempts = 0
   while check_local_connection(ip='0.0.0.0', port=app_server_port):
     APP_LOGGER.warning(f"APP_SERVER 待启动服务端口被占用: {app_server_port}")
     app_server_port += 1
+    attempts += 1
+    if attempts >= max_port_attempts:
+      APP_LOGGER.error(f"APP_SERVER 连续 {max_port_attempts} 个端口均被占用，无法启动服务！")
+      return {"success": False, "port": app_server_port}
 
   APP_LOGGER.info(f"APP_SERVER 准备启动: prot {app_server_port}")
 
