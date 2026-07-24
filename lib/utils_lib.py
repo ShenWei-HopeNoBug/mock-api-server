@@ -11,6 +11,9 @@ import json
 import psutil
 from PIL import Image
 import socket
+
+from mitmproxy.coretypes.multidict import MultiDictView
+
 from lib.decorate import error_catch
 import datetime
 import uuid
@@ -346,7 +349,7 @@ def remove_byte_empty_content(b: bytes) -> bytes:
 
 
 @error_catch(error_msg='获取 multipart_dict 失败', error_return={})
-def get_multipart_dict(multipart_form: Dict[bytes, bytes]) -> Dict[str, str]:
+def get_multipart_dict(multipart_form: MultiDictView[bytes, bytes]) -> Dict[str, str]:
   multipart_dict = {}
   for key, value in multipart_form.items():
     key_decode = key.decode('utf-8')

@@ -30,7 +30,7 @@ import json
 import re
 import threading
 from collections import OrderedDict
-from typing import List, Pattern, Union
+from typing import Any, List, Pattern, Union
 from app_types.db_types import ApiData
 from app_types.mock_server_types import MockApiDict
 from flask import (Flask, request, send_from_directory, jsonify)
@@ -126,7 +126,7 @@ class MockServer:
     assets_base_url: str = f'{self.static_host}{assets_route}'
 
     # 静态资源文本替换规则
-    def assets_replace_method(match: re.Match) -> str:
+    def assets_replace_method(match: re.Match[str]) -> str:
       assets_url = match[0]
       file_name = assets_url.split('/')[-1]
 
@@ -194,10 +194,10 @@ class MockServer:
     # 缓存上限，超出时清除最旧的数据
     static_match_cache_limit: int = 1000
     # 保护 static_match_cache 的 check-then-add 原子性，防止多线程并发请求同一文件时延时被执行多次
-    static_match_lock = threading.Lock()
+    static_match_lock: threading.Lock = threading.Lock()
 
     # 动态匹配静态资源
-    def static_match(path: str):
+    def static_match(path: str) -> Any:
       route_path = '/' + path
       # 非文件请求，跳过
       if not is_file_request(route_path):
@@ -251,15 +251,15 @@ class MockServer:
     CORS(app, resources=resources)
 
     @app.route('/ping', methods=['GET'])
-    def ping():
+    def ping() -> Any:
       return jsonify({'data': 'pong!'})
 
     # 服务进程自杀
     @app.route(f"{SYSTEM_ROUTE}/shutdown", methods=['GET'])
-    def server_shutdown():
+    def server_shutdown() -> Any:
 
       @create_thread(daemon=True)
-      def delayed_shutdown():
+      def delayed_shutdown() -> None:
         APP_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
         time.sleep(0.5)
         self.shutdown()
@@ -269,7 +269,7 @@ class MockServer:
 
     # 统一 mock 匹配接口
     @app.route(f"{MOCK_API_ROUTE}/<path:path>", methods=['GET', 'POST'])
-    def request_api(path):
+    def request_api(path: str) -> Any:
       method = request.method
       route = '/' + path
       # GET 请求去掉 query 参数

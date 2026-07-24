@@ -26,6 +26,16 @@ class MitmproxyConfig(TypedDict, total=False):
   static_include_path: List[str]  # 抓包静态资源链接要包含的文本内容（正则字符串列表）
 
 
+class MitmproxyRunConfig(TypedDict, total=False):
+  """
+  mitmproxy 运行配置文件结构
+  """
+  host: str
+  port: int
+  work_dir: str
+  mitmproxy_log: bool
+
+
 # 抓包缓存数据结构: {search_key: {md5_key: ApiRecord, ...}, ...}
 ResponseCacheDict = Dict[str, Dict[str, ApiRecord]]
 

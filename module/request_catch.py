@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 from mitmproxy import http
 from app_types.db_types import ApiRecord
 from app_types.mitmproxy_types import (
@@ -111,7 +111,7 @@ class RequestRecorder:
       # 文件上传：multipart 内可能含文件字段，get_multipart_dict 对 file 传参做特殊处理（提取文件名等）
       elif 'multipart/form-data' in request_content_type:
         print('content-type 为 multipart/form-data，针对内部的 file 传参作特殊处理：\n{}'.format(url))
-        multipart_dict: dict = get_multipart_dict(flow.request.multipart_form)
+        multipart_dict: Dict[str, str] = get_multipart_dict(flow.request.multipart_form)
         params = JsonFormat.dumps(multipart_dict)
       # 其他 POST content-type（如 text/plain、application/xml 等）不提取参数，保持默认空对象
     elif method == 'GET':

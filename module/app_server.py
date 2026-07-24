@@ -15,8 +15,8 @@ from lib.utils_lib import (
 
 
 class AppServer:
-  def __init__(self, port: int = 5050):
-    self.port = port
+  def __init__(self, port: int = 5050) -> None:
+    self.port: int = port
     self.web_root: Path = Path(os.path.abspath('./appServer'))
 
   def _ensure_web_directory(self) -> None:
@@ -55,7 +55,7 @@ class AppServer:
 
 
 # app 服务进程启动
-def start_app_server_process(server_config: dict):
+def start_app_server_process(server_config: dict) -> None:
   port = server_config.get('port', 5050)
   app_server = AppServer(port=port)
   app_server.start()

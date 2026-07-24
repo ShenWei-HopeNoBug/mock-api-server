@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import asyncio
-from time import sleep
+from typing import Optional
 
 from mitmproxy.options import Options
 from mitmproxy.tools.dump import DumpMaster
@@ -8,11 +8,12 @@ from multiprocessing import Process
 from module.request_catch import RequestRecorder
 from lib.decorate import error_catch
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
+from app_types.mitmproxy_types import MitmproxyRunConfig
 
 
 # 启动抓包服务task
 @error_catch(error_msg='mitmproxy_task: 启动抓包服务失败！')
-async def mitmproxy_task(mitmproxy_config: dict):
+async def mitmproxy_task(mitmproxy_config: MitmproxyRunConfig) -> None:
   print('mitmproxy_config', mitmproxy_config)
   host = mitmproxy_config.get('host', '0.0.0.0')
   port = mitmproxy_config.get('port', 8080)
@@ -40,7 +41,7 @@ async def mitmproxy_task(mitmproxy_config: dict):
 
 
 # 启动抓包服务
-def run_mitmproxy(share_dict):
+def run_mitmproxy(share_dict: MitmproxyRunConfig) -> None:
   """运行 mitmproxy"""
   loop = asyncio.new_event_loop()
   asyncio.set_event_loop(loop)
@@ -48,7 +49,7 @@ def run_mitmproxy(share_dict):
   loop.close()
 
 
-def start_mitmproxy(share_dict) -> Process:
+def start_mitmproxy(share_dict: MitmproxyRunConfig) -> Process:
   """启动 mitmproxy"""
   print("Start Mitmproxy")
   mitmproxy_process = Process(target=run_mitmproxy, args=(share_dict,))
@@ -58,26 +59,9 @@ def start_mitmproxy(share_dict) -> Process:
 
 
 # 强杀进程退出服务
-def stop_mitmproxy(process: Process) -> None:
+def stop_mitmproxy(process: Optional[Process]) -> None:
   """停止 mitmproxy"""
   if process:
     process.terminate()
     process.join()
   print('Mitmproxy Normal Exit')
-
-
-# -------------- 调试
-def test():
-  mitmproxy_config = {
-    "host": "0.0.0.0",
-    "port": 8080,
-    "work_dir": ".",
-    "mitmproxy_log": False,
-  }
-  mitmproxy_process = start_mitmproxy(mitmproxy_config)  # 启动 mitmproxy
-  sleep(10)
-  stop_mitmproxy(mitmproxy_process)
-
-
-if __name__ == '__main__':
-  test()
