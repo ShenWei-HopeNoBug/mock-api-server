@@ -301,6 +301,7 @@ class MockServer:
             params = self.__get_params_json_string(multipart_dict)
           except Exception as e:
             print('Mock Server 解析 multipart/form-data 传参异常', e)
+            return jsonify({'error': 'multipart/form-data parse error'}), 404
         else:
           # 未识别的 content-type，无法提取参数，直接返回 404 避免误匹配空参数 mock 数据
           return jsonify({'error': 'Unsupported content-type'}), 404
