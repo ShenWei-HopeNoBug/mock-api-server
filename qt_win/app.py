@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QMenu, QApplication, QFrame, QLabel, QVBoxLayout, QProgressBar)
+from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QMenu, QApplication, QFrame, QLabel, QVBoxLayout,
+                             QProgressBar)
 import threading
 
 from qt_win.output_static_dialog import OutputStaticDialog
@@ -708,7 +709,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     card_layout.setContentsMargins(30, 30, 30, 30)
     card_layout.setSpacing(16)
 
-    tip_label = QLabel('正在停止服务，请稍候…', card)
+    tip_label = QLabel('正在关闭应用…', card)
     tip_label.setAlignment(Qt.AlignCenter)
     tip_label.setStyleSheet('font-size: 15px; color: rgb(80, 80, 80); border: none;')
 
@@ -753,6 +754,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 重写弹窗关闭事件
   def closeEvent(self, event: QCloseEvent):
+    if self._exit_overlay is not None:
+      event.ignore()
+      return
+
     reply = QMessageBox.question(
       self,
       '消息',
