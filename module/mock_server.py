@@ -30,7 +30,7 @@ import json
 import re
 import threading
 from collections import OrderedDict
-from typing import Any, List, Pattern, Union
+from typing import Any, Dict, List, Pattern, Union
 from app_types.db_types import ApiData
 from app_types.mock_server_types import MockApiDict
 from flask import (Flask, request, send_from_directory, jsonify)
@@ -190,7 +190,7 @@ class MockServer:
     }
 
     # 静态资源匹配缓存（按插入顺序保留，超出上限时淘汰最旧数据）
-    static_match_cache: OrderedDict = OrderedDict()
+    static_match_cache: OrderedDict[str, bool] = OrderedDict()
     # 缓存上限，超出时清除最旧的数据
     static_match_cache_limit: int = 1000
     # 保护 static_match_cache 的 check-then-add 原子性，防止多线程并发请求同一文件时延时被执行多次
@@ -337,7 +337,7 @@ class MockServer:
       shutdown_local_server(port=self.port)
 
   @error_catch(error_msg='__get_params_json_string 解析异常', error_return='{}')
-  def __get_params_json_string(self, params: Union[dict, str]) -> str:
+  def __get_params_json_string(self, params: Union[Dict[str, Any], str]) -> str:
     """
     获取接口传参的 json 字符串
     将 dict 或 json str 统一序列化为标准 json 字符串

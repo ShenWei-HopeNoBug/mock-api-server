@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import time
+from typing import Any, Dict
 from flask import Flask, jsonify
 from pathlib import Path
 from lib.decorate import create_thread, error_catch
@@ -55,7 +56,7 @@ class AppServer:
 
 
 # app 服务进程启动
-def start_app_server_process(server_config: dict) -> None:
+def start_app_server_process(server_config: Dict[str, Any]) -> None:
   port = server_config.get('port', 5050)
   app_server = AppServer(port=port)
   app_server.start()

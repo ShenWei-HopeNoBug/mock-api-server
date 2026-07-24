@@ -149,7 +149,7 @@ class RequestRecorder:
 
     # 从 static_cache_dict 提取全部静态资源 URL
     # 缓冲结构: {md5_key: StaticRecord, ...}
-    urls: List[str] = [record.get('url') for record in self.static_cache_dict.values()]
+    urls: List[str] = [record.get('url', '') for record in self.static_cache_dict.values()]
     print('----> 正在保存静态资源数据，共 {} 条'.format(len(urls)))
     self.mock_db.batch_insert_static(urls)
     self.static_cache_dict = {}
