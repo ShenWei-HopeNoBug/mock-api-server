@@ -72,6 +72,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   message_dialog_signal: pyqtSignal = pyqtSignal(str, str, str)
   # 退出清理完成信号
   cleanup_done_signal: pyqtSignal = pyqtSignal()
+  # 退出清理进度信号
+  cleanup_progress_signal: pyqtSignal = pyqtSignal(str)
 
   def __init__(self, app_sever_running_data: dict = None):
     super().__init__()
@@ -128,6 +130,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 退出蒙层
     self._exit_overlay: QFrame or None = None
+    self._exit_tip_label: QLabel or None = None
 
     self.init_ui()
     self.render_menu_bar()
@@ -248,6 +251,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.mitmproxy_server_status_signal.connect(self.mitmproxy_server_status_change)
     self.message_dialog_signal.connect(self.show_message_dialog)
     self.cleanup_done_signal.connect(self._on_cleanup_done)
+    self.cleanup_progress_signal.connect(self._on_cleanup_progress)
     '''
     按钮事件绑定
     '''
@@ -712,6 +716,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     tip_label = QLabel('正在关闭应用…', card)
     tip_label.setAlignment(Qt.AlignCenter)
     tip_label.setStyleSheet('font-size: 15px; color: rgb(80, 80, 80); border: none;')
+    self._exit_tip_label = tip_label
 
     progress_bar = QProgressBar(card)
     progress_bar.setRange(0, 0)
@@ -739,17 +744,28 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     overlay.show()
     self._exit_overlay = overlay
 
+  # 退出清理进度槽（主线程）
+  def _on_cleanup_progress(self, tip: str):
+    if self._exit_tip_label is not None:
+      self._exit_tip_label.setText(tip)
+
   # 子线程中执行停止服务（阻塞逻辑不卡 UI）
   def _cleanup_in_thread(self):
+    self.cleanup_progress_signal.emit('正在清理抓包服务…')
     self._stop_catch_server()
+    self.cleanup_progress_signal.emit('正在清理 Mock 服务…')
     self._stop_server()
+    self.cleanup_progress_signal.emit('正在清理 APP 服务…')
     self._stop_app_server()
+    self.cleanup_progress_signal.emit('正在关闭数据库…')
     self.cleanup_done_signal.emit()
 
   # 退出清理完成槽（主线程）
   def _on_cleanup_done(self):
     MockDBCache.close_all()
     GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
+    if self._exit_tip_label is not None:
+      self._exit_tip_label.setText('正在退出应用…')
     QApplication.quit()
 
   # 重写弹窗关闭事件
