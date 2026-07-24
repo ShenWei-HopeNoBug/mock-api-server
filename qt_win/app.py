@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtGui import QCloseEvent
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QMenu)
+from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QMenu, QApplication, QFrame, QLabel, QVBoxLayout, QProgressBar)
+import threading
 
 from qt_win.output_static_dialog import OutputStaticDialog
 from qt_win.about_dialog import AboutDialog
@@ -68,6 +69,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   server_status_signal: pyqtSignal = pyqtSignal(str)
   # 提示弹窗信号
   message_dialog_signal: pyqtSignal = pyqtSignal(str, str, str)
+  # 退出清理完成信号
+  cleanup_done_signal: pyqtSignal = pyqtSignal()
 
   def __init__(self, app_sever_running_data: dict = None):
     super().__init__()
@@ -121,6 +124,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.edit_menu: QMenu or None = None
     # APP 服务启动端口号
     self.app_sever_running_data: dict or None = app_sever_running_data
+
+    # 退出蒙层
+    self._exit_overlay: QFrame or None = None
 
     self.init_ui()
     self.render_menu_bar()
@@ -240,6 +246,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.downloading_signal.connect(self.downloading_change)
     self.mitmproxy_server_status_signal.connect(self.mitmproxy_server_status_change)
     self.message_dialog_signal.connect(self.show_message_dialog)
+    self.cleanup_done_signal.connect(self._on_cleanup_done)
     '''
     按钮事件绑定
     '''
@@ -675,6 +682,75 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def stop_app_server(self):
     self._stop_app_server()
 
+  # 显示退出蒙层
+  def _show_exit_overlay(self):
+    if self._exit_overlay is not None:
+      return
+    overlay = QFrame(self)
+    overlay.setObjectName('exitOverlay')
+    overlay.setStyleSheet('''
+      #exitOverlay {
+        background-color: rgba(0, 0, 0, 140);
+      }
+    ''')
+    layout = QVBoxLayout(overlay)
+    layout.setAlignment(Qt.AlignCenter)
+
+    card = QFrame(overlay)
+    card.setStyleSheet('''
+      QFrame {
+        background-color: rgb(255, 248, 225);
+        border-radius: 10px;
+        min-width: 280px;
+      }
+    ''')
+    card_layout = QVBoxLayout(card)
+    card_layout.setContentsMargins(30, 30, 30, 30)
+    card_layout.setSpacing(16)
+
+    tip_label = QLabel('正在停止服务，请稍候…', card)
+    tip_label.setAlignment(Qt.AlignCenter)
+    tip_label.setStyleSheet('font-size: 15px; color: rgb(80, 80, 80); border: none;')
+
+    progress_bar = QProgressBar(card)
+    progress_bar.setRange(0, 0)
+    progress_bar.setFixedWidth(240)
+    progress_bar.setTextVisible(False)
+    progress_bar.setStyleSheet('''
+      QProgressBar {
+        border: none;
+        border-radius: 4px;
+        background-color: rgb(230, 230, 230);
+        height: 8px;
+      }
+      QProgressBar::chunk {
+        border-radius: 4px;
+        background-color: rgb(97, 97, 97);
+      }
+    ''')
+
+    card_layout.addWidget(tip_label)
+    card_layout.addWidget(progress_bar, alignment=Qt.AlignCenter)
+    layout.addWidget(card)
+
+    overlay.setGeometry(self.rect())
+    overlay.raise_()
+    overlay.show()
+    self._exit_overlay = overlay
+
+  # 子线程中执行停止服务（阻塞逻辑不卡 UI）
+  def _cleanup_in_thread(self):
+    self._stop_catch_server()
+    self._stop_server()
+    self._stop_app_server()
+    self.cleanup_done_signal.emit()
+
+  # 退出清理完成槽（主线程）
+  def _on_cleanup_done(self):
+    MockDBCache.close_all()
+    GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
+    QApplication.quit()
+
   # 重写弹窗关闭事件
   def closeEvent(self, event: QCloseEvent):
     reply = QMessageBox.question(
@@ -686,14 +762,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     )
 
     if reply == QMessageBox.Yes:
-      # 同步等待所有服务停止
-      self._stop_catch_server()
-      self._stop_server()
-      self._stop_app_server()
-      # 服务已完全停止，安全关闭数据库
-      MockDBCache.close_all()
-      # 设置退出程序的全局变量
-      GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
-      event.accept()
+      event.ignore()
+      self._show_exit_overlay()
+      threading.Thread(target=self._cleanup_in_thread, daemon=True).start()
     else:
       event.ignore()
+
+  # 蒙层跟随窗口大小变化
+  def resizeEvent(self, event):
+    super().resizeEvent(event)
+    if self._exit_overlay is not None:
+      self._exit_overlay.setGeometry(self.rect())
