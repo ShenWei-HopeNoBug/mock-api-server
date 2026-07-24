@@ -2,6 +2,7 @@
 import os
 import webbrowser
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
 from PyQt5.QtCore import QSharedMemory
@@ -14,6 +15,7 @@ from lib.utils_lib import (
   is_local_server_running,
 )
 from app_types.app_gui_types import AppServerRunningData
+from app_types.db_types import ApiData, ApiRecord
 from lib.logger_lib import APP_LOGGER
 import psutil
 import win32gui
@@ -22,7 +24,7 @@ import win32con
 
 
 @error_catch(error_msg='检查应用是否已经在运行异常', error_return=False)
-def is_app_running(app_name="APP") -> bool:
+def is_app_running(app_name: str = "APP") -> bool:
   """检查应用是否已经在运行"""
   # 创建共享内存
   shared_memory = QSharedMemory(app_name)
@@ -58,7 +60,7 @@ def get_memory_name() -> str:
 
 
 @error_catch(error_msg='查找正在运行的APP实例的进程pid异常', error_return=None)
-def find_running_app_pid():
+def find_running_app_pid() -> Optional[int]:
   """查找正在运行的APP实例的进程pid"""
   app_proc_pid = QApplication.applicationPid()
   app_proc = find_process(app_proc_pid)
@@ -90,7 +92,7 @@ def find_running_app_pid():
 
 
 @error_catch(error_msg='将指定进程的窗口置顶异常')
-def bring_to_front(pid):
+def bring_to_front(pid: int) -> None:
   """将指定进程的窗口置顶"""
   hwnds = get_process_windows(pid)
   for hwnd in hwnds:
@@ -107,7 +109,7 @@ def bring_to_front(pid):
 
 
 #  检查app运行文件路径是否合法（不包含中文字符）
-def is_app_work_dir_valid():
+def is_app_work_dir_valid() -> bool:
   app_work_dir = os.path.abspath(Path())
   if not os.path.exists(app_work_dir):
     return False
@@ -120,7 +122,7 @@ def is_app_work_dir_valid():
   return True
 
 
-def get_process_windows(pid):
+def get_process_windows(pid: int) -> List[int]:
   """获取指定进程ID的所有窗口句柄"""
 
   def callback(hwnd, hwnds):
@@ -136,21 +138,21 @@ def get_process_windows(pid):
 
 
 @error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
-def get_mitmproxy_api_data_list(work_dir='.', reverse=False):
+def get_mitmproxy_api_data_list(work_dir: str = '.', reverse: bool = False) -> List[ApiData]:
   mock_db: MockDB = MockDBCache.get(work_dir)
   return mock_db.get_api_list(api_type='MITMPROXY', reverse=reverse)
 
 
 @error_catch(error_msg='读取 user api 数据失败', error_return=[])
-def get_user_api_data_list(work_dir='.', reverse=False):
+def get_user_api_data_list(work_dir: str = '.', reverse: bool = False) -> List[ApiData]:
   mock_db: MockDB = MockDBCache.get(work_dir)
   return mock_db.get_api_list(api_type='USER', reverse=reverse)
 
 
 @error_catch(error_msg='更新 user api 数据失败', error_return=False)
-def update_user_api_data(work_dir='.', update_data=None) -> bool:
+def update_user_api_data(work_dir: str = '.', update_data: Optional[ApiRecord] = None) -> bool:
   # 入参校验
-  if type(update_data) != dict:
+  if not isinstance(update_data, dict):
     return False
 
   update_id = update_data.get('id', '')
@@ -162,8 +164,8 @@ def update_user_api_data(work_dir='.', update_data=None) -> bool:
 
 
 @error_catch(error_msg='新增 user api 数据失败', error_return=False)
-def add_user_api_data(work_dir='.', add_data=None) -> bool:
-  if type(add_data) != dict:
+def add_user_api_data(work_dir: str = '.', add_data: Optional[Dict[str, Any]] = None) -> bool:
+  if not isinstance(add_data, dict):
     return False
 
   record = {
@@ -179,8 +181,8 @@ def add_user_api_data(work_dir='.', add_data=None) -> bool:
 
 
 @error_catch(error_msg='删除 user api 数据失败', error_return=False)
-def delete_user_api_data(work_dir='.', delete_id: str = '') -> bool:
-  if type(delete_id) != str or not delete_id:
+def delete_user_api_data(work_dir: str = '.', delete_id: str = '') -> bool:
+  if not isinstance(delete_id, str) or not delete_id:
     return False
 
   mock_db: MockDB = MockDBCache.get(work_dir)
@@ -188,7 +190,7 @@ def delete_user_api_data(work_dir='.', delete_id: str = '') -> bool:
 
 
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
-def get_mock_api_data_list(work_dir='.'):
+def get_mock_api_data_list(work_dir: str = '.') -> List[ApiData]:
   mock_db: MockDB = MockDBCache.get(work_dir)
   api_list = mock_db.get_api_list(api_type='MITMPROXY')
   api_list.extend(mock_db.get_api_list(api_type='USER'))
@@ -198,7 +200,7 @@ def get_mock_api_data_list(work_dir='.'):
 
 # 加工并打开抓包数据预览html
 @error_catch(error_msg='打开抓包数据预览html失败', error_return=False)
-def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
+def open_mitmproxy_preview_html(root_dir: str = '.', work_dir: str = '.') -> bool:
   # 预览数据列表
   preview_list = get_mock_api_data_list(work_dir=work_dir)
   base_path = f"{root_dir}/appServer/static/web"
@@ -222,7 +224,7 @@ def open_mitmproxy_preview_html(root_dir='.', work_dir='.'):
 
 # 打开操作手册
 @error_catch(error_msg='打开操作手册html失败', error_return=False)
-def open_operation_manual_html(root_dir='.'):
+def open_operation_manual_html(root_dir: str = '.') -> bool:
   base_path = f"{root_dir}/appServer/static/web"
   operation_manual_html = f"{base_path}/apps/document/index.html"
   if not os.path.exists(operation_manual_html):
@@ -233,13 +235,13 @@ def open_operation_manual_html(root_dir='.'):
 
 # 修复异常的抓包数据（SQLite schema 已保证数据完整性，改为 no-op）
 @error_catch(error_msg='修复异常抓包数据失败', error_return=False)
-def fix_user_api_data(work_dir='.') -> bool:
+def fix_user_api_data(work_dir: str = '.') -> bool:
   return True
 
 
 @error_catch(error_msg='批量设置菜单元素配置失败')
-def set_menu_config(menu: QMenu, config_list: list):
-  def menu_action_callback(action: QAction):
+def set_menu_config(menu: QMenu, config_list: List[Dict[str, Any]]) -> None:
+  def menu_action_callback(action: QAction) -> None:
     action_name = action.text()
     for conf in config_list:
       callback = conf.get('callback')
@@ -258,12 +260,12 @@ def set_menu_config(menu: QMenu, config_list: list):
 
 # 批量设置菜单元素禁用状态
 @error_catch(error_msg='批量设置菜单元素禁用状态失败')
-def set_menu_item_disabled(menu: QMenu, disable_list: list):
+def set_menu_item_disabled(menu: QMenu, disable_list: List[Dict[str, Any]]) -> None:
   if not menu or not len(disable_list):
     return
 
   # 构造菜单元素禁用状态字典
-  disable_dict: dict = {}
+  disable_dict: Dict[str, bool] = {}
   action_set = set()
   for config in disable_list:
     action_name = config.get('action_name', '')
