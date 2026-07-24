@@ -374,7 +374,7 @@ def is_local_server_running(
 
   def _is_running(count: int = 1) -> bool:
     try:
-      response = requests.get(f"http://127.0.0.1:{port}/ping", timeout=30)
+      response = requests.get(f"http://127.0.0.1:{port}/ping", timeout=3)
       is_running = response.status_code == 200
       status = "运行中" if is_running else "未运行"
       print(f"第 {count} 次检测：本地{port}端口服务{status}！")
