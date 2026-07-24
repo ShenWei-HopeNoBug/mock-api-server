@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtGui import QCloseEvent
+from typing import Any, Dict, Optional
+
+from PyQt5.QtGui import QCloseEvent, QResizeEvent
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QMenu, QApplication, QFrame, QLabel, QVBoxLayout,
                              QProgressBar)
@@ -43,7 +45,7 @@ from qt_ui.main_win import main_win_style
 
 
 # mock 服务进程启动
-def server_process_start(server_config: dict):
+def server_process_start(server_config: Dict[str, Any]) -> None:
   print('server_config', server_config)
   port = server_config.get('port', 5000)
   work_dir = server_config.get('work_dir', '.')
@@ -75,7 +77,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 退出清理进度信号
   cleanup_progress_signal: pyqtSignal = pyqtSignal(str)
 
-  def __init__(self, app_sever_running_data: dict = None):
+  def __init__(self, app_sever_running_data: Optional[dict] = None) -> None:
     super().__init__()
     # 初始化全局变量文件
     GLOBALS_CONFIG_MANAGER.init(replace=True)
@@ -95,9 +97,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # RUNNING：运行中
     # STOP_WAIT：正在停止
     # -----------------
-    self.mitmproxy_server_status = 'READY'
+    self.mitmproxy_server_status: str = 'READY'
     # 下载静态资源是否压缩图片
-    self.compress_image = True
+    self.compress_image: bool = True
     # -----------------
     # 静态资源下载状态
     # READY：待运行
@@ -122,15 +124,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 静态资源请求加载速率
     self.static_load_speed: int = 0
     # 文件菜单对象
-    self.file_menu: QMenu or None = None
+    self.file_menu: Optional[QMenu] = None
     # 编辑菜单对象
-    self.edit_menu: QMenu or None = None
+    self.edit_menu: Optional[QMenu] = None
     # APP 服务启动端口号
-    self.app_sever_running_data: dict or None = app_sever_running_data
+    self.app_sever_running_data: Optional[dict] = app_sever_running_data
 
     # 退出蒙层
-    self._exit_overlay: QFrame or None = None
-    self._exit_tip_label: QLabel or None = None
+    self._exit_overlay: Optional[QFrame] = None
+    self._exit_tip_label: Optional[QLabel] = None
 
     self.init_ui()
     self.render_menu_bar()
@@ -139,7 +141,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # -----------------------------------
   # 初始化（窗口实例化后必须手动调用一次）
   # -----------------------------------
-  def init(self):
+  def init(self) -> None:
     # 用户拒绝在历史工作目录创建文件，切到默认工作目录
     if not self.check_and_create_work_files(self.work_dir):
       work_dir = os.path.abspath(DEFAULT_WORK_DIR)
@@ -149,7 +151,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.work_dir = work_dir
 
   # 初始化窗口 UI
-  def init_ui(self):
+  def init_ui(self) -> None:
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
     self.setWindowTitle(f'Mock Server {globals.version}')
@@ -157,7 +159,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.setStyleSheet(main_win_style.window)
 
   # 渲染菜单栏
-  def render_menu_bar(self):
+  def render_menu_bar(self) -> None:
     menu_bar = self.menuBar()
 
     # ---------------------
@@ -244,7 +246,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     ])
 
   # 绑定窗口事件
-  def add_events(self):
+  def add_events(self) -> None:
     # 监听信号变化
     self.server_status_signal.connect(self.server_status_change)
     self.downloading_signal.connect(self.downloading_change)
@@ -298,7 +300,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverWorkDirLineEdit.setToolTip(self.work_dir)
 
   # 展示提示弹窗
-  def show_message_dialog(self, dialog_type='critical', title='', message: str = ''):
+  def show_message_dialog(self, dialog_type: str = 'critical', title: str = '', message: str = '') -> None:
     if not message:
       return
 
@@ -308,7 +310,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       QMessageBox.information(self, title or '提示', message)
 
   # 选择工作目录
-  def select_work_dir(self):
+  def select_work_dir(self) -> None:
     directory = QFileDialog.getExistingDirectory(
       self,
       caption='选择工作目录',
@@ -324,7 +326,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       HISTORY_CONFIG_MANAGER.set(key='work_dir', value=self.work_dir)
 
   # mock 服务启动状态变化
-  def server_status_change(self, text: str):
+  def server_status_change(self, text: str) -> None:
     button_text: str = ''
     disabled: bool = False
     server_btn_disabled: bool = False
@@ -364,7 +366,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.catchServerButton.setDisabled(disabled)
 
   # 下载状态变化
-  def downloading_change(self, text: str):
+  def downloading_change(self, text: str) -> None:
     # 下载中
     if text == 'DOWNLOAD':
       download_btn_disabled = False
@@ -401,7 +403,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     ])
 
   # 抓包服务启动状态变化
-  def mitmproxy_server_status_change(self, text: str):
+  def mitmproxy_server_status_change(self, text: str) -> None:
     button_text: str = ''
     disabled: bool = False
     mitmproxy_btn_disabled: bool = False
@@ -442,7 +444,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.serverButton.setDisabled(disabled)
 
   # 点击 mock 服务按钮
-  def server_button_click(self):
+  def server_button_click(self) -> None:
     if self.server_status in ('START_WAIT', 'STOP_WAIT'):
       return
     if self.server_status == 'READY':
@@ -453,7 +455,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.stop_server()
 
   # 点击抓包服务按钮
-  def catch_server_button_click(self):
+  def catch_server_button_click(self) -> None:
     if self.mitmproxy_server_status in ('START_WAIT', 'STOP_WAIT'):
       return
     if self.mitmproxy_server_status == 'READY':
@@ -464,7 +466,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.stop_catch_server()
 
   # 检查工作目录文件完整性
-  def check_and_create_work_files(self, work_dir=DEFAULT_WORK_DIR):
+  def check_and_create_work_files(self, work_dir: str = DEFAULT_WORK_DIR) -> bool:
     # 检查目录文件完整性
     if check_work_files(work_dir):
       return True
@@ -487,13 +489,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return False
 
   # 导出静态资源
-  def output_static(self):
+  def output_static(self) -> None:
     output_dialog = OutputStaticDialog(work_dir=self.work_dir)
     output_dialog.exec_()
 
   # 启动抓包服务
   @create_thread
-  def start_catch_server(self):
+  def start_catch_server(self) -> None:
     mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
@@ -528,7 +530,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.mitmproxy_server_status_signal.emit('RUNNING')
 
   # 停止抓包服务（同步）
-  def _stop_catch_server(self):
+  def _stop_catch_server(self) -> None:
     mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
@@ -548,12 +550,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 停止抓包服务
   @create_thread
-  def stop_catch_server(self):
+  def stop_catch_server(self) -> None:
     self._stop_catch_server()
 
   # 更新下载详情
-  def update_download_detail(self, detail: dict):
-    if type(detail) != dict:
+  def update_download_detail(self, detail: dict) -> None:
+    if not isinstance(detail, dict):
       detail = {}
     self.download_detail = detail
     # 更新下下载按钮显示
@@ -561,7 +563,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 下载静态资源
   @create_thread
-  def download_static(self):
+  def download_static(self) -> None:
     # 正在下载中，点击触发停止
     if self.download_status == 'DOWNLOAD':
       self.downloading_signal.emit('STOP_WAIT')
@@ -593,7 +595,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 启动mock服务
   @create_thread
-  def start_server(self):
+  def start_server(self) -> None:
     # 网络监听端口检查
     if check_local_connection('0.0.0.0', self.server_port):
       self.message_dialog_signal.emit(
@@ -637,7 +639,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.server_status_signal.emit('READY')
 
   # 停止mock服务（同步）
-  def _stop_server(self):
+  def _stop_server(self) -> None:
     @error_catch(log=False)
     def shutdown():
       """这个请求发送到 mock 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
@@ -665,11 +667,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 停止mock服务
   @create_thread
-  def stop_server(self):
+  def stop_server(self) -> None:
     self._stop_server()
 
   # 停止 APP_SERVER 服务（同步）
-  def _stop_app_server(self):
+  def _stop_app_server(self) -> None:
     # 检查 APP_SERVER 是否正常启动
     if not is_app_server_running(self.app_sever_running_data):
       return
@@ -684,11 +686,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 停止 APP_SERVER 服务
   @create_thread
-  def stop_app_server(self):
+  def stop_app_server(self) -> None:
     self._stop_app_server()
 
   # 显示退出蒙层
-  def _show_exit_overlay(self):
+  def _show_exit_overlay(self) -> None:
     if self._exit_overlay is not None:
       return
     overlay = QFrame(self)
@@ -745,12 +747,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self._exit_overlay = overlay
 
   # 退出清理进度槽（主线程）
-  def _on_cleanup_progress(self, tip: str):
+  def _on_cleanup_progress(self, tip: str) -> None:
     if self._exit_tip_label is not None:
       self._exit_tip_label.setText(tip)
 
   # 子线程中执行停止服务（阻塞逻辑不卡 UI）
-  def _cleanup_in_thread(self):
+  def _cleanup_in_thread(self) -> None:
     if self.mitmproxy_server_status == 'RUNNING':
       self.cleanup_progress_signal.emit('正在清理抓包服务…')
       self._stop_catch_server()
@@ -765,7 +767,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.cleanup_done_signal.emit()
 
   # 退出清理完成槽（主线程）
-  def _on_cleanup_done(self):
+  def _on_cleanup_done(self) -> None:
     MockDBCache.close_all()
     GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
     if self._exit_tip_label is not None:
@@ -773,7 +775,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     QApplication.quit()
 
   # 重写弹窗关闭事件
-  def closeEvent(self, event: QCloseEvent):
+  def closeEvent(self, event: QCloseEvent) -> None:
     if self._exit_overlay is not None:
       event.ignore()
       return
@@ -794,7 +796,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       event.ignore()
 
   # 蒙层跟随窗口大小变化
-  def resizeEvent(self, event):
+  def resizeEvent(self, event: QResizeEvent) -> None:
     super().resizeEvent(event)
     if self._exit_overlay is not None:
       self._exit_overlay.setGeometry(self.rect())
