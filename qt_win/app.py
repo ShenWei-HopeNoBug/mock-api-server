@@ -515,9 +515,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     time.sleep(3)
     self.mitmproxy_server_status_signal.emit('RUNNING')
 
-  # 停止抓包服务
-  @create_thread
-  def stop_catch_server(self):
+  # 停止抓包服务（同步）
+  def _stop_catch_server(self):
     mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
     # 抓包服务还在停止中，跳过
     if mitmproxy_stop_signal:
@@ -534,6 +533,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     trigger_shutdown()
     time.sleep(3)
     self.mitmproxy_server_status_signal.emit('READY')
+
+  # 停止抓包服务
+  @create_thread
+  def stop_catch_server(self):
+    self._stop_catch_server()
 
   # 更新下载详情
   def update_download_detail(self, detail: dict):
@@ -620,9 +624,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       )
       self.server_status_signal.emit('READY')
 
-  # 停止mock服务
-  @create_thread
-  def stop_server(self):
+  # 停止mock服务（同步）
+  def _stop_server(self):
     @error_catch(log=False)
     def shutdown():
       """这个请求发送到 mock 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
@@ -648,9 +651,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     else:
       self.server_status_signal.emit('READY')
 
-  # 停止 APP_SERVER 服务
+  # 停止mock服务
   @create_thread
-  def stop_app_server(self):
+  def stop_server(self):
+    self._stop_server()
+
+  # 停止 APP_SERVER 服务（同步）
+  def _stop_app_server(self):
     # 检查 APP_SERVER 是否正常启动
     if not is_app_server_running(self.app_sever_running_data):
       return
@@ -663,6 +670,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     shutdown()
 
+  # 停止 APP_SERVER 服务
+  @create_thread
+  def stop_app_server(self):
+    self._stop_app_server()
+
   # 重写弹窗关闭事件
   def closeEvent(self, event: QCloseEvent):
     reply = QMessageBox.question(
@@ -674,15 +686,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     )
 
     if reply == QMessageBox.Yes:
-      # 尝试杀掉运行的服务进程
-      self.stop_catch_server()
-      self.stop_server()
-      self.stop_app_server()
-      # 关闭所有 MockDB 连接，触发最终 checkpoint
+      # 同步等待所有服务停止
+      self._stop_catch_server()
+      self._stop_server()
+      self._stop_app_server()
+      # 服务已完全停止，安全关闭数据库
       MockDBCache.close_all()
       # 设置退出程序的全局变量
       GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
-      time.sleep(0.5)
       event.accept()
     else:
       event.ignore()
