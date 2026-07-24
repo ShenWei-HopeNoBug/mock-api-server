@@ -751,13 +751,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 子线程中执行停止服务（阻塞逻辑不卡 UI）
   def _cleanup_in_thread(self):
-    self.cleanup_progress_signal.emit('正在清理抓包服务…')
-    self._stop_catch_server()
-    self.cleanup_progress_signal.emit('正在清理 Mock 服务…')
-    self._stop_server()
-    self.cleanup_progress_signal.emit('正在清理 APP 服务…')
-    self._stop_app_server()
+    if self.mitmproxy_server_status == 'RUNNING':
+      self.cleanup_progress_signal.emit('正在清理抓包服务…')
+      self._stop_catch_server()
+    if self.server_status == 'RUNNING':
+      self.cleanup_progress_signal.emit('正在清理 Mock 服务…')
+      self._stop_server()
+    if is_app_server_running(self.app_sever_running_data):
+      self.cleanup_progress_signal.emit('正在清理 APP 服务…')
+      self._stop_app_server()
     self.cleanup_progress_signal.emit('正在关闭数据库…')
+    time.sleep(0.5)
     self.cleanup_done_signal.emit()
 
   # 退出清理完成槽（主线程）
