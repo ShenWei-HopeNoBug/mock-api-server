@@ -291,9 +291,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return
 
     if dialog_type == 'critical':
-      QMessageBox.critical(self, title or '提示', message)
+      QMessageBox.critical(self, title or '异常', message)
     else:
-      QMessageBox.information(self, title or '异常', message)
+      QMessageBox.information(self, title or '提示', message)
 
   # 选择工作目录
   def select_work_dir(self):
@@ -600,7 +600,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='NOT_RUNNING')
     APP_LOGGER.info(f"点击启动 MOCK_SERVER 后检测服务当前是否运行：{result}")
     time.sleep(0.5)
-    self.server_status_signal.emit('RUNNING')
+    if result:
+      self.server_status_signal.emit('RUNNING')
+    else:
+      self.message_dialog_signal.emit(
+        'critical',
+        '启动失败',
+        f'MOCK_SERVER 启动失败，请检查日志！port={self.server_port}',
+      )
+      self.server_status_signal.emit('READY')
 
   # 停止mock服务
   @create_thread
@@ -620,7 +628,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     result: bool = is_local_server_running(port=self.server_port, retry=3, retry_condition='RUNNING')
     APP_LOGGER.info(f"点击停止 MOCK_SERVER 后检测服务当前是否运行：{result}")
     time.sleep(0.5)
-    self.server_status_signal.emit('READY')
+    if result:
+      self.message_dialog_signal.emit(
+        'critical',
+        '停止失败',
+        f'MOCK_SERVER 停止失败，服务仍在运行！port={self.server_port}',
+      )
+      self.server_status_signal.emit('RUNNING')
+    else:
+      self.server_status_signal.emit('READY')
 
   # 停止 APP_SERVER 服务
   @create_thread
