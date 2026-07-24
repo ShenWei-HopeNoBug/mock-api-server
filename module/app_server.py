@@ -33,18 +33,25 @@ class AppServer:
     def ping():
       return jsonify({'data': 'pong!'})
 
-    @app.route('/system/shutdown')
+    @app.route('/system/shutdown', methods=['GET'])
     def server_shutdown():
-      APP_LOGGER.info('APP_SERVER 服务收到 shutdown 指令！正在关闭服务...')
-      self.shutdown()
+      @create_thread(daemon=True)
+      def delayed_shutdown():
+        APP_LOGGER.info('APP_SERVER 服务收到 shutdown 指令！正在关闭服务...')
+        time.sleep(0.5)
+        self.shutdown()
+
+      delayed_shutdown()
+      return jsonify({'data': 'shutting down'})
 
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   def shutdown(self) -> None:
-    result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING')
+    result = is_local_server_running(port=self.port, retry=2, retry_condition='RUNNING')
     if result:
       APP_LOGGER.info(f"即将关闭 APP_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)
+
 
 # app 服务进程启动
 def start_app_server_process(server_config: dict):
