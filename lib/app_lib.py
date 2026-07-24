@@ -13,6 +13,7 @@ from lib.utils_lib import (
   create_md5,
   is_local_server_running,
 )
+from app_types.app_gui_types import AppServerRunningData
 from lib.logger_lib import APP_LOGGER
 import psutil
 import win32gui
@@ -285,8 +286,8 @@ def set_menu_item_disabled(menu: QMenu, disable_list: list):
 
 
 @error_catch(error_msg='检查 APP_SERVER 是否运行失败！', error_return=False)
-def is_app_server_running(app_sever_running_data: dict) -> bool:
-  if type(app_sever_running_data) != dict:
+def is_app_server_running(app_sever_running_data: AppServerRunningData) -> bool:
+  if not isinstance(app_sever_running_data, dict):
     return False
 
   success = app_sever_running_data.get('success', False)

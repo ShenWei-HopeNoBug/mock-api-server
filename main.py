@@ -16,6 +16,7 @@ from lib.app_lib import (
   bring_to_front,
   is_app_work_dir_valid,
 )
+from app_types.app_gui_types import AppServerRunningData
 
 
 def exception_handler(exception_type, value):
@@ -57,7 +58,7 @@ if __name__ == '__main__':
   app.processEvents()
 
   # 启动 APP_SERVER 服务
-  app_sever_running_data: dict = start_app_server()
+  app_sever_running_data: AppServerRunningData = start_app_server()
 
   # app 主窗口
   main_window = MainWindow(app_sever_running_data=app_sever_running_data)

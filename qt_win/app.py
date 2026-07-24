@@ -34,6 +34,7 @@ from lib.app_lib import (
   set_menu_item_disabled,
   is_app_server_running,
 )
+from app_types.app_gui_types import AppServerRunningData
 from lib.db_lib import MockDBCache
 from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
@@ -77,7 +78,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 退出清理进度信号
   cleanup_progress_signal: pyqtSignal = pyqtSignal(str)
 
-  def __init__(self, app_sever_running_data: Optional[dict] = None) -> None:
+  def __init__(self, app_sever_running_data: Optional[AppServerRunningData] = None) -> None:
     super().__init__()
     # 初始化全局变量文件
     GLOBALS_CONFIG_MANAGER.init(replace=True)
@@ -128,7 +129,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 编辑菜单对象
     self.edit_menu: Optional[QMenu] = None
     # APP 服务启动端口号
-    self.app_sever_running_data: Optional[dict] = app_sever_running_data
+    self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
 
     # 退出蒙层
     self._exit_overlay: Optional[QFrame] = None

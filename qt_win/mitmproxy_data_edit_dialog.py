@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+from typing import Optional
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
@@ -18,19 +19,20 @@ from lib.app_lib import (
   delete_user_api_data,
   is_app_server_running,
 )
+from app_types.app_gui_types import AppServerRunningData
 from lib.utils_lib import get_ip_address
 from lib.logger_lib import APP_LOGGER
 
 
 class MitmproxyDataEditDialog(QDialog):
-  def __init__(self, work_dir='.', app_sever_running_data: dict = None):
+  def __init__(self, work_dir='.', app_sever_running_data: Optional[AppServerRunningData] = None):
     super().__init__()
     # 工作目录
     self.work_dir = work_dir
-    self.webview: QWebEngineView or None = None
-    self.web_channel: QWebChannel or None = None
-    self.interact_obj: TInteractObj or None = None
-    self.app_sever_running_data: dict or None = app_sever_running_data
+    self.webview: Optional[QWebEngineView] = None
+    self.web_channel: Optional[QWebChannel] = None
+    self.interact_obj: Optional[TInteractObj] = None
+    self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
 
     self.init()
 

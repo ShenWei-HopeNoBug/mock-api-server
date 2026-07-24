@@ -5,6 +5,7 @@ from flask import Flask, jsonify
 from pathlib import Path
 from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APP_LOGGER
+from app_types.app_gui_types import AppServerRunningData
 from multiprocessing import Process
 from lib.utils_lib import (
   check_local_connection,
@@ -62,7 +63,7 @@ def start_app_server_process(server_config: dict):
 
 # 启动并检查 APP_SERVER 服务
 @error_catch(error_msg='start_app_server 准备启动 APP_SERVER 异常', error_return={"success": False, "port": 5050})
-def start_app_server() -> dict:
+def start_app_server() -> AppServerRunningData:
   @create_thread
   def _start_server(port: int = 5050) -> None:
     server_config = {

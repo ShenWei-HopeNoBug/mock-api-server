@@ -2,6 +2,7 @@
 import os
 import json
 import copy
+from typing import Optional
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -12,6 +13,7 @@ from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config
 from lib.utils_lib import (ConfigFileManager, get_ip_address)
 from lib.app_lib import is_app_server_running
+from app_types.app_gui_types import AppServerRunningData
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 from lib.logger_lib import APP_LOGGER
 
@@ -19,7 +21,7 @@ from lib.logger_lib import APP_LOGGER
 class DownloadProxyConfigDialog(QDialog):
   close_signal: pyqtSignal = pyqtSignal()
 
-  def __init__(self, work_dir=DEFAULT_WORK_DIR, app_sever_running_data: dict = None):
+  def __init__(self, work_dir=DEFAULT_WORK_DIR, app_sever_running_data: Optional[AppServerRunningData] = None):
     super().__init__()
     # 当前配置文件地址
     download_config_path = os.path.join(r'{}{}'.format(work_dir, DOWNLOAD_CONFIG_PATH))
@@ -32,11 +34,11 @@ class DownloadProxyConfigDialog(QDialog):
     download_config_manager.init(replace=False)
 
     self.work_dir = work_dir
-    self.webview: QWebEngineView or None = None
-    self.web_channel: QWebChannel or None = None
-    self.interact_obj: TInteractObj or None = None
+    self.webview: Optional[QWebEngineView] = None
+    self.web_channel: Optional[QWebChannel] = None
+    self.interact_obj: Optional[TInteractObj] = None
     self.download_config_manager: ConfigFileManager = download_config_manager
-    self.app_sever_running_data: dict or None = app_sever_running_data
+    self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
 
     self.init()
 
