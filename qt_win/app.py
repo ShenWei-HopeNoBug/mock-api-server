@@ -88,7 +88,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     work_dir = HISTORY_CONFIG_MANAGER.get(key='work_dir') or DEFAULT_WORK_DIR
 
     # 服务工作目录
-    self.work_dir = os.path.abspath(work_dir)
+    self.work_dir: str = os.path.abspath(work_dir)
     # 抓包服务端口号
     self.catch_server_port: int = 8080
     # -----------------
@@ -117,7 +117,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # -----------------
     self.server_status: str = 'READY'
     # 下载详情
-    self.download_detail: dict = {}
+    self.download_detail: Dict[str, Any] = {}
     # 服务端口号
     self.server_port: int = 5000
     # 接口响应延时
@@ -555,7 +555,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self._stop_catch_server()
 
   # 更新下载详情
-  def update_download_detail(self, detail: dict) -> None:
+  def update_download_detail(self, detail: Dict[str, Any]) -> None:
     if not isinstance(detail, dict):
       detail = {}
     self.download_detail = detail

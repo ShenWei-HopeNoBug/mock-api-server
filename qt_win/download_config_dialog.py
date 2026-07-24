@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from typing import Optional
+
 from PyQt5.QtWidgets import QWidget, QDialog, QVBoxLayout
 from PyQt5.QtCore import Qt, QRect
 
@@ -16,7 +18,7 @@ from qt_ui.download_config_win.module import FileTypeListModule
 
 # 抓包配置弹窗
 class DownloadConfigDialog(QDialog, Ui_Dialog):
-  def __init__(self, work_dir=DEFAULT_WORK_DIR):
+  def __init__(self, work_dir: str = DEFAULT_WORK_DIR) -> None:
     super().__init__()
     # 当前配置文件地址
     download_config_path = os.path.join(r'{}{}'.format(work_dir, DOWNLOAD_CONFIG_PATH))
@@ -31,14 +33,14 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     # 抓包配置文件读写管理器
     self.download_config_manager: ConfigFileManager = download_config_manager
     # file_type 编辑模组
-    self.file_type_edit_weight: FileTypeListModule or None = None
+    self.file_type_edit_weight: Optional[FileTypeListModule] = None
     self.download_timeout: int = DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
     self.auto_adjust_timeout: bool = DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT
 
     self.init_ui()
     self.add_events()
 
-  def init_ui(self):
+  def init_ui(self) -> None:
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
     self.setWindowOpacity(0.95)
@@ -83,7 +85,7 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     layout.addWidget(file_type_edit_weight)
     self.file_type_edit_weight = file_type_edit_weight
 
-  def add_events(self):
+  def add_events(self) -> None:
     self.confirmPushButton.clicked.connect(self.confirm)
 
     def timeout_input_change(value):
@@ -95,7 +97,7 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     self.timeoutSpinBox.valueChanged.connect(timeout_input_change)
     self.autoAdjustTimeoutCheckBox.clicked.connect(auto_adjust_timeout_change)
 
-  def confirm(self):
+  def confirm(self) -> None:
     self.download_config_manager.set(
       key='download_timeout',
       value=self.download_timeout or DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,

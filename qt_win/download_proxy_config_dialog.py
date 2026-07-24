@@ -21,7 +21,11 @@ from lib.logger_lib import APP_LOGGER
 class DownloadProxyConfigDialog(QDialog):
   close_signal: pyqtSignal = pyqtSignal()
 
-  def __init__(self, work_dir=DEFAULT_WORK_DIR, app_sever_running_data: Optional[AppServerRunningData] = None):
+  def __init__(
+      self,
+      work_dir: str = DEFAULT_WORK_DIR,
+      app_sever_running_data: Optional[AppServerRunningData] = None
+  ) -> None:
     super().__init__()
     # 当前配置文件地址
     download_config_path = os.path.join(r'{}{}'.format(work_dir, DOWNLOAD_CONFIG_PATH))
@@ -33,7 +37,7 @@ class DownloadProxyConfigDialog(QDialog):
     )
     download_config_manager.init(replace=False)
 
-    self.work_dir = work_dir
+    self.work_dir: str = work_dir
     self.webview: Optional[QWebEngineView] = None
     self.web_channel: Optional[QWebChannel] = None
     self.interact_obj: Optional[TInteractObj] = None
@@ -42,7 +46,7 @@ class DownloadProxyConfigDialog(QDialog):
 
     self.init()
 
-  def init(self):
+  def init(self) -> None:
     self.setWindowTitle('下载代理配置')
     self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
     webview_dialog_config: dict = get_webview_dialog_config()
@@ -108,18 +112,18 @@ class DownloadProxyConfigDialog(QDialog):
     self.close_signal.connect(close_dialog)
 
   @create_thread
-  def send_qt2js_dict_msg(self, data: dict):
+  def send_qt2js_dict_msg(self, data: dict) -> None:
     self.interact_obj.send_qt2js_dict_msg(data)
 
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
-  def receive(self, message: str):
+  def receive(self, message: str) -> None:
     event_dict: dict = json.loads(message)
     msg_type = event_dict.get('type')
     if msg_type == 'request':
       self._request(event_dict)
 
-  def _request(self, event: dict):
+  def _request(self, event: dict) -> None:
     msg_type = event.get('type')
     name = event.get('name')
     action_id = event.get('action_id')

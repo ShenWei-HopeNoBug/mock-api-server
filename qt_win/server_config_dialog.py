@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from typing import Optional
+
 from PyQt5.QtWidgets import QDialog, QWidget, QVBoxLayout, QButtonGroup
 from PyQt5.QtCore import Qt, QRect
 
@@ -26,7 +28,7 @@ MATCH_RADIO_BUTTON_ID_DICT: dict = {
 
 
 class ServerConfigDialog(QDialog, Ui_Dialog):
-  def __init__(self, work_dir=DEFAULT_WORK_DIR):
+  def __init__(self, work_dir: str = DEFAULT_WORK_DIR) -> None:
     super().__init__()
     # 当前配置文件地址
     server_config_path = os.path.join(r'{}{}'.format(work_dir, MOCK_SERVER_CONFIG_PATH))
@@ -40,15 +42,15 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
 
     # 服务配置文件读写管理器
     self.server_config_manager: ConfigFileManager = server_config_manager
-    self.file_type_edit_weight: FileTypeListModule or None = None
-    self.static_route_edit_weight: StaticRouteListModule or None = None
-    self.params_match_button_group: QButtonGroup or None = None
+    self.file_type_edit_weight: Optional[FileTypeListModule] = None
+    self.static_route_edit_weight: Optional[StaticRouteListModule] = None
+    self.params_match_button_group: Optional[QButtonGroup] = None
     self.params_match_mode: int = DEFAULT_HTTP_PARAMS_MATCH_MODE
 
     self.init_ui()
     self.add_events()
 
-  def init_ui(self):
+  def init_ui(self) -> None:
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
     self.setWindowOpacity(0.95)
@@ -90,7 +92,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     self.file_type_edit_weight = file_type_edit_weight
     self.static_route_edit_weight = static_route_edit_weight
 
-  def add_events(self):
+  def add_events(self) -> None:
     params_match_mode: int = self.server_config_manager.get(key='http_params_match_mode')
     if params_match_mode == SERVER.HTTP_PARAMS_EXACT_MATCH:
       self.paramsExactMatchRadioButton.setChecked(True)
@@ -119,7 +121,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
 
     params_match_button_group.buttonClicked.connect(radio_button_clicked)
 
-  def confirm(self):
+  def confirm(self) -> None:
     self.server_config_manager.set(
       key='http_params_match_mode',
       value=self.params_match_mode,

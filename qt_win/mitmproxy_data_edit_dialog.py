@@ -25,10 +25,10 @@ from lib.logger_lib import APP_LOGGER
 
 
 class MitmproxyDataEditDialog(QDialog):
-  def __init__(self, work_dir='.', app_sever_running_data: Optional[AppServerRunningData] = None):
+  def __init__(self, work_dir: str = '.', app_sever_running_data: Optional[AppServerRunningData] = None) -> None:
     super().__init__()
     # 工作目录
-    self.work_dir = work_dir
+    self.work_dir: str = work_dir
     self.webview: Optional[QWebEngineView] = None
     self.web_channel: Optional[QWebChannel] = None
     self.interact_obj: Optional[TInteractObj] = None
@@ -37,7 +37,7 @@ class MitmproxyDataEditDialog(QDialog):
     self.init()
 
   @error_catch(error_msg='抓包数据管理弹窗初始化异常')
-  def init(self):
+  def init(self) -> None:
     self.setWindowTitle('抓包数据管理')
     self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
     webview_dialog_config: dict = get_webview_dialog_config()
@@ -99,7 +99,7 @@ class MitmproxyDataEditDialog(QDialog):
 
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
-  def receive(self, message: str):
+  def receive(self, message: str) -> None:
     event_dict: dict = json.loads(message)
 
     msg_type = event_dict.get('type')
@@ -107,11 +107,11 @@ class MitmproxyDataEditDialog(QDialog):
       self._request(event_dict)
 
   @create_thread
-  def send_qt2js_dict_msg(self, data: dict):
+  def send_qt2js_dict_msg(self, data: dict) -> None:
     self.interact_obj.send_qt2js_dict_msg(data)
 
   # 处理 web 发出的请求相关事件
-  def _request(self, event: dict):
+  def _request(self, event: dict) -> None:
     msg_type = event.get('type')
     name = event.get('name')
     action_id = event.get('action_id')
@@ -166,5 +166,5 @@ class MitmproxyDataEditDialog(QDialog):
       success = add_user_api_data(work_dir=self.work_dir, add_data=params)
       send_response(success)
 
-  def closeEvent(self, event: QEvent):
+  def closeEvent(self, event: QEvent) -> None:
     event.accept()
