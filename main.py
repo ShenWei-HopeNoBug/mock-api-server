@@ -4,10 +4,12 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
 
 import sys
+import time
+import threading
 import multiprocessing
 import traceback as tb_module
 from types import TracebackType
-from typing import Optional, Type
+from typing import Any, Callable, Optional, Type
 
 from module.app_server import start_app_server
 from lib.splash import StartSplash
@@ -34,6 +36,25 @@ def exception_handler(
   # 显示异常信息的对话框
   QMessageBox.critical(None, "程序异常", f"发生异常：{value}")
   sys.exit(1)
+
+
+def run_blocking_with_events(app: QApplication, func: Callable, *args: Any, **kwargs: Any) -> Any:
+  """在子线程中执行阻塞函数，主线程持续处理事件以保持 UI 响应"""
+  result: list = [None]
+  done = threading.Event()
+
+  def wrapper() -> None:
+    result[0] = func(*args, **kwargs)
+    done.set()
+
+  t = threading.Thread(target=wrapper, daemon=True)
+  t.start()
+
+  while not done.is_set():
+    app.processEvents()
+    time.sleep(0.02)
+
+  return result[0]
 
 
 if __name__ == '__main__':
@@ -63,19 +84,21 @@ if __name__ == '__main__':
   start_splash: StartSplash = StartSplash()
   # 启动动画对象
   start_splash.show()
-  # 防止启动动画卡住主进程
+  # 确保启动动画立即渲染
   app.processEvents()
 
-  # 启动 APP_SERVER 服务
-  app_sever_running_data: AppServerRunningData = start_app_server()
+  # 启动 APP_SERVER 服务（子线程执行，主线程保持事件循环以更新启动动画）
+  app_sever_running_data: AppServerRunningData = run_blocking_with_events(app, start_app_server)
 
   # app 主窗口
   main_window: MainWindow = MainWindow(app_sever_running_data=app_sever_running_data)
+  app.processEvents()
+
   # 展示窗口
   main_window.show()
-  # 结束启动动画
-  start_splash.finish(main_window)
-  # 初始化
-  main_window.init()
+  app.processEvents()
+
+  # 结束启动动画，动画结束后执行 init
+  start_splash.finish(main_window, callback=main_window.init)
 
   sys.exit(app.exec_())

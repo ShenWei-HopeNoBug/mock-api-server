@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import QSplashScreen, QWidget
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, QTimer
 
 import time
-from typing import Optional
+from typing import Callable, Optional
 from lib.decorate import create_thread
 
 splash_style = '''
@@ -15,33 +15,44 @@ splash_style = '''
 
 
 # 启动动画
-class StartSplash:
+class StartSplash(QObject):
+  percent_signal: pyqtSignal = pyqtSignal(int)
+
   def __init__(self) -> None:
+    super().__init__()
     self.splash: Optional[QSplashScreen] = QSplashScreen()
     self.percent: int = 0
     self.finished: bool = False
 
     self.splash.setStyleSheet(splash_style)
+    self.percent_signal.connect(self._on_percent)
 
   def show(self) -> None:
     self.show_percent(self.percent)
     self.splash.show()
     self.start_percent_timer()
 
-  def finish(self, win: QWidget) -> None:
+  def finish(self, win: QWidget, callback: Optional[Callable] = None) -> None:
     self.show_percent(100)
-    time.sleep(0.8)
-    self.splash.finish(win)
-    self.finished = True
-    self.splash.deleteLater()
-    self.splash = None
+    QTimer.singleShot(800, lambda: self._do_finish(win, callback))
+
+  def _do_finish(self, win: QWidget, callback: Optional[Callable] = None) -> None:
+    if self.splash is not None:
+      self.splash.finish(win)
+      self.finished = True
+      self.splash.deleteLater()
+      self.splash = None
+    if callback:
+      callback()
 
   def show_percent(self, value: int) -> None:
     self.percent = value
-    if self.finished:
-      return
+    self.percent_signal.emit(value)
 
-    self.splash.showMessage('启动中... {}%'.format(self.percent), Qt.AlignCenter | Qt.AlignCenter)
+  def _on_percent(self, value: int) -> None:
+    if self.finished or self.splash is None:
+      return
+    self.splash.showMessage('启动中... {}%'.format(value), Qt.AlignCenter | Qt.AlignCenter)
 
   @create_thread
   def start_percent_timer(self) -> None:
