@@ -5,6 +5,9 @@ from PyQt5.QtCore import Qt
 
 import sys
 import multiprocessing
+from types import TracebackType
+from typing import Optional, Type
+
 from module.app_server import start_app_server
 from lib.splash import StartSplash
 from qt_win.app import MainWindow
@@ -19,7 +22,11 @@ from lib.app_lib import (
 from app_types.app_gui_types import AppServerRunningData
 
 
-def exception_handler(exception_type, value):
+def exception_handler(
+    exception_type: Type[BaseException],
+    value: BaseException,
+    traceback: Optional[TracebackType],
+) -> None:
   """全局异常处理器"""
   APP_LOGGER.error(f'APP全局程序异常捕获：{value}')
   # 显示异常信息的对话框
@@ -32,14 +39,14 @@ if __name__ == '__main__':
   multiprocessing.freeze_support()
   # 禁止屏幕设置了缩放导致显示不一致
   QGuiApplication.setAttribute(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-  app = QApplication(sys.argv)
+  app: QApplication = QApplication(sys.argv)
   # 全局异常捕获
   sys.excepthook = exception_handler
 
   # 检查 APP 是否已经在运行
   if is_app_running(app_name=get_memory_name()):
     # 查找已运行的实例
-    pid = find_running_app_pid()
+    pid: Optional[int] = find_running_app_pid()
     if pid:
       # 将已运行的实例窗口置顶
       bring_to_front(pid)
@@ -51,7 +58,7 @@ if __name__ == '__main__':
     QMessageBox.critical(None, '程序异常', '程序运行路径异常（路径包含中文或路径不存在）！')
     sys.exit(1)
 
-  start_splash = StartSplash()
+  start_splash: StartSplash = StartSplash()
   # 启动动画对象
   start_splash.show()
   # 防止启动动画卡住主进程
@@ -61,13 +68,11 @@ if __name__ == '__main__':
   app_sever_running_data: AppServerRunningData = start_app_server()
 
   # app 主窗口
-  main_window = MainWindow(app_sever_running_data=app_sever_running_data)
-  main_window.show()
+  main_window: MainWindow = MainWindow(app_sever_running_data=app_sever_running_data)
   # 展示窗口
   main_window.show()
   # 结束启动动画
   start_splash.finish(main_window)
-  start_splash = None
   # 初始化
   main_window.init()
 
