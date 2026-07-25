@@ -87,18 +87,21 @@ if __name__ == '__main__':
   # 确保启动动画立即渲染
   app.processEvents()
 
-  # 启动 APP_SERVER 服务（子线程执行，主线程保持事件循环以更新启动动画）
+  # 阶段 30%：启动 APP_SERVER 服务（子线程执行，主线程保持事件循环以更新启动动画）
+  start_splash.set_phase(30)
   app_sever_running_data: AppServerRunningData = run_blocking_with_events(app, start_app_server)
 
-  # app 主窗口
+  # 阶段 70%：加载主窗口
+  start_splash.set_phase(70)
   main_window: MainWindow = MainWindow(app_sever_running_data=app_sever_running_data)
   app.processEvents()
 
-  # 展示窗口
+  # 阶段 90%：展示窗口
+  start_splash.set_phase(90)
   main_window.show()
   app.processEvents()
 
-  # 结束启动动画，动画结束后执行 init
+  # 结束启动动画（100%），动画结束后执行 init
   start_splash.finish(main_window, callback=main_window.init)
 
   sys.exit(app.exec_())

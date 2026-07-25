@@ -8,11 +8,11 @@ import time
 from typing import Callable, Optional
 from lib.decorate import create_thread
 
-# 启动文案，按进度区间显示
+# 启动阶段文案，按进度区间显示
 STARTUP_MESSAGES = {
   0: '正在初始化应用环境…',
-  20: '正在启动 APP_SERVER 服务…',
-  60: '正在加载主窗口…',
+  30: '正在启动 APP_SERVER 服务…',
+  70: '正在加载主窗口…',
   90: '即将就绪…',
   100: '启动完成',
 }
@@ -22,6 +22,9 @@ PERCENT_TEMPLATE = ' ({percent}%)'
 
 SPLASH_WIDTH = 360
 SPLASH_HEIGHT = 160
+
+# 所有阶段进度值（排序后用于计算下一个阶段）
+_PHASE_KEYS = sorted(STARTUP_MESSAGES.keys())
 
 
 # 启动动画
@@ -33,6 +36,8 @@ class StartSplash(QObject):
     self.splash: Optional[QWidget] = None
     self.percent: int = 0
     self.finished: bool = False
+    # 当前阶段进度上限（下一个 set_phase 目标值 - 1），子线程递增到此暂停
+    self._cap: int = _PHASE_KEYS[1] - 1 if len(_PHASE_KEYS) > 1 else 99
 
     self._tip_label: Optional[QLabel] = None
     self._progress_bar: Optional[QProgressBar] = None
@@ -97,12 +102,36 @@ class StartSplash(QObject):
   def show(self) -> None:
     if self.splash is None:
       return
-    self.show_percent(self.percent)
+    self.set_phase(0)
     self.splash.show()
     self.start_percent_timer()
 
+  def set_phase(self, percent: int) -> None:
+    """设置当前启动阶段进度，由 main.py 在真实节点调用"""
+    if self.finished or self.splash is None:
+      return
+    self.percent = percent
+    # 计算下一个阶段目标值，设置进度上限为目标值 - 1
+    next_phase = 100
+    for k in _PHASE_KEYS:
+      if k > percent:
+        next_phase = k
+        break
+    self._cap = next_phase - 1 if next_phase > percent else 100
+    self.percent_signal.emit(percent)
+
+  def _on_percent(self, value: int) -> None:
+    if self.finished or self.splash is None:
+      return
+    if self._tip_label is not None:
+      msg = STARTUP_MESSAGES.get(value, None)
+      if msg is None:
+        keys = [k for k in STARTUP_MESSAGES if k <= value]
+        msg = STARTUP_MESSAGES[max(keys)] if keys else '正在启动应用…'
+      self._tip_label.setText(msg + PERCENT_TEMPLATE.format(percent=value))
+
   def finish(self, win: QWidget, callback: Optional[Callable] = None) -> None:
-    self.show_percent(100)
+    self.set_phase(100)
     QTimer.singleShot(800, lambda: self._do_finish(win, callback))
 
   def _do_finish(self, win: QWidget, callback: Optional[Callable] = None) -> None:
@@ -114,25 +143,12 @@ class StartSplash(QObject):
     if callback:
       callback()
 
-  def show_percent(self, value: int) -> None:
-    self.percent = value
-    self.percent_signal.emit(value)
-
-  def _on_percent(self, value: int) -> None:
-    if self.finished or self.splash is None:
-      return
-    if self._tip_label is not None:
-      msg = STARTUP_MESSAGES.get(value, None)
-      if msg is None:
-        # 找到不超过当前进度的最大 key
-        keys = [k for k in STARTUP_MESSAGES if k <= value]
-        msg = STARTUP_MESSAGES[max(keys)] if keys else '正在启动应用…'
-      self._tip_label.setText(msg + PERCENT_TEMPLATE.format(percent=value))
-
   @create_thread
   def start_percent_timer(self) -> None:
-    while self.percent < 99:
+    while self.percent < 99 and not self.finished:
       time.sleep(0.1)
-      if self.percent >= 99 or self.finished:
+      if self.finished:
         break
-      self.show_percent(self.percent + 1)
+      if self.percent < self._cap:
+        self.percent += 1
+        self.percent_signal.emit(self.percent)
