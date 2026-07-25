@@ -288,7 +288,7 @@ def set_menu_item_disabled(menu: QMenu, disable_list: List[Dict[str, Any]]) -> N
 
 
 @error_catch(error_msg='检查 APP_SERVER 是否运行失败！', error_return=False)
-def is_app_server_running(app_sever_running_data: AppServerRunningData) -> bool:
+def is_app_server_running(app_sever_running_data: Optional[AppServerRunningData]) -> bool:
   if not isinstance(app_sever_running_data, dict):
     return False
 

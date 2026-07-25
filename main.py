@@ -5,6 +5,7 @@ from PyQt5.QtCore import Qt
 
 import sys
 import multiprocessing
+import traceback as tb_module
 from types import TracebackType
 from typing import Optional, Type
 
@@ -28,7 +29,8 @@ def exception_handler(
     traceback: Optional[TracebackType],
 ) -> None:
   """全局异常处理器"""
-  APP_LOGGER.error(f'APP全局程序异常捕获：{value}')
+  tb_str = ''.join(tb_module.format_exception(exception_type, value, traceback))
+  APP_LOGGER.error(f'APP全局程序异常捕获：{value}\n{tb_str}')
   # 显示异常信息的对话框
   QMessageBox.critical(None, "程序异常", f"发生异常：{value}")
   sys.exit(1)
