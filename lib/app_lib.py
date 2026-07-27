@@ -46,6 +46,16 @@ def is_app_running(app_name: str = "APP") -> bool:
   return False
 
 
+def normalize_exe_path(exe_path: str) -> str:
+  """归一化 exe 路径：只对文件名部分去除 .win 后缀，使同目录下带/不带黑窗的两个 exe 路径一致
+
+  避免误替换路径中的目录名（如 C:\\my.win\\app\\xxx.exe）。
+  """
+  exe_dir, exe_filename = os.path.split(exe_path)
+  exe_filename = exe_filename.replace('.win', '')
+  return os.path.join(exe_dir, exe_filename)
+
+
 @error_catch(error_msg='获取共享内存名异常', error_return='APP')
 def get_memory_name() -> str:
   app_proc_pid = QApplication.applicationPid()
@@ -59,10 +69,8 @@ def get_memory_name() -> str:
   app_exe_path = app_proc.exe()
   if not app_exe_path:
     return create_md5(app_name)
-  # 只对文件名部分去除 .win 后缀，避免误替换路径中的目录名（如 C:\my.win\app\xxx.exe）
-  exe_dir, exe_filename = os.path.split(app_exe_path)
-  exe_filename = exe_filename.replace('.win', '')
-  memory_name = os.path.join(exe_dir, exe_filename)
+  # 归一化 exe 路径（去除文件名中的 .win 后缀），保证两个 exe 生成相同 key
+  memory_name = normalize_exe_path(app_exe_path)
 
   return create_md5(memory_name)
 
@@ -81,22 +89,51 @@ def find_running_app_pid() -> Optional[int]:
     f'@@find_running_app_pid 当前运行进程对象信息 pid: {app_proc_pid}  name: {app_proc_name}'
   )
 
-  # 用于匹配的进程名去除.win
+  # 用于匹配的进程名去除 .win
   match_proc_name = app_proc_name.replace('.win', '')
+
+  # 获取当前进程的归一化 exe 路径，用于校验是否为同目录下的同一应用
+  app_exe_path = app_proc.exe()
+  match_exe_path = normalize_exe_path(app_exe_path) if app_exe_path else ''
+
+  # 收集所有匹配的候选进程，优先返回有窗口的进程
+  candidates: List[int] = []
   for proc in psutil.process_iter(['pid', 'name']):
     try:
       name = proc.info['name'] or ''
       pid = proc.info['pid']
       # 确保不是当前进程，进程名相同
-      if match_proc_name == name.replace('.win', '') and pid != app_proc_pid:
-        APP_LOGGER.info(
-          f'@@find_running_app_pid 找到的同名运行进程信息 pid: {proc.info["pid"]}  name: {proc.info["name"]}'
-        )
-        return proc.info['pid']
-    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-      pass
-  APP_LOGGER.info('@@find_running_app_pid 未找到的同名运行进程')
-  return None
+      if match_proc_name != name.replace('.win', '') or pid == app_proc_pid:
+        continue
+
+      # 校验 exe 路径是否一致（与 get_memory_name 逻辑保持同步），避免匹配到不同目录的同名应用
+      if match_exe_path:
+        proc_exe_path = proc.exe()
+        if not proc_exe_path:
+          continue
+        if normalize_exe_path(proc_exe_path) != match_exe_path:
+          continue
+
+      APP_LOGGER.info(
+        f'@@find_running_app_pid 找到的同名运行进程信息 pid: {proc.info["pid"]}  name: {proc.info["name"]}'
+      )
+      candidates.append(proc.info['pid'])
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
+      APP_LOGGER.info(
+        f'@@find_running_app_pid 遍历进程异常，跳过该进程 pid: {proc.info.get("pid")}  name: {proc.info.get("name")}  error: {e}'
+      )
+
+  if len(candidates) == 0:
+    APP_LOGGER.info('@@find_running_app_pid 未找到的同名运行进程')
+    return None
+
+  # 优先返回有窗口的进程，避免匹配到 multiprocessing 子进程（子进程通常无窗口）
+  for pid in candidates:
+    if get_process_windows(pid):
+      return pid
+
+  # 所有候选都无窗口，返回第一个
+  return candidates[0]
 
 
 @error_catch(error_msg='将指定进程的窗口置顶异常')
