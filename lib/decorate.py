@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import asyncio
 import copy
 import threading
 import datetime
@@ -21,6 +22,15 @@ def error_catch(
   """
   异常捕获装饰器，捕获被装饰函数抛出的 Exception，返回 error_return 兜底值
 
+  同时支持同步函数与异步函数（async def）：
+    - 同步函数：通过 try/except 直接捕获调用期间的异常
+    - 异步函数：通过 asyncio.iscoroutinefunction 识别后使用 async wrapper，
+      在 await 执行期间捕获异常（同步 wrapper 只能捕获协程对象创建阶段的异常，
+      无法捕获 await 期间的异常）
+
+  注意：仅捕获 Exception 子类，不捕获 BaseException（如 asyncio.CancelledError、
+  KeyboardInterrupt、SystemExit 等），这些异常会正常向上传播
+
   支持两种用法：
     @error_catch                                           # 无参，默认 error_return=None, log=True
     @error_catch(error_msg='xxx', error_return=[], log=False)  # 带参
@@ -32,6 +42,23 @@ def error_catch(
   """
 
   def _make_wrapper(_func: Callable[..., T]) -> Callable[..., T]:
+    # 异步函数分支：asyncio.iscoroutinefunction 可识别所有 async def 函数
+    # 使用 async wrapper + await 才能捕获协程执行期间抛出的异常
+    if asyncio.iscoroutinefunction(_func):
+      @wraps(_func)
+      async def async_wrapper(*args: Any, **kwargs: Any) -> T:
+        try:
+          return await _func(*args, **kwargs)
+        except Exception as e:
+          if log:
+            message = error_msg or 'Error'
+            current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            APP_LOGGER.error(f'[{current_time}] ERROR {message}：{e}')
+          return copy.deepcopy(error_return)
+
+      return async_wrapper
+
+    # 同步函数分支
     @wraps(_func)
     def wrapper(*args: Any, **kwargs: Any) -> T:
       try:

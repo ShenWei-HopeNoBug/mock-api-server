@@ -45,8 +45,10 @@ def run_mitmproxy(share_dict: MitmproxyRunConfig) -> None:
   """运行 mitmproxy"""
   loop = asyncio.new_event_loop()
   asyncio.set_event_loop(loop)
-  loop.run_until_complete(mitmproxy_task(share_dict))
-  loop.close()
+  try:
+    loop.run_until_complete(mitmproxy_task(share_dict))
+  finally:
+    loop.close()
 
 
 def start_mitmproxy(share_dict: MitmproxyRunConfig) -> Process:
