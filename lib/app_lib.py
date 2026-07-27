@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
+import time
+import threading
 import webbrowser
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
 from PyQt5.QtCore import QSharedMemory
@@ -21,6 +23,34 @@ import psutil
 import win32gui
 import win32process
 import win32con
+
+
+def run_blocking_with_events(app: QApplication, func: Callable, *args: Any, **kwargs: Any) -> Any:
+  """在子线程中执行阻塞函数，主线程持续处理事件以保持 UI 响应"""
+  # 使用列表存储子线程返回值，避免闭包中 nonlocal 声明
+  result: list = [None]
+  # 线程事件对象，用于标识子线程是否执行完毕
+  done = threading.Event()
+
+  def wrapper() -> None:
+    # 在子线程中执行传入的阻塞函数，将返回值存入 result 列表
+    result[0] = func(*args, **kwargs)
+    # 标记子线程任务完成，通知主线程退出等待循环
+    done.set()
+
+  # 创建守护线程，确保主进程退出时子线程不会阻塞
+  t = threading.Thread(target=wrapper, daemon=True)
+  t.start()
+
+  # 主线程轮询等待子线程完成，期间持续处理 Qt 事件以保持 UI 响应
+  while not done.is_set():
+    # 处理 Qt 事件队列，保证启动动画等 UI 组件正常刷新
+    app.processEvents()
+    # 短暂休眠避免主线程空转占用过多 CPU 资源（约 50fps）
+    time.sleep(0.02)
+
+  # 返回子线程中阻塞函数的执行结果
+  return result[0]
 
 
 @error_catch(error_msg='检查应用是否已经在运行异常', error_return=True)

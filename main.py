@@ -4,12 +4,10 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
 
 import sys
-import time
-import threading
 import multiprocessing
 import traceback as tb_module
 from types import TracebackType
-from typing import Any, Callable, Optional, Type
+from typing import Optional, Type
 
 from module.app_server import start_app_server
 from lib.splash import StartSplash
@@ -21,6 +19,7 @@ from lib.app_lib import (
   find_running_app_pid,
   bring_to_front,
   is_app_work_dir_valid,
+  run_blocking_with_events,
 )
 from app_types.app_gui_types import AppServerRunningData
 
@@ -36,25 +35,6 @@ def exception_handler(
   # 显示异常信息的对话框
   QMessageBox.critical(None, "程序异常", f"发生异常：{value}")
   sys.exit(1)
-
-
-def run_blocking_with_events(app: QApplication, func: Callable, *args: Any, **kwargs: Any) -> Any:
-  """在子线程中执行阻塞函数，主线程持续处理事件以保持 UI 响应"""
-  result: list = [None]
-  done = threading.Event()
-
-  def wrapper() -> None:
-    result[0] = func(*args, **kwargs)
-    done.set()
-
-  t = threading.Thread(target=wrapper, daemon=True)
-  t.start()
-
-  while not done.is_set():
-    app.processEvents()
-    time.sleep(0.02)
-
-  return result[0]
 
 
 if __name__ == '__main__':
