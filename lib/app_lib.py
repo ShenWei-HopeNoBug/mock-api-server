@@ -316,7 +316,7 @@ def fix_user_api_data(work_dir: str = '.') -> bool:
 
 
 @error_catch(error_msg='批量设置菜单元素配置失败')
-def set_menu_config(menu: QMenu, config_list: List[Dict[str, Any]]) -> None:
+def set_menu_config(menu: Optional[QMenu], config_list: List[Dict[str, Any]]) -> None:
   def menu_action_callback(action: QAction) -> None:
     action_name = action.text()
     for conf in config_list:
@@ -336,7 +336,7 @@ def set_menu_config(menu: QMenu, config_list: List[Dict[str, Any]]) -> None:
 
 # 批量设置菜单元素禁用状态
 @error_catch(error_msg='批量设置菜单元素禁用状态失败')
-def set_menu_item_disabled(menu: QMenu, disable_list: List[Dict[str, Any]]) -> None:
+def set_menu_item_disabled(menu: Optional[QMenu], disable_list: List[Dict[str, Any]]) -> None:
   if not menu or not len(disable_list):
     return
 

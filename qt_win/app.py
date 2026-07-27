@@ -36,6 +36,7 @@ from lib.app_lib import (
   is_app_server_running,
 )
 from app_types.app_gui_types import AppServerRunningData
+from app_types.mitmproxy_types import MitmproxyRunConfig
 from lib.db_lib import MockDBCache
 from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
@@ -518,7 +519,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return
 
     # 抓包服务启动配置
-    mitmproxy_config = {
+    mitmproxy_config: MitmproxyRunConfig = {
       "host": "0.0.0.0",
       "port": self.catch_server_port,
       "work_dir": self.work_dir,
