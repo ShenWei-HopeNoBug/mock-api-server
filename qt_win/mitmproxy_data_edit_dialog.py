@@ -3,13 +3,13 @@ import json
 import os
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtCore import Qt, QUrl, QEvent
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
-from lib.webview_lib import get_webview_dialog_config
+from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget
 from lib.app_lib import (
   get_user_api_data_list,
   get_mitmproxy_api_data_list,
@@ -32,6 +32,7 @@ class MitmproxyDataEditDialog(QDialog):
     self.webview: Optional[QWebEngineView] = None
     self.web_channel: Optional[QWebChannel] = None
     self.interact_obj: Optional[TInteractObj] = None
+    self.loading_widget: Optional[WebLoadingWidget] = None
     self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
 
     self.init()
@@ -91,10 +92,27 @@ class MitmproxyDataEditDialog(QDialog):
       local_url.setFragment(web_route.lstrip('#'))
       current_page.load(local_url)
 
+    # 加载中占位组件
+    loading_widget = WebLoadingWidget()
+    self.loading_widget = loading_widget
+
+    # QStackedWidget: 0=loading, 1=webview，页面加载完成后切换
+    stack = QStackedWidget()
+    stack.addWidget(loading_widget)
+    stack.addWidget(self.webview)
+    stack.setCurrentIndex(0)
+
+    def _on_load_finished(ok: bool) -> None:
+      if loading_widget is not None:
+        loading_widget.stop()
+      stack.setCurrentIndex(1)
+
+    # webview.loadFinished.connect(_on_load_finished)
+
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
-    layout.addWidget(self.webview)
+    layout.addWidget(stack)
     self.setLayout(layout)
 
   @create_thread
@@ -167,4 +185,6 @@ class MitmproxyDataEditDialog(QDialog):
       send_response(success)
 
   def closeEvent(self, event: QEvent) -> None:
+    if self.loading_widget is not None:
+      self.loading_widget.stop()
     event.accept()
