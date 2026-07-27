@@ -3,14 +3,15 @@ import asyncio
 from typing import Optional
 from mitmproxy.options import Options
 from mitmproxy.tools.dump import DumpMaster
-from multiprocessing import Process, Event
+from multiprocessing import Process
+from multiprocessing.synchronize import Event as EventType
 from module.request_catch import RequestRecorder
 from app_types.mitmproxy_types import MitmproxyRunConfig
 from lib.logger_lib import APP_LOGGER
 
 
 # 轮询停止信号的后台任务
-async def _stop_signal_watcher(stop_event: Event, master: DumpMaster) -> None:
+async def _stop_signal_watcher(stop_event: EventType, master: DumpMaster) -> None:
   """每 0.5s 检查 stop_event，检测到后调用 master.shutdown() 优雅关闭"""
   while not stop_event.is_set():
     await asyncio.sleep(0.5)
@@ -19,7 +20,7 @@ async def _stop_signal_watcher(stop_event: Event, master: DumpMaster) -> None:
 
 
 # 启动抓包服务task
-async def mitmproxy_task(mitmproxy_config: MitmproxyRunConfig, stop_event: Optional[Event] = None) -> None:
+async def mitmproxy_task(mitmproxy_config: MitmproxyRunConfig, stop_event: Optional[EventType] = None) -> None:
   """配置 mitmproxy 参数与启动"""
   print('mitmproxy_config', mitmproxy_config)
   host = mitmproxy_config.get('host', '0.0.0.0')
@@ -56,7 +57,7 @@ async def mitmproxy_task(mitmproxy_config: MitmproxyRunConfig, stop_event: Optio
 
 
 # 启动抓包服务
-def run_mitmproxy(share_dict: MitmproxyRunConfig, stop_event: Optional[Event] = None) -> None:
+def run_mitmproxy(share_dict: MitmproxyRunConfig, stop_event: Optional[EventType] = None) -> None:
   """运行 mitmproxy"""
   loop = asyncio.new_event_loop()
   asyncio.set_event_loop(loop)
@@ -66,7 +67,7 @@ def run_mitmproxy(share_dict: MitmproxyRunConfig, stop_event: Optional[Event] = 
     loop.close()
 
 
-def start_mitmproxy(share_dict: MitmproxyRunConfig, stop_event: Optional[Event] = None) -> Process:
+def start_mitmproxy(share_dict: MitmproxyRunConfig, stop_event: Optional[EventType] = None) -> Process:
   """启动 mitmproxy"""
   print("Start Mitmproxy")
   mitmproxy_process = Process(target=run_mitmproxy, args=(share_dict, stop_event))

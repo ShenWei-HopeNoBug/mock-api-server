@@ -2,7 +2,7 @@
 import json
 import os
 from typing import Dict, List, Optional, Union
-from multiprocessing import Event
+from multiprocessing.synchronize import Event as EventType
 from mitmproxy import http
 from app_types.db_types import ApiRecord
 from app_types.mitmproxy_types import (
@@ -29,7 +29,7 @@ from lib.utils_lib import (
 
 # 处理请求抓包工具类
 class RequestRecorder:
-  def __init__(self, work_dir: str = '.', stop_event: Optional[Event] = None):
+  def __init__(self, work_dir: str = '.', stop_event: Optional[EventType] = None):
     # 工作目录
     self.work_dir: str = work_dir
     # SQLite 数据库路径
@@ -39,7 +39,7 @@ class RequestRecorder:
     # 抓包服务 master 实例
     self.mitmproxy_master: Optional[DumpMaster] = None
     # 停止信号 Event（跨进程，由外部轮询任务负责触发 master.shutdown）
-    self.stop_event: Optional[Event] = stop_event
+    self.stop_event: Optional[EventType] = stop_event
     # 抓包结束标记
     self.mitmproxy_stop_signal: bool = False
     # 抓包缓存数据 dict

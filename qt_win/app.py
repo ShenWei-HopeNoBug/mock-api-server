@@ -23,6 +23,7 @@ from qt_ui.main_win.win_ui import Ui_MainWindow
 from module.mock_server import MockServer
 from module.asyncio_mitmproxy_server import start_mitmproxy
 from multiprocessing import Process, Event
+from multiprocessing.synchronize import Event as EventType
 from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APP_LOGGER
 from lib.utils_lib import check_local_connection, is_local_server_running
@@ -134,7 +135,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # mitmproxy 子进程引用
     self.mitmproxy_process: Optional[Process] = None
     # mitmproxy 停止信号 Event（跨进程）
-    self.mitmproxy_stop_event: Optional[Event] = None
+    self.mitmproxy_stop_event: Optional[EventType] = None
     # 退出蒙层
     self._exit_overlay: Optional[QFrame] = None
     self._exit_tip_label: Optional[QLabel] = None
