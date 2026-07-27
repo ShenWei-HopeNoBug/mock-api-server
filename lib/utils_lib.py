@@ -17,7 +17,10 @@ from mitmproxy.coretypes.multidict import MultiDictView
 from lib.decorate import error_catch
 import datetime
 import uuid
-from typing import Union, Optional, Any, Dict, List
+from typing import Union, Optional, Any, Dict, List, TypeVar
+
+# 数值类型 TypeVar，传入 int 返回 int，传入 float 返回 float
+_NumT = TypeVar('_NumT', int, float)
 
 
 # 生成数据的 uuid
@@ -28,10 +31,10 @@ def generate_uuid() -> str:
 
 # 限制数值范围
 def limit_num_range(
-    num: Union[int, float],
-    min_limit: Union[int, float],
-    max_limit: Union[int, float]
-) -> Union[int, float]:
+    num: _NumT,
+    min_limit: _NumT,
+    max_limit: _NumT
+) -> _NumT:
   if num > max_limit:
     return max_limit
   elif num < min_limit:
