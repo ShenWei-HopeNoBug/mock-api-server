@@ -2,6 +2,7 @@
 import json
 import os
 from typing import Dict, List, Optional, Union
+from multiprocessing import Event
 from mitmproxy import http
 from app_types.db_types import ApiRecord
 from app_types.mitmproxy_types import (
@@ -18,7 +19,6 @@ from config.work_file import (
 from lib import mitmproxy_lib
 from lib.db_lib import MockDB
 from lib.work_file_lib import create_work_files
-from lib.system_lib import GLOBALS_CONFIG_MANAGER
 from lib.utils_lib import (
   JsonFormat,
   is_file_request,
@@ -29,7 +29,7 @@ from lib.utils_lib import (
 
 # 处理请求抓包工具类
 class RequestRecorder:
-  def __init__(self, work_dir: str = '.'):
+  def __init__(self, work_dir: str = '.', stop_event: Optional[Event] = None):
     # 工作目录
     self.work_dir: str = work_dir
     # SQLite 数据库路径
@@ -38,6 +38,8 @@ class RequestRecorder:
     self.mock_db: MockDB = MockDB(self.db_path)
     # 抓包服务 master 实例
     self.mitmproxy_master: Optional[DumpMaster] = None
+    # 停止信号 Event（跨进程，由外部轮询任务负责触发 master.shutdown）
+    self.stop_event: Optional[Event] = stop_event
     # 抓包结束标记
     self.mitmproxy_stop_signal: bool = False
     # 抓包缓存数据 dict
@@ -158,14 +160,10 @@ class RequestRecorder:
     # mitmproxy 进程为"用完即关"，运行期间不再访问 DB
     self.mock_db.close()
 
-  # 检查全局停止信号，收到信号时尝试关闭抓包服务
+  # 检查停止信号，收到信号后不再保存任何数据（关闭职责由轮询任务负责）
   def __check_stop_signal(self) -> bool:
-    mitmproxy_stop_signal: bool = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
-    self.mitmproxy_stop_signal = mitmproxy_stop_signal
-    if mitmproxy_stop_signal:
-      if self.mitmproxy_master:
-        print('正在关闭 mitmproxy 服务...')
-        self.mitmproxy_master.shutdown()
+    if self.stop_event is not None and self.stop_event.is_set():
+      self.mitmproxy_stop_signal = True
       return True
     return False
 

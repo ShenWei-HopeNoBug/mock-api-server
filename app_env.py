@@ -6,5 +6,5 @@
 try:
   from _build_config import MITMPROXY_LOG, VERSION
 except ImportError:
-  MITMPROXY_LOG = False
+  MITMPROXY_LOG = True
   VERSION = 'v0.0.0'

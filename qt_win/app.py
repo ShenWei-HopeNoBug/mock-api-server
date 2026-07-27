@@ -22,7 +22,7 @@ from config import globals
 from qt_ui.main_win.win_ui import Ui_MainWindow
 from module.mock_server import MockServer
 from module.asyncio_mitmproxy_server import start_mitmproxy
-from multiprocessing import Process
+from multiprocessing import Process, Event
 from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APP_LOGGER
 from lib.utils_lib import check_local_connection, is_local_server_running
@@ -131,6 +131,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # APP 服务启动端口号
     self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
 
+    # mitmproxy 子进程引用
+    self.mitmproxy_process: Optional[Process] = None
+    # mitmproxy 停止信号 Event（跨进程）
+    self.mitmproxy_stop_event: Optional[Event] = None
     # 退出蒙层
     self._exit_overlay: Optional[QFrame] = None
     self._exit_tip_label: Optional[QLabel] = None
@@ -497,9 +501,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 启动抓包服务
   @create_thread
   def start_catch_server(self) -> None:
-    mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
-    # 抓包服务还在停止中，跳过
-    if mitmproxy_stop_signal:
+    # 抓包服务还在运行中，跳过
+    if self.mitmproxy_process is not None and self.mitmproxy_process.is_alive():
       self.mitmproxy_server_status_signal.emit('READY')
       return
 
@@ -521,32 +524,36 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       "mitmproxy_log": app_env.MITMPROXY_LOG,
     }
 
-    server_process = Process(
-      target=start_mitmproxy,
-      args=(mitmproxy_config,),
-      name='mitmdump_server',
-    )
-    server_process.start()
+    # 创建跨进程停止信号 Event
+    self.mitmproxy_stop_event = Event()
+    # 启动 mitmproxy 子进程
+    self.mitmproxy_process = start_mitmproxy(mitmproxy_config, self.mitmproxy_stop_event)
     time.sleep(3)
     self.mitmproxy_server_status_signal.emit('RUNNING')
 
   # 停止抓包服务（同步）
   def _stop_catch_server(self) -> None:
-    mitmproxy_stop_signal = GLOBALS_CONFIG_MANAGER.get(key='mitmproxy_stop_signal')
-    # 抓包服务还在停止中，跳过
-    if mitmproxy_stop_signal:
+    # 抓包服务未运行，跳过
+    if self.mitmproxy_process is None or not self.mitmproxy_process.is_alive():
+      self.mitmproxy_server_status_signal.emit('READY')
       return
 
-    # 设置全局 mitmproxy 服务停止信号
-    GLOBALS_CONFIG_MANAGER.set(key='mitmproxy_stop_signal', value=True)
+    # 通过 Event 通知子进程优雅关闭
+    if self.mitmproxy_stop_event is not None:
+      self.mitmproxy_stop_event.set()
 
-    # 向 mitmproxy 抓包服务发送一个本地请求，触发 addons 脚本内关闭服务事件
-    @error_catch(log=False)
-    def trigger_shutdown():
-      requests.get(f'http://127.0.0.1:{self.catch_server_port}/index.html')
+    # 等待子进程优雅退出
+    self.mitmproxy_process.join(timeout=30)
 
-    trigger_shutdown()
-    time.sleep(3)
+    # 超时未退出，强制终止
+    if self.mitmproxy_process.is_alive():
+      print('mitmproxy 子进程优雅关闭超时，执行强制终止...')
+      self.mitmproxy_process.terminate()
+      self.mitmproxy_process.join(timeout=3)
+
+    # 清理引用
+    self.mitmproxy_process = None
+    self.mitmproxy_stop_event = None
     self.mitmproxy_server_status_signal.emit('READY')
 
   # 停止抓包服务
