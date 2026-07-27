@@ -29,7 +29,12 @@ from lib.utils_lib import (
 
 # 处理请求抓包工具类
 class RequestRecorder:
-  def __init__(self, work_dir: str = '.', stop_event: Optional[EventType] = None):
+  def __init__(
+      self,
+      work_dir: str = '.',
+      ready_event: Optional[EventType] = None,
+      stop_event: Optional[EventType] = None
+  ):
     # 工作目录
     self.work_dir: str = work_dir
     # SQLite 数据库路径
@@ -38,6 +43,8 @@ class RequestRecorder:
     self.mock_db: MockDB = MockDB(self.db_path)
     # 抓包服务 master 实例
     self.mitmproxy_master: Optional[DumpMaster] = None
+    # 就绪信号 Event（跨进程，running 钩子触发后通知父进程服务已启动完毕）
+    self.ready_event: Optional[EventType] = ready_event
     # 停止信号 Event（跨进程，由外部轮询任务负责触发 master.shutdown）
     self.stop_event: Optional[EventType] = stop_event
     # 抓包结束标记
@@ -63,6 +70,11 @@ class RequestRecorder:
     create_work_files(self.work_dir)
     # 加载抓包配置
     self.load_mitmproxy_config()
+
+  # mitmproxy 代理服务完全启动后触发，通知父进程服务已就绪
+  def running(self) -> None:
+    if self.ready_event is not None:
+      self.ready_event.set()
 
   # 加载抓包配置
   def load_mitmproxy_config(self) -> None:

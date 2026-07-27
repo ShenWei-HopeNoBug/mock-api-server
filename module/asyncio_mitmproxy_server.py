@@ -20,7 +20,11 @@ async def _stop_signal_watcher(stop_event: EventType, master: DumpMaster) -> Non
 
 
 # 启动抓包服务task
-async def mitmproxy_task(mitmproxy_config: MitmproxyRunConfig, stop_event: Optional[EventType] = None) -> None:
+async def mitmproxy_task(
+    mitmproxy_config: MitmproxyRunConfig,
+    ready_event: Optional[EventType] = None,
+    stop_event: Optional[EventType] = None,
+) -> None:
   """配置 mitmproxy 参数与启动"""
   print('mitmproxy_config', mitmproxy_config)
   host = mitmproxy_config.get('host', '0.0.0.0')
@@ -28,7 +32,7 @@ async def mitmproxy_task(mitmproxy_config: MitmproxyRunConfig, stop_event: Optio
   work_dir = mitmproxy_config.get('work_dir', '.')
   mitmproxy_log = mitmproxy_config.get('mitmproxy_log', False)
   options = Options(listen_host=host, listen_port=port)
-  request_recorder = RequestRecorder(work_dir=work_dir, stop_event=stop_event)
+  request_recorder = RequestRecorder(work_dir=work_dir, stop_event=stop_event, ready_event=ready_event)
   addons = [request_recorder]
 
   # 创建 DumpMaster 实例
@@ -57,20 +61,32 @@ async def mitmproxy_task(mitmproxy_config: MitmproxyRunConfig, stop_event: Optio
 
 
 # 启动抓包服务
-def run_mitmproxy(share_dict: MitmproxyRunConfig, stop_event: Optional[EventType] = None) -> None:
+def run_mitmproxy(
+    share_dict: MitmproxyRunConfig,
+    ready_event: Optional[EventType] = None,
+    stop_event: Optional[EventType] = None,
+) -> None:
   """运行 mitmproxy"""
   loop = asyncio.new_event_loop()
   asyncio.set_event_loop(loop)
   try:
-    loop.run_until_complete(mitmproxy_task(share_dict, stop_event))
+    loop.run_until_complete(mitmproxy_task(
+      mitmproxy_config=share_dict,
+      ready_event=ready_event,
+      stop_event=stop_event,
+    ))
   finally:
     loop.close()
 
 
-def start_mitmproxy(share_dict: MitmproxyRunConfig, stop_event: Optional[EventType] = None) -> Process:
+def start_mitmproxy(
+    share_dict: MitmproxyRunConfig,
+    stop_event: Optional[EventType] = None,
+    ready_event: Optional[EventType] = None
+) -> Process:
   """启动 mitmproxy"""
   print("Start Mitmproxy")
-  mitmproxy_process = Process(target=run_mitmproxy, args=(share_dict, stop_event))
+  mitmproxy_process = Process(target=run_mitmproxy, args=(share_dict, ready_event, stop_event))
   mitmproxy_process.start()
   print("Mitmproxy is running")
   return mitmproxy_process

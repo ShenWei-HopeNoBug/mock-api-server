@@ -137,6 +137,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.mitmproxy_process: Optional[Process] = None
     # mitmproxy 停止信号 Event（跨进程）
     self.mitmproxy_stop_event: Optional[EventType] = None
+    # mitmproxy 就绪信号 Event（跨进程，子进程 running 钩子触发）
+    self.mitmproxy_ready_event: Optional[EventType] = None
     # 退出蒙层
     self._exit_overlay: Optional[QFrame] = None
     self._exit_tip_label: Optional[QLabel] = None
@@ -528,9 +530,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 创建跨进程停止信号 Event
     self.mitmproxy_stop_event = Event()
+    # 创建跨进程就绪信号 Event（子进程 running 钩子触发后 set）
+    self.mitmproxy_ready_event = Event()
     # 启动 mitmproxy 子进程
-    self.mitmproxy_process = start_mitmproxy(mitmproxy_config, self.mitmproxy_stop_event)
-    time.sleep(3)
+    self.mitmproxy_process = start_mitmproxy(
+      share_dict=mitmproxy_config,
+      ready_event=self.mitmproxy_ready_event,
+      stop_event=self.mitmproxy_stop_event,
+    )
+    # 阻塞等待子进程就绪信号，最多等待 10 秒
+    ready = self.mitmproxy_ready_event.wait(timeout=10)
+    if not ready:
+      print('mitmproxy 服务启动超时（10s），请检查日志...')
     self.mitmproxy_server_status_signal.emit('RUNNING')
 
   # 停止抓包服务（同步）
@@ -556,6 +567,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 清理引用
     self.mitmproxy_process = None
     self.mitmproxy_stop_event = None
+    self.mitmproxy_ready_event = None
     self.mitmproxy_server_status_signal.emit('READY')
 
   # 停止抓包服务
