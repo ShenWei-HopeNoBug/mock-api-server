@@ -107,7 +107,7 @@ class MitmproxyDataEditDialog(QDialog):
         loading_widget.stop()
       stack.setCurrentIndex(1)
 
-    # webview.loadFinished.connect(_on_load_finished)
+    webview.loadFinished.connect(_on_load_finished)
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)

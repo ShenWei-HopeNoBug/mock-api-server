@@ -4,13 +4,13 @@ import json
 import copy
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import Qt, QUrl, pyqtSignal
+from PyQt5.QtCore import Qt, QUrl, QEvent, pyqtSignal
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
-from lib.webview_lib import get_webview_dialog_config
+from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget
 from lib.utils_lib import (ConfigFileManager, get_ip_address)
 from lib.app_lib import is_app_server_running
 from app_types.app_gui_types import AppServerRunningData
@@ -41,6 +41,7 @@ class DownloadProxyConfigDialog(QDialog):
     self.webview: Optional[QWebEngineView] = None
     self.web_channel: Optional[QWebChannel] = None
     self.interact_obj: Optional[TInteractObj] = None
+    self.loading_widget: Optional[WebLoadingWidget] = None
     self.download_config_manager: ConfigFileManager = download_config_manager
     self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
 
@@ -89,6 +90,23 @@ class DownloadProxyConfigDialog(QDialog):
     current_page.setWebChannel(web_channel)
     webview.loadFinished.connect(page_loaded)
 
+    # 加载中占位组件
+    loading_widget = WebLoadingWidget()
+    self.loading_widget = loading_widget
+
+    # QStackedWidget: 0=loading, 1=webview，页面加载完成后切换
+    stack = QStackedWidget()
+    stack.addWidget(loading_widget)
+    stack.addWidget(self.webview)
+    stack.setCurrentIndex(0)
+
+    def _on_load_finished(ok: bool) -> None:
+      if loading_widget is not None:
+        loading_widget.stop()
+      stack.setCurrentIndex(1)
+
+    webview.loadFinished.connect(_on_load_finished)
+
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
@@ -103,13 +121,18 @@ class DownloadProxyConfigDialog(QDialog):
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
-    layout.addWidget(self.webview)
+    layout.addWidget(stack)
     self.setLayout(layout)
 
     def close_dialog():
       self.close()
 
     self.close_signal.connect(close_dialog)
+
+  def closeEvent(self, event: QEvent) -> None:
+    if self.loading_widget is not None:
+      self.loading_widget.stop()
+    event.accept()
 
   @create_thread
   def send_qt2js_dict_msg(self, data: dict) -> None:
