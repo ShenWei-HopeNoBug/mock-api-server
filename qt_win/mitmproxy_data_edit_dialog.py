@@ -13,7 +13,6 @@ from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget
 from lib.app_lib import (
   get_user_api_data_list,
   get_mitmproxy_api_data_list,
-  fix_user_api_data,
   update_user_api_data,
   add_user_api_data,
   delete_user_api_data,
@@ -162,10 +161,6 @@ class MitmproxyDataEditDialog(QDialog):
         preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
 
       send_response({"list": preview_list})
-    # 尝试修复 mock 的异常数据
-    elif name == 'fix_mock_data':
-      success = fix_user_api_data(work_dir=self.work_dir)
-      send_response(success)
     # 编辑 mock 接口数据
     elif name == 'edit_mock_data':
       success = update_user_api_data(work_dir=self.work_dir, update_data=params)

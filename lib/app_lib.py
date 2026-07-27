@@ -309,12 +309,6 @@ def open_operation_manual_html(root_dir: str = '.') -> bool:
   return True
 
 
-# 修复异常的抓包数据（SQLite schema 已保证数据完整性，改为 no-op）
-@error_catch(error_msg='修复异常抓包数据失败', error_return=False)
-def fix_user_api_data(work_dir: str = '.') -> bool:
-  return True
-
-
 @error_catch(error_msg='批量设置菜单元素配置失败')
 def set_menu_config(menu: Optional[QMenu], config_list: List[Dict[str, Any]]) -> None:
   def menu_action_callback(action: QAction) -> None:
