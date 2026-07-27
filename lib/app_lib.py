@@ -23,7 +23,7 @@ import win32process
 import win32con
 
 
-@error_catch(error_msg='检查应用是否已经在运行异常', error_return=False)
+@error_catch(error_msg='检查应用是否已经在运行异常', error_return=True)
 def is_app_running(app_name: str = "APP") -> bool:
   """检查应用是否已经在运行"""
   # 创建共享内存
@@ -37,11 +37,8 @@ def is_app_running(app_name: str = "APP") -> bool:
   if not shared_memory.create(1):
     return True
 
-  # 保存共享内存对象，防止被垃圾回收
-  if not hasattr(is_app_running, 'shared_memory'):
-    is_app_running.shared_memory = shared_memory
-  else:
-    shared_memory.deleteLater()
+  # 将共享内存对象挂到函数属性上持有引用，防止函数返回后局部变量被垃圾回收导致共享内存段释放
+  is_app_running.shared_memory = shared_memory
 
   return False
 
