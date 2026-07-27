@@ -5,6 +5,7 @@ import shutil
 import re
 import time
 import math
+import threading
 import requests
 from typing import Any, Callable, Dict, List, Optional
 from requests.exceptions import ConnectionError
@@ -158,7 +159,11 @@ def get_download_assets_list(work_dir: str = '.') -> List[str]:
 
 # 获取待下载静态资源列表（经过本地已下载校验后剔除了已下载的静态资源）
 @error_catch(error_msg='获取待下载静态资源列表失败', error_return=[])
-def get_download_ready_assets(work_dir: str = '.', static_url_path: str = STATIC_DIR) -> List[str]:
+def get_download_ready_assets(
+    work_dir: str = '.',
+    static_url_path: str = STATIC_DIR,
+    stop_event: Optional[threading.Event] = None,
+) -> List[str]:
   # 获取下载静态资源列表
   assets_list = get_download_assets_list(work_dir=work_dir)
 
@@ -171,7 +176,7 @@ def get_download_ready_assets(work_dir: str = '.', static_url_path: str = STATIC
   # 检查需要下载的静态资源文件
   for asset in assets_list:
     # 检查是否退出下载
-    if is_exit_download():
+    if stop_event is not None and stop_event.is_set():
       return []
 
     file_name = asset.split('/')[-1]
@@ -317,12 +322,14 @@ def download_server_static(
     static_url_path: str = STATIC_DIR,
     compress: bool = True,
     callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> None:
   print('>' * 10, '开始检查和下载静态资源...')
   # 待下载静态资源列表
   download_assets = get_download_ready_assets(
     work_dir=work_dir,
     static_url_path=static_url_path,
+    stop_event=stop_event,
   )
 
   # 静态资源列表为空
@@ -363,7 +370,7 @@ def download_server_static(
 
   for i, asset in enumerate(download_assets):
     # 检查是否退出下载
-    if is_exit_download():
+    if stop_event is not None and stop_event.is_set():
       return
 
     file_name = asset.split('/')[-1]

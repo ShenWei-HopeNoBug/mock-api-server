@@ -110,6 +110,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # STOP_WAIT：正在停止
     # -----------------
     self.download_status: str = 'READY'
+    # 下载停止事件（线程间通信，替代文件标志）
+    self._download_stop_event: threading.Event = threading.Event()
     # -----------------
     # mock服务运行状态
     # READY：待运行
@@ -589,8 +591,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 正在下载中，点击触发停止
     if self.download_status == 'DOWNLOAD':
       self.downloading_signal.emit('STOP_WAIT')
-      GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=True)
-      time.sleep(0.5)
+      self._download_stop_event.set()
       return
 
     # 中间态拦截
@@ -598,7 +599,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return
 
     self.downloading_signal.emit('DOWNLOAD')
-    GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
+    self._download_stop_event.clear()
     # 清空下载详情数据
     self.download_detail = {}
     # 开始下载
@@ -607,9 +608,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       static_url_path=STATIC_DIR,
       compress=self.compress_image,
       callback=self.update_download_detail,
+      stop_event=self._download_stop_event,
     )
     # 下载任务结束后切换按钮显示
-    GLOBALS_CONFIG_MANAGER.set(key='download_exit', value=False)
     time.sleep(0.5)
     self.downloading_signal.emit('READY')
     # 清空下载详情数据
@@ -775,6 +776,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 子线程中执行停止服务（阻塞逻辑不卡 UI）
   def _cleanup_in_thread(self) -> None:
+    # 停止下载线程
+    if self.download_status in ('DOWNLOAD', 'STOP_WAIT'):
+      self.cleanup_progress_signal.emit('正在停止下载…')
+      self._download_stop_event.set()
+      # 等待下载线程退出循环
+      time.sleep(1)
     if self.mitmproxy_server_status == 'RUNNING':
       self.cleanup_progress_signal.emit('正在清理抓包服务…')
       self._stop_catch_server()
