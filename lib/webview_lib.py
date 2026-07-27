@@ -10,33 +10,45 @@ class SpinnerWidget(QWidget):
   """旋转圆环 loading 动画，纯 QPainter 绘制，无需外部资源"""
 
   def __init__(self, parent=None, size: int = 44, color: QColor = QColor(120, 120, 120)) -> None:
+    """初始化旋转圆环
+    :param parent: 父组件
+    :param size: 控件固定尺寸（正方形，像素）
+    :param color: 前景旋转弧颜色
+    """
     super().__init__(parent)
     self._size = size
     self._color = color
     self._angle = 0
     self.setFixedSize(size, size)
+    # 定时器驱动旋转，每 40ms 触发一次 _on_tick
     self._timer = QTimer(self)
     self._timer.timeout.connect(self._on_tick)
 
   def start(self) -> None:
+    """启动旋转动画"""
     self._timer.start(40)
 
   def stop(self) -> None:
+    """停止旋转动画"""
     self._timer.stop()
 
   def _on_tick(self) -> None:
+    """定时器槽函数：每次递增 12° 并触发重绘，360° 取模实现循环"""
     self._angle = (self._angle + 12) % 360
     self.update()
 
   def paintEvent(self, _event) -> None:
+    """绘制圆环：先画完整背景灰环，再叠加前景旋转弧
+    Qt drawArc 角度单位为 1/16 度，故需乘以 16
+    """
     painter = QPainter(self)
     painter.setRenderHint(QPainter.Antialiasing)
     margin = 4
     rect = self.rect().adjusted(margin, margin, -margin, -margin)
-    # 背景灰环
+    # 背景灰环（完整 360°）
     painter.setPen(QPen(QColor(225, 225, 225), 4, Qt.SolidLine, Qt.RoundCap))
     painter.drawArc(rect, 0, 360 * 16)
-    # 前景旋转弧（约 110°）
+    # 前景旋转弧（约 110°），起始角度随 _angle 变化产生旋转效果
     painter.setPen(QPen(self._color, 4, Qt.SolidLine, Qt.RoundCap))
     painter.drawArc(rect, -self._angle * 16, 110 * 16)
     painter.end()
