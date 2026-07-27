@@ -53,8 +53,16 @@ def get_memory_name() -> str:
   if not app_proc:
     return 'APP'
 
+  # 统一去除 .win 后缀，使同目录下带/不带黑窗的两个 exe 共享同一个共享内存 key
   app_name = app_proc.name().replace('.win', '')
-  memory_name = os.path.abspath(Path(app_name))
+  # 使用可执行文件真实路径而非 CWD 拼路径，避免不同工作目录启动时 key 不同导致多开检测被绕过
+  app_exe_path = app_proc.exe()
+  if not app_exe_path:
+    return create_md5(app_name)
+  # 只对文件名部分去除 .win 后缀，避免误替换路径中的目录名（如 C:\my.win\app\xxx.exe）
+  exe_dir, exe_filename = os.path.split(app_exe_path)
+  exe_filename = exe_filename.replace('.win', '')
+  memory_name = os.path.join(exe_dir, exe_filename)
 
   return create_md5(memory_name)
 
