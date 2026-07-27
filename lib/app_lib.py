@@ -136,10 +136,13 @@ def find_running_app_pid() -> Optional[int]:
   return candidates[0]
 
 
-@error_catch(error_msg='将指定进程的窗口置顶异常')
-def bring_to_front(pid: int) -> None:
-  """将指定进程的窗口置顶"""
+@error_catch(error_msg='将指定进程的窗口置顶异常', error_return=False)
+def bring_to_front(pid: int) -> bool:
+  """将指定进程的窗口置顶，返回是否成功找到并置顶了至少一个窗口"""
   hwnds = get_process_windows(pid)
+  if len(hwnds) == 0:
+    APP_LOGGER.info(f'@@bring_to_front 未找到进程 pid: {pid} 的可见窗口，可能仍在启动中或窗口被隐藏')
+    return False
   for hwnd in hwnds:
     # 如果窗口最小化，先恢复
     if win32gui.IsIconic(hwnd):
@@ -151,6 +154,7 @@ def bring_to_front(pid: int) -> None:
                           win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
     win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
                           win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
+  return True
 
 
 #  检查app运行文件路径是否合法（不包含中文字符）

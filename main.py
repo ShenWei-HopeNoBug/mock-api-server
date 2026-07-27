@@ -72,8 +72,13 @@ if __name__ == '__main__':
     pid: Optional[int] = find_running_app_pid()
     if pid:
       # 将已运行的实例窗口置顶
-      bring_to_front(pid)
-    QMessageBox.information(None, '提示', '程序已经在运行中！')
+      brought = bring_to_front(pid)
+      if brought:
+        QMessageBox.information(None, '提示', '程序已经在运行中，已将窗口置顶！')
+      else:
+        QMessageBox.information(None, '提示', '程序已经在运行中，但未检测到可见窗口（可能仍在启动中），请稍后查看！')
+    else:
+      QMessageBox.information(None, '提示', '程序已经在运行中！')
     sys.exit(1)
 
   # 检查 APP 运行路径是否合法
