@@ -1,25 +1,22 @@
 # -*- coding: utf-8 -*-
 import asyncio
-from typing import Optional
-
 from mitmproxy.options import Options
 from mitmproxy.tools.dump import DumpMaster
 from multiprocessing import Process
 from module.request_catch import RequestRecorder
-from lib.decorate import error_catch
 from lib.system_lib import GLOBALS_CONFIG_MANAGER
 from app_types.mitmproxy_types import MitmproxyRunConfig
+from lib.logger_lib import APP_LOGGER
 
 
 # 启动抓包服务task
-@error_catch(error_msg='mitmproxy_task: 启动抓包服务失败！')
 async def mitmproxy_task(mitmproxy_config: MitmproxyRunConfig) -> None:
+  """配置 mitmproxy 参数与启动"""
   print('mitmproxy_config', mitmproxy_config)
   host = mitmproxy_config.get('host', '0.0.0.0')
   port = mitmproxy_config.get('port', 8080)
   work_dir = mitmproxy_config.get('work_dir', '.')
   mitmproxy_log = mitmproxy_config.get('mitmproxy_log', False)
-  """配置 mitmproxy 参数与启动"""
   options = Options(listen_host=host, listen_port=port)
   request_recorder = RequestRecorder(work_dir=work_dir)
   addons = [request_recorder]
@@ -32,12 +29,16 @@ async def mitmproxy_task(mitmproxy_config: MitmproxyRunConfig) -> None:
 
   print('启动 mitmproxy 主循环...')
 
-  # 启动 mitmproxy 主循环
-  await master.run()
-
-  # 主循环退出，重置下抓包结束信号
-  GLOBALS_CONFIG_MANAGER.set(key='mitmproxy_stop_signal', value=False)
-  print('mitmproxy 主循环结束！')
+  try:
+    # 启动 mitmproxy 主循环
+    await master.run()
+  except Exception as e:
+    APP_LOGGER.error(f'mitmproxy_task: 启动抓包服务失败！{e}')
+    raise
+  finally:
+    # 主循环退出，重置下抓包结束信号
+    GLOBALS_CONFIG_MANAGER.set(key='mitmproxy_stop_signal', value=False)
+    print('mitmproxy 主循环结束！')
 
 
 # 启动抓包服务
@@ -58,12 +59,3 @@ def start_mitmproxy(share_dict: MitmproxyRunConfig) -> Process:
   mitmproxy_process.start()
   print("Mitmproxy is running")
   return mitmproxy_process
-
-
-# 强杀进程退出服务
-def stop_mitmproxy(process: Optional[Process]) -> None:
-  """停止 mitmproxy"""
-  if process:
-    process.terminate()
-    process.join()
-  print('Mitmproxy Normal Exit')
