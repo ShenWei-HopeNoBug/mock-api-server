@@ -182,19 +182,33 @@ class MitmproxyDataEditDialog(QDialog):
     return {"list": preview_list}
 
   def _handle_get_mock_data_page(self, params: GetMockDataPageParams) -> MockDataPageResult:
-    mock_data_type = params.get('type', '')
+    mock_data_type = params.get('type')
     page_num = params.get('page_num', 1)
     page_size = params.get('page_size', 20)
+    url_like = params.get('url') or None
+    params_like = params.get('params') or None
+    response_like = params.get('response') or None
+    method = params.get('method') or None
     mock_db: MockDB = MockDBCache.get(self.work_dir)
 
     api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
 
-    total = mock_db.get_api_count(api_type=api_type)
+    total = mock_db.get_api_count(
+      api_type=api_type,
+      url_like=url_like,
+      params_like=params_like,
+      response_like=response_like,
+      method=method,
+    )
     page_list = mock_db.get_api_list_page(
       api_type=api_type,
       reverse=True,
       page_num=page_num,
       page_size=page_size,
+      url_like=url_like,
+      params_like=params_like,
+      response_like=response_like,
+      method=method,
     )
     return {
       "list": page_list,

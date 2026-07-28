@@ -2,7 +2,7 @@
 """
 GUI 相关的类型定义
 """
-from typing import List, Literal, TypedDict
+from typing import List, Literal, Optional, TypedDict
 
 from app_types.db_types import ApiData
 
@@ -20,11 +20,17 @@ class GetMockDataPageParams(TypedDict, total=False):
   """
   get_mock_data_page 请求参数（分页版）
 
-  type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，空值或不传表示全部（USER 在前）。
+  type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，None 或不传表示全部（USER 在前）。
+  url / params / response 为模糊查询关键词，不传表示不过滤。
+  method 为精确查询('GET' / 'POST')，None 或不传表示全部。
   """
-  type: Literal['USER', 'MITMPROXY']
-  page_num: int   # 1-based 页码
+  type: Optional[Literal['USER', 'MITMPROXY']]
+  page_num: int  # 1-based 页码
   page_size: int  # 每页条数
+  url: Optional[str]  # url 模糊查询关键词
+  params: Optional[str]  # params 模糊查询关键词
+  response: Optional[str]  # response 模糊查询关键词
+  method: Optional[Literal['GET', 'POST']]
 
 
 class MockDataPageResult(TypedDict):
@@ -34,9 +40,9 @@ class MockDataPageResult(TypedDict):
   list 为当前页的 API 记录列表，total 为符合条件的总记录数。
   """
   list: List[ApiData]  # 当前页数据
-  total: int           # 符合条件的总记录数
-  page_num: int        # 当前页码（1-based）
-  page_size: int       # 每页条数
+  total: int  # 符合条件的总记录数
+  page_num: int  # 当前页码（1-based）
+  page_size: int  # 每页条数
 
 
 class DeleteMockDataParams(TypedDict):

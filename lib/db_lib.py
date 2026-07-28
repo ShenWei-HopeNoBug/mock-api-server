@@ -205,18 +205,40 @@ class MockDB:
       reverse: bool = False,
       page_num: int = 1,
       page_size: int = 20,
+      url_like: Optional[str] = None,
+      params_like: Optional[str] = None,
+      response_like: Optional[str] = None,
+      method: Optional[str] = None,
   ) -> List[ApiData]:
-    """分页查询 API 数据列表，api_type 为空时 USER 在前、MITMPROXY 在后"""
+    """分页查询 API 数据列表，支持 url/params/response 模糊查询和 method 精确查询"""
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     offset = (page_num - 1) * page_size
+
+    where_clauses = []
+    sql_params: list = []
     if api_type is not None:
-      sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order} LIMIT ? OFFSET ?'
-      params: tuple = (api_type, page_size, offset)
-    else:
-      sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data ORDER BY CASE type WHEN \'USER\' THEN 0 ELSE 1 END, created_at {order} LIMIT ? OFFSET ?'
-      params = (page_size, offset)
+      where_clauses.append('type = ?')
+      sql_params.append(api_type)
+    if url_like:
+      where_clauses.append('url LIKE ?')
+      sql_params.append(f'%{url_like}%')
+    if params_like:
+      where_clauses.append('params LIKE ?')
+      sql_params.append(f'%{params_like}%')
+    if response_like:
+      where_clauses.append('response LIKE ?')
+      sql_params.append(f'%{response_like}%')
+    if method:
+      where_clauses.append('method = ?')
+      sql_params.append(method)
+
+    where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+    order_sql = f"ORDER BY {'CASE type WHEN \'USER\' THEN 0 ELSE 1 END, ' if api_type is None else ''}created_at {order}"
+    sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data{where_sql} {order_sql} LIMIT ? OFFSET ?'
+    sql_params.extend([page_size, offset])
+
     with self._lock:
-      cursor = self._conn.execute(sql, params)
+      cursor = self._conn.execute(sql, tuple(sql_params))
       rows = cursor.fetchall()
     result = []
     for row in rows:
@@ -234,16 +256,37 @@ class MockDB:
 
   # 查询 api 数据总数
   @_ensure_open(default=0)
-  def get_api_count(self, api_type: Optional[str] = None) -> int:
-    """查询 API 数据总数，可按 api_type 过滤"""
+  def get_api_count(
+      self,
+      api_type: Optional[str] = None,
+      url_like: Optional[str] = None,
+      params_like: Optional[str] = None,
+      response_like: Optional[str] = None,
+      method: Optional[str] = None,
+  ) -> int:
+    """查询 API 数据总数，支持 url/params/response 模糊查询和 method 精确查询"""
+    where_clauses = []
+    sql_params: list = []
     if api_type is not None:
-      sql = 'SELECT COUNT(*) FROM api_data WHERE type=?'
-      params: tuple = (api_type,)
-    else:
-      sql = 'SELECT COUNT(*) FROM api_data'
-      params = ()
+      where_clauses.append('type = ?')
+      sql_params.append(api_type)
+    if url_like:
+      where_clauses.append('url LIKE ?')
+      sql_params.append(f'%{url_like}%')
+    if params_like:
+      where_clauses.append('params LIKE ?')
+      sql_params.append(f'%{params_like}%')
+    if response_like:
+      where_clauses.append('response LIKE ?')
+      sql_params.append(f'%{response_like}%')
+    if method:
+      where_clauses.append('method = ?')
+      sql_params.append(method)
+
+    where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+    sql = f'SELECT COUNT(*) FROM api_data{where_sql}'
     with self._lock:
-      return self._conn.execute(sql, params).fetchone()[0]
+      return self._conn.execute(sql, tuple(sql_params)).fetchone()[0]
 
   # 按 id 查询单条 api 数据
   @_ensure_open(default=None)
