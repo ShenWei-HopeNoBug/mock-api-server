@@ -12,7 +12,8 @@ from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget
 from lib.app_lib import is_app_server_running
 from lib.db_lib import MockDB, MockDBCache
-from app_types.app_gui_types import AppServerRunningData
+from app_types.app_gui_types import AppServerRunningData, GetMockDataParams, DeleteMockDataParams, AddMockDataParams
+from app_types.db_types import ApiRecord
 from lib.utils_lib import get_ip_address
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
@@ -160,7 +161,7 @@ class MitmproxyDataEditDialog(QDialog):
 
   # --- 请求 handler：只关注业务逻辑，返回数据 ---
 
-  def _handle_get_mock_data(self, params: dict) -> dict:
+  def _handle_get_mock_data(self, params: GetMockDataParams) -> dict:
     mock_data_type = params.get('type', '')
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     if mock_data_type == 'USER':
@@ -172,20 +173,20 @@ class MitmproxyDataEditDialog(QDialog):
       preview_list.extend(mock_db.get_api_list(api_type='MITMPROXY', reverse=True))
     return {"list": preview_list}
 
-  def _handle_edit_mock_data(self, params: dict) -> bool:
+  def _handle_edit_mock_data(self, params: ApiRecord) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.update_api(params)
 
-  def _handle_add_mock_data(self, params: dict) -> bool:
+  def _handle_add_mock_data(self, params: AddMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     mock_db.insert_api({'type': 'USER', **params})
     return True
 
-  def _handle_delete_mock_data(self, params: dict) -> bool:
+  def _handle_delete_mock_data(self, params: DeleteMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.delete_api(params.get('id', ''))
 
-  def _handle_copy_mock_data(self, params: dict) -> bool:
+  def _handle_copy_mock_data(self, params: AddMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     mock_db.insert_api({'type': 'USER', **params})
     return True
