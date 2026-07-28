@@ -10,14 +10,8 @@ from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget
-from lib.app_lib import (
-  get_user_api_data_list,
-  get_mitmproxy_api_data_list,
-  update_user_api_data,
-  add_user_api_data,
-  delete_user_api_data,
-  is_app_server_running,
-)
+from lib.app_lib import is_app_server_running
+from lib.db_lib import MockDB, MockDBCache
 from app_types.app_gui_types import AppServerRunningData
 from lib.utils_lib import get_ip_address
 from lib.logger_lib import APP_LOGGER
@@ -168,28 +162,33 @@ class MitmproxyDataEditDialog(QDialog):
 
   def _handle_get_mock_data(self, params: dict) -> dict:
     mock_data_type = params.get('type', '')
-    preview_list = []
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
     if mock_data_type == 'USER':
-      preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
+      preview_list = mock_db.get_api_list(api_type='USER', reverse=True)
     elif mock_data_type == 'MITMPROXY':
-      preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+      preview_list = mock_db.get_api_list(api_type='MITMPROXY', reverse=True)
     else:
-      preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
-      preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+      preview_list = mock_db.get_api_list(api_type='USER', reverse=True)
+      preview_list.extend(mock_db.get_api_list(api_type='MITMPROXY', reverse=True))
     return {"list": preview_list}
 
   def _handle_edit_mock_data(self, params: dict) -> bool:
-    return update_user_api_data(work_dir=self.work_dir, update_data=params)
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.update_api(params)
 
   def _handle_add_mock_data(self, params: dict) -> bool:
-    return add_user_api_data(work_dir=self.work_dir, add_data=params)
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    mock_db.insert_api({'type': 'USER', **params})
+    return True
 
   def _handle_delete_mock_data(self, params: dict) -> bool:
-    delete_id = params.get('id')
-    return delete_user_api_data(work_dir=self.work_dir, delete_id=delete_id)
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.delete_api(params.get('id', ''))
 
   def _handle_copy_mock_data(self, params: dict) -> bool:
-    return add_user_api_data(work_dir=self.work_dir, add_data=params)
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    mock_db.insert_api({'type': 'USER', **params})
+    return True
 
   # 请求名称 → handler 映射
   _REQUEST_HANDLERS = {
