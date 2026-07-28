@@ -2,7 +2,7 @@
 """
 GUI 相关的类型定义
 """
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 
 class GetMockDataParams(TypedDict, total=False):
@@ -11,7 +11,7 @@ class GetMockDataParams(TypedDict, total=False):
 
   type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，空值或不传表示全部。
   """
-  type: str
+  type: Literal['USER', 'MITMPROXY']
 
 
 class DeleteMockDataParams(TypedDict):
@@ -23,7 +23,7 @@ class DeleteMockDataParams(TypedDict):
 
 class AddMockDataParams(TypedDict, total=False):
   """
-  add_mock_data / copy_mock_data 请求参数
+  add_mock_data 请求参数
 
   type 由 handler 硬编码为 'USER'，id 由 MockDB.insert_api 内部生成，均不需要前端传入。
   """
@@ -31,6 +31,15 @@ class AddMockDataParams(TypedDict, total=False):
   method: str  # HTTP 方法
   params: str  # 请求参数，JSON 字符串
   response: str  # 响应体，JSON 字符串
+
+
+class CopyMockDataParams(TypedDict):
+  """
+  copy_mock_data 请求参数
+
+  只需传源记录的 id，handler 按 id 查库取完整数据后复制插入。
+  """
+  id: str  # 待复制的源记录 id
 
 
 class AppServerRunningData(TypedDict):

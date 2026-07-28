@@ -12,7 +12,13 @@ from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget
 from lib.app_lib import is_app_server_running
 from lib.db_lib import MockDB, MockDBCache
-from app_types.app_gui_types import AppServerRunningData, GetMockDataParams, DeleteMockDataParams, AddMockDataParams
+from app_types.app_gui_types import (
+  AppServerRunningData,
+  GetMockDataParams,
+  DeleteMockDataParams,
+  AddMockDataParams,
+  CopyMockDataParams,
+)
 from app_types.db_types import ApiRecord
 from lib.utils_lib import get_ip_address
 from lib.logger_lib import APP_LOGGER
@@ -186,9 +192,18 @@ class MitmproxyDataEditDialog(QDialog):
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.delete_api(params.get('id', ''))
 
-  def _handle_copy_mock_data(self, params: AddMockDataParams) -> bool:
+  def _handle_copy_mock_data(self, params: CopyMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    mock_db.insert_api({'type': 'USER', **params})
+    source = mock_db.get_api_by_id(params['id'])
+    if source is None:
+      return False
+    mock_db.insert_api({
+      'type': 'USER',
+      'url': source['url'],
+      'method': source['method'],
+      'params': source['params'],
+      'response': source['response'],
+    })
     return True
 
   # 请求名称 → handler 映射

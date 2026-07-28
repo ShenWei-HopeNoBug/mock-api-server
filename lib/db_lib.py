@@ -197,6 +197,31 @@ class MockDB:
       })
     return result
 
+  # 按 id 查询单条 api 数据
+  @_ensure_open(default=None)
+  def get_api_by_id(self, api_id: str) -> Optional[ApiData]:
+    """按 id 主键查询单条 API 数据，不存在时返回 None"""
+    if not api_id:
+      return None
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE id=?',
+        (api_id,),
+      ).fetchone()
+    if row is None:
+      return None
+
+    return {
+      'id': row[0],
+      'type': row[1],
+      'url': row[2],
+      'method': row[3],
+      'params': row[4],
+      'response': row[5],
+      'created_at': row[6],
+      'updated_at': row[7],
+    }
+
   # 按 id 更新 api 数据（字段级合并）
   @_ensure_open(default=False)
   def update_api(self, record: ApiRecord) -> bool:
