@@ -132,52 +132,62 @@ class MitmproxyDataEditDialog(QDialog):
     msg_type = event.get('type')
     name = event.get('name')
     action_id = event.get('action_id')
-    extra = event.get('extra', {})
     params = event.get('params', {})
     if msg_type != 'request':
       return
 
-    def send_response(data: any = None):
-      self.send_qt2js_dict_msg({
-        "type": msg_type,
-        "name": name,
-        "data": data,
-        "action_id": action_id or '',
-        "extra": extra,
-      })
+    def send_response(data: any = None, status_code: int = 0, status_msg: str = ''):
+      self.send_qt2js_dict_msg(
+        TInteractObj.build_qt_response(name, action_id, data, status_code, status_msg)
+      )
 
     # 请求所有 mock 数据
     if name == 'get_mock_data':
-      mock_data_type = params.get('type', '')
-      # 预览数据列表
-      preview_list = []
-      # 判断要返回的数据源
-      if mock_data_type == 'USER':
-        preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
-      elif mock_data_type == 'MITMPROXY':
-        preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
-      else:
-        preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
-        preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+      try:
+        mock_data_type = params.get('type', '')
+        # 预览数据列表
+        preview_list = []
+        # 判断要返回的数据源
+        if mock_data_type == 'USER':
+          preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
+        elif mock_data_type == 'MITMPROXY':
+          preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+        else:
+          preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
+          preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
 
-      send_response({"list": preview_list})
+        send_response({"list": preview_list})
+      except Exception as e:
+        send_response(None, status_code=1, status_msg=str(e))
     # 编辑 mock 接口数据
     elif name == 'edit_mock_data':
-      success = update_user_api_data(work_dir=self.work_dir, update_data=params)
-      send_response(success)
+      try:
+        success = update_user_api_data(work_dir=self.work_dir, update_data=params)
+        send_response(success)
+      except Exception as e:
+        send_response(None, status_code=1, status_msg=str(e))
     # 新增 mock 接口数据
     elif name == 'add_mock_data':
-      success = add_user_api_data(work_dir=self.work_dir, add_data=params)
-      send_response(success)
+      try:
+        success = add_user_api_data(work_dir=self.work_dir, add_data=params)
+        send_response(success)
+      except Exception as e:
+        send_response(None, status_code=1, status_msg=str(e))
     # 删除 mock 接口数据
     elif name == 'delete_mock_data':
-      delete_id = params.get('id')
-      success = delete_user_api_data(work_dir=self.work_dir, delete_id=delete_id)
-      send_response(success)
+      try:
+        delete_id = params.get('id')
+        success = delete_user_api_data(work_dir=self.work_dir, delete_id=delete_id)
+        send_response(success)
+      except Exception as e:
+        send_response(None, status_code=1, status_msg=str(e))
     # 复制 mock 接口数据
     elif name == 'copy_mock_data':
-      success = add_user_api_data(work_dir=self.work_dir, add_data=params)
-      send_response(success)
+      try:
+        success = add_user_api_data(work_dir=self.work_dir, add_data=params)
+        send_response(success)
+      except Exception as e:
+        send_response(None, status_code=1, status_msg=str(e))
 
   def closeEvent(self, event: QEvent) -> None:
     if self.loading_widget is not None:
