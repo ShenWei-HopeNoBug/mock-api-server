@@ -15,6 +15,7 @@ from lib.db_lib import MockDB, MockDBCache
 from app_types.app_gui_types import (
   AppServerRunningData,
   GetMockDataParams,
+  GetMockDataPageParams,
   DeleteMockDataParams,
   AddMockDataParams,
   CopyMockDataParams,
@@ -89,7 +90,8 @@ class MitmproxyDataEditDialog(QDialog):
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      local_server_url = f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}"
+      # local_server_url = f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}"
+      local_server_url = f"http://10.9.150.251:3000/apps/dataManager/{web_route}"
       APP_LOGGER.info(f"[mitmproxy_data_edit_dialog]以本地服务方式加载编辑页面: {local_server_url}")
       current_page.load(QUrl(local_server_url))
     else:
@@ -179,6 +181,28 @@ class MitmproxyDataEditDialog(QDialog):
       preview_list.extend(mock_db.get_api_list(api_type='MITMPROXY', reverse=True))
     return {"list": preview_list}
 
+  def _handle_get_mock_data_page(self, params: GetMockDataPageParams) -> dict:
+    mock_data_type = params.get('type', '')
+    page_num = params.get('page_num', 1)
+    page_size = params.get('page_size', 20)
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+
+    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
+
+    total = mock_db.get_api_count(api_type=api_type)
+    page_list = mock_db.get_api_list_page(
+      api_type=api_type,
+      reverse=True,
+      page_num=page_num,
+      page_size=page_size,
+    )
+    return {
+      "list": page_list,
+      "total": total,
+      "page_num": page_num,
+      "page_size": page_size,
+    }
+
   def _handle_edit_mock_data(self, params: ApiRecord) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.update_api(params)
@@ -209,6 +233,7 @@ class MitmproxyDataEditDialog(QDialog):
   # 请求名称 → handler 映射
   _REQUEST_HANDLERS = {
     'get_mock_data': _handle_get_mock_data,
+    'get_mock_data_page': _handle_get_mock_data_page,
     'edit_mock_data': _handle_edit_mock_data,
     'add_mock_data': _handle_add_mock_data,
     'delete_mock_data': _handle_delete_mock_data,

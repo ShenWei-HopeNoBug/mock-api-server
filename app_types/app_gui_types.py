@@ -14,6 +14,17 @@ class GetMockDataParams(TypedDict, total=False):
   type: Literal['USER', 'MITMPROXY']
 
 
+class GetMockDataPageParams(TypedDict, total=False):
+  """
+  get_mock_data_page 请求参数（分页版）
+
+  type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，空值或不传表示全部（USER 在前）。
+  """
+  type: Literal['USER', 'MITMPROXY']
+  page_num: int   # 1-based 页码
+  page_size: int  # 每页条数
+
+
 class DeleteMockDataParams(TypedDict):
   """
   delete_mock_data 请求参数

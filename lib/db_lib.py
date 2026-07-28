@@ -197,6 +197,54 @@ class MockDB:
       })
     return result
 
+  # 分页查询 api 数据列表
+  @_ensure_open(default=[])
+  def get_api_list_page(
+      self,
+      api_type: Optional[str] = None,
+      reverse: bool = False,
+      page_num: int = 1,
+      page_size: int = 20,
+  ) -> List[ApiData]:
+    """分页查询 API 数据列表，api_type 为空时 USER 在前、MITMPROXY 在后"""
+    order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
+    offset = (page_num - 1) * page_size
+    if api_type is not None:
+      sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order} LIMIT ? OFFSET ?'
+      params: tuple = (api_type, page_size, offset)
+    else:
+      sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data ORDER BY CASE type WHEN \'USER\' THEN 0 ELSE 1 END, created_at {order} LIMIT ? OFFSET ?'
+      params = (page_size, offset)
+    with self._lock:
+      cursor = self._conn.execute(sql, params)
+      rows = cursor.fetchall()
+    result = []
+    for row in rows:
+      result.append({
+        'id': row[0],
+        'type': row[1],
+        'url': row[2],
+        'method': row[3],
+        'params': row[4],
+        'response': row[5],
+        'created_at': row[6],
+        'updated_at': row[7],
+      })
+    return result
+
+  # 查询 api 数据总数
+  @_ensure_open(default=0)
+  def get_api_count(self, api_type: Optional[str] = None) -> int:
+    """查询 API 数据总数，可按 api_type 过滤"""
+    if api_type is not None:
+      sql = 'SELECT COUNT(*) FROM api_data WHERE type=?'
+      params: tuple = (api_type,)
+    else:
+      sql = 'SELECT COUNT(*) FROM api_data'
+      params = ()
+    with self._lock:
+      return self._conn.execute(sql, params).fetchone()[0]
+
   # 按 id 查询单条 api 数据
   @_ensure_open(default=None)
   def get_api_by_id(self, api_id: str) -> Optional[ApiData]:
