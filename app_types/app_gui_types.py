@@ -31,6 +31,8 @@ class GetMockDataPageParams(TypedDict, total=False):
   params: Optional[str]  # params 模糊查询关键词
   response: Optional[str]  # response 模糊查询关键词
   method: Optional[Literal['GET', 'POST']]
+  create_start: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS'，需与 create_end 同时传
+  create_end: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS'，需与 create_start 同时传
 
 
 class MockDataPageResult(TypedDict):

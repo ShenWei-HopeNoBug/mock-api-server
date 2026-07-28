@@ -209,8 +209,10 @@ class MockDB:
       params_like: Optional[str] = None,
       response_like: Optional[str] = None,
       method: Optional[str] = None,
+      create_start: Optional[str] = None,
+      create_end: Optional[str] = None,
   ) -> List[ApiData]:
-    """分页查询 API 数据列表，支持 url/params/response 模糊查询和 method 精确查询"""
+    """分页查询 API 数据列表，支持 url/params/response 模糊查询、method 精确查询、created_at 时间区间查询"""
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     offset = (page_num - 1) * page_size
 
@@ -231,6 +233,11 @@ class MockDB:
     if method:
       where_clauses.append('method = ?')
       sql_params.append(method)
+    if create_start and create_end:
+      where_clauses.append('datetime(created_at) >= datetime(?)')
+      sql_params.append(create_start)
+      where_clauses.append('datetime(created_at) <= datetime(?)')
+      sql_params.append(create_end)
 
     where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
     user_first = "CASE type WHEN 'USER' THEN 0 ELSE 1 END, " if api_type is None else ''
@@ -265,8 +272,10 @@ class MockDB:
       params_like: Optional[str] = None,
       response_like: Optional[str] = None,
       method: Optional[str] = None,
+      create_start: Optional[str] = None,
+      create_end: Optional[str] = None,
   ) -> int:
-    """查询 API 数据总数，支持 url/params/response 模糊查询和 method 精确查询"""
+    """查询 API 数据总数，支持 url/params/response 模糊查询、method 精确查询、created_at 时间区间查询"""
     where_clauses = []
     sql_params: list = []
     if api_type is not None:
@@ -284,6 +293,11 @@ class MockDB:
     if method:
       where_clauses.append('method = ?')
       sql_params.append(method)
+    if create_start and create_end:
+      where_clauses.append('datetime(created_at) >= datetime(?)')
+      sql_params.append(create_start)
+      where_clauses.append('datetime(created_at) <= datetime(?)')
+      sql_params.append(create_end)
 
     where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
     sql = f'SELECT COUNT(*) FROM api_data{where_sql}'

@@ -189,6 +189,8 @@ class MitmproxyDataEditDialog(QDialog):
     params_like = params.get('params') or None
     response_like = params.get('response') or None
     method = params.get('method') or None
+    create_start = params.get('create_start') or None
+    create_end = params.get('create_end') or None
     mock_db: MockDB = MockDBCache.get(self.work_dir)
 
     api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
@@ -199,6 +201,8 @@ class MitmproxyDataEditDialog(QDialog):
       params_like=params_like,
       response_like=response_like,
       method=method,
+      create_start=create_start,
+      create_end=create_end,
     )
     page_list = mock_db.get_api_list_page(
       api_type=api_type,
@@ -209,6 +213,8 @@ class MitmproxyDataEditDialog(QDialog):
       params_like=params_like,
       response_like=response_like,
       method=method,
+      create_start=create_start,
+      create_end=create_end,
     )
     return {
       "list": page_list,
