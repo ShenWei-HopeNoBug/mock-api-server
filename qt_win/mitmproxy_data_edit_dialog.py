@@ -21,7 +21,7 @@ from app_types.app_gui_types import (
   AddMockDataParams,
   CopyMockDataParams,
 )
-from app_types.db_types import ApiRecord
+from app_types.db_types import ApiRecord, ApiQuery
 from lib.utils_lib import get_ip_address
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
@@ -185,36 +185,24 @@ class MitmproxyDataEditDialog(QDialog):
     mock_data_type = params.get('type')
     page_num = params.get('page_num', 1)
     page_size = params.get('page_size', 20)
-    url_like = params.get('url') or None
-    params_like = params.get('params') or None
-    response_like = params.get('response') or None
-    method = params.get('method') or None
-    create_start = params.get('create_start') or None
-    create_end = params.get('create_end') or None
+    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
+    query: ApiQuery = {
+      'api_type': api_type,
+      'url_like': params.get('url') or None,
+      'params_like': params.get('params') or None,
+      'response_like': params.get('response') or None,
+      'method': params.get('method') or None,
+      'create_start': params.get('create_start') or None,
+      'create_end': params.get('create_end') or None,
+    }
     mock_db: MockDB = MockDBCache.get(self.work_dir)
 
-    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
-
-    total = mock_db.get_api_count(
-      api_type=api_type,
-      url_like=url_like,
-      params_like=params_like,
-      response_like=response_like,
-      method=method,
-      create_start=create_start,
-      create_end=create_end,
-    )
+    total = mock_db.get_api_count(query)
     page_list = mock_db.get_api_list_page(
-      api_type=api_type,
+      query,
       reverse=True,
       page_num=page_num,
       page_size=page_size,
-      url_like=url_like,
-      params_like=params_like,
-      response_like=response_like,
-      method=method,
-      create_start=create_start,
-      create_end=create_end,
     )
     return {
       "list": page_list,

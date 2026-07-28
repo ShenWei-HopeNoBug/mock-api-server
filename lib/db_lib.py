@@ -11,7 +11,7 @@ from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
 from config.enum import DATABASE
 from config.work_file import DB_DATA_PATH
-from app_types.db_types import ApiRecord, ApiData, StaticData
+from app_types.db_types import ApiRecord, ApiData, ApiQuery, StaticData
 
 # 当前 schema 版本
 CURRENT_SCHEMA_VERSION = 1
@@ -197,27 +197,17 @@ class MockDB:
       })
     return result
 
-  # 分页查询 api 数据列表
-  @_ensure_open(default=[])
-  def get_api_list_page(
-      self,
-      api_type: Optional[str] = None,
-      reverse: bool = False,
-      page_num: int = 1,
-      page_size: int = 20,
-      url_like: Optional[str] = None,
-      params_like: Optional[str] = None,
-      response_like: Optional[str] = None,
-      method: Optional[str] = None,
-      create_start: Optional[str] = None,
-      create_end: Optional[str] = None,
-  ) -> List[ApiData]:
-    """分页查询 API 数据列表，支持 url/params/response 模糊查询、method 精确查询、created_at 时间区间查询"""
-    order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
-    offset = (page_num - 1) * page_size
-
+  def _build_api_where(self, query: ApiQuery) -> tuple:
+    """构建 api_data 查询的 WHERE 子句和参数，返回 (where_sql, sql_params)"""
     where_clauses = []
     sql_params: list = []
+    api_type = query.get('api_type')
+    url_like = query.get('url_like')
+    params_like = query.get('params_like')
+    response_like = query.get('response_like')
+    method = query.get('method')
+    create_start = query.get('create_start')
+    create_end = query.get('create_end')
     if api_type is not None:
       where_clauses.append('type = ?')
       sql_params.append(api_type)
@@ -238,9 +228,24 @@ class MockDB:
       sql_params.append(create_start)
       where_clauses.append('datetime(created_at) <= datetime(?)')
       sql_params.append(create_end)
-
     where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
-    user_first = "CASE type WHEN 'USER' THEN 0 ELSE 1 END, " if api_type is None else ''
+    return where_sql, sql_params
+
+  # 分页查询 api 数据列表
+  @_ensure_open(default=[])
+  def get_api_list_page(
+      self,
+      query: ApiQuery,
+      reverse: bool = False,
+      page_num: int = 1,
+      page_size: int = 20,
+  ) -> List[ApiData]:
+    """分页查询 API 数据列表，支持 url/params/response 模糊查询、method 精确查询、created_at 时间区间查询"""
+    order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
+    offset = (page_num - 1) * page_size
+
+    where_sql, sql_params = self._build_api_where(query)
+    user_first = "CASE type WHEN 'USER' THEN 0 ELSE 1 END, " if query.get('api_type') is None else ''
     order_sql = 'ORDER BY {}created_at {}'.format(user_first, order)
     sql = 'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
       where_sql, order_sql)
@@ -265,41 +270,9 @@ class MockDB:
 
   # 查询 api 数据总数
   @_ensure_open(default=0)
-  def get_api_count(
-      self,
-      api_type: Optional[str] = None,
-      url_like: Optional[str] = None,
-      params_like: Optional[str] = None,
-      response_like: Optional[str] = None,
-      method: Optional[str] = None,
-      create_start: Optional[str] = None,
-      create_end: Optional[str] = None,
-  ) -> int:
+  def get_api_count(self, query: ApiQuery) -> int:
     """查询 API 数据总数，支持 url/params/response 模糊查询、method 精确查询、created_at 时间区间查询"""
-    where_clauses = []
-    sql_params: list = []
-    if api_type is not None:
-      where_clauses.append('type = ?')
-      sql_params.append(api_type)
-    if url_like:
-      where_clauses.append('url LIKE ?')
-      sql_params.append(f'%{url_like}%')
-    if params_like:
-      where_clauses.append('params LIKE ?')
-      sql_params.append(f'%{params_like}%')
-    if response_like:
-      where_clauses.append('response LIKE ?')
-      sql_params.append(f'%{response_like}%')
-    if method:
-      where_clauses.append('method = ?')
-      sql_params.append(method)
-    if create_start and create_end:
-      where_clauses.append('datetime(created_at) >= datetime(?)')
-      sql_params.append(create_start)
-      where_clauses.append('datetime(created_at) <= datetime(?)')
-      sql_params.append(create_end)
-
-    where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+    where_sql, sql_params = self._build_api_where(query)
     sql = f'SELECT COUNT(*) FROM api_data{where_sql}'
     with self._lock:
       return self._conn.execute(sql, tuple(sql_params)).fetchone()[0]

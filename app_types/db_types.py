@@ -2,7 +2,7 @@
 """
 数据库相关的类型定义
 """
-from typing import TypedDict
+from typing import Optional, TypedDict
 
 
 class ApiRecord(TypedDict, total=False):
@@ -34,6 +34,22 @@ class ApiData(TypedDict):
   response: str  # 响应体，JSON 字符串
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+
+
+class ApiQuery(TypedDict, total=False):
+  """
+  API 数据查询过滤参数
+
+  用于 get_api_list_page / get_api_count 的入参。
+  total=False 表示所有字段可选，调用方按需传入。
+  """
+  api_type: Optional[str]  # 数据来源类型精确匹配，如 'USER' / 'MITMPROXY'
+  url_like: Optional[str]  # URL 模糊查询
+  params_like: Optional[str]  # 请求参数模糊查询
+  response_like: Optional[str]  # 响应体模糊查询
+  method: Optional[str]  # HTTP 方法精确查询
+  create_start: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS.sss'
+  create_end: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
 
 class StaticData(TypedDict):
