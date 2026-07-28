@@ -233,8 +233,10 @@ class MockDB:
       sql_params.append(method)
 
     where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
-    order_sql = f"ORDER BY {'CASE type WHEN \'USER\' THEN 0 ELSE 1 END, ' if api_type is None else ''}created_at {order}"
-    sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data{where_sql} {order_sql} LIMIT ? OFFSET ?'
+    user_first = "CASE type WHEN 'USER' THEN 0 ELSE 1 END, " if api_type is None else ''
+    order_sql = 'ORDER BY {}created_at {}'.format(user_first, order)
+    sql = 'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
+      where_sql, order_sql)
     sql_params.extend([page_size, offset])
 
     with self._lock:
