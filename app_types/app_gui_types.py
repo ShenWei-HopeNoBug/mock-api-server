@@ -2,7 +2,9 @@
 """
 GUI 相关的类型定义
 """
-from typing import Literal, TypedDict
+from typing import List, Literal, TypedDict
+
+from app_types.db_types import ApiData
 
 
 class GetMockDataParams(TypedDict, total=False):
@@ -23,6 +25,18 @@ class GetMockDataPageParams(TypedDict, total=False):
   type: Literal['USER', 'MITMPROXY']
   page_num: int   # 1-based 页码
   page_size: int  # 每页条数
+
+
+class MockDataPageResult(TypedDict):
+  """
+  get_mock_data_page 返回数据（分页版）
+
+  list 为当前页的 API 记录列表，total 为符合条件的总记录数。
+  """
+  list: List[ApiData]  # 当前页数据
+  total: int           # 符合条件的总记录数
+  page_num: int        # 当前页码（1-based）
+  page_size: int       # 每页条数
 
 
 class DeleteMockDataParams(TypedDict):

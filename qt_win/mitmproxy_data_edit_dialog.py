@@ -16,6 +16,7 @@ from app_types.app_gui_types import (
   AppServerRunningData,
   GetMockDataParams,
   GetMockDataPageParams,
+  MockDataPageResult,
   DeleteMockDataParams,
   AddMockDataParams,
   CopyMockDataParams,
@@ -90,8 +91,7 @@ class MitmproxyDataEditDialog(QDialog):
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      # local_server_url = f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}"
-      local_server_url = f"http://10.9.150.251:3000/apps/dataManager/{web_route}"
+      local_server_url = f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}"
       APP_LOGGER.info(f"[mitmproxy_data_edit_dialog]以本地服务方式加载编辑页面: {local_server_url}")
       current_page.load(QUrl(local_server_url))
     else:
@@ -181,7 +181,7 @@ class MitmproxyDataEditDialog(QDialog):
       preview_list.extend(mock_db.get_api_list(api_type='MITMPROXY', reverse=True))
     return {"list": preview_list}
 
-  def _handle_get_mock_data_page(self, params: GetMockDataPageParams) -> dict:
+  def _handle_get_mock_data_page(self, params: GetMockDataPageParams) -> MockDataPageResult:
     mock_data_type = params.get('type', '')
     page_num = params.get('page_num', 1)
     page_size = params.get('page_size', 20)
@@ -209,8 +209,7 @@ class MitmproxyDataEditDialog(QDialog):
 
   def _handle_add_mock_data(self, params: AddMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    mock_db.insert_api({'type': 'USER', **params})
-    return True
+    return mock_db.insert_api({'type': 'USER', **params})
 
   def _handle_delete_mock_data(self, params: DeleteMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
@@ -221,14 +220,13 @@ class MitmproxyDataEditDialog(QDialog):
     source = mock_db.get_api_by_id(params['id'])
     if source is None:
       return False
-    mock_db.insert_api({
+    return mock_db.insert_api({
       'type': 'USER',
       'url': source['url'],
       'method': source['method'],
       'params': source['params'],
       'response': source['response'],
     })
-    return True
 
   # 请求名称 → handler 映射
   _REQUEST_HANDLERS = {
