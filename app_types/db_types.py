@@ -48,8 +48,8 @@ class ApiQuery(TypedDict, total=False):
   params_like: Optional[str]  # 请求参数模糊查询
   response_like: Optional[str]  # 响应体模糊查询
   method: Optional[str]  # HTTP 方法精确查询
-  create_start: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS.sss'
-  create_end: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS.sss'
+  create_start_time: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS.sss'
+  create_end_time: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
 
 class StaticData(TypedDict):

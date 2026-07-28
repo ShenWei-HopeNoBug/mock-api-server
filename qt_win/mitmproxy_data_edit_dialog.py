@@ -192,8 +192,8 @@ class MitmproxyDataEditDialog(QDialog):
       'params_like': params.get('params') or None,
       'response_like': params.get('response') or None,
       'method': params.get('method') or None,
-      'create_start': params.get('create_start') or None,
-      'create_end': params.get('create_end') or None,
+      'create_start_time': params.get('create_start_time') or None,
+      'create_end_time': params.get('create_end_time') or None,
     }
     mock_db: MockDB = MockDBCache.get(self.work_dir)
 

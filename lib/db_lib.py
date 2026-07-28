@@ -206,8 +206,8 @@ class MockDB:
     params_like = query.get('params_like')
     response_like = query.get('response_like')
     method = query.get('method')
-    create_start = query.get('create_start')
-    create_end = query.get('create_end')
+    create_start_time = query.get('create_start_time')
+    create_end_time = query.get('create_end_time')
     if api_type is not None:
       where_clauses.append('type = ?')
       sql_params.append(api_type)
@@ -223,11 +223,11 @@ class MockDB:
     if method:
       where_clauses.append('method = ?')
       sql_params.append(method)
-    if create_start and create_end:
+    if create_start_time and create_end_time:
       where_clauses.append('datetime(created_at) >= datetime(?)')
-      sql_params.append(create_start)
+      sql_params.append(create_start_time)
       where_clauses.append('datetime(created_at) <= datetime(?)')
-      sql_params.append(create_end)
+      sql_params.append(create_end_time)
     where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
     return where_sql, sql_params
 
