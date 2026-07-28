@@ -4,6 +4,7 @@ from PyQt5.QtGui import QGuiApplication, QIcon
 from PyQt5.QtCore import Qt
 
 import sys
+import ctypes
 import multiprocessing
 import traceback as tb_module
 from types import TracebackType
@@ -41,6 +42,8 @@ def exception_handler(
 if __name__ == '__main__':
   # 防止窗口开进程新打开个 GUI 窗口
   multiprocessing.freeze_support()
+  # 设置 Windows 任务栏 AppUserModelID，使任务栏图标使用自定义图标而非 Python 默认图标
+  ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('mock-api-server')
   # 禁止屏幕设置了缩放导致显示不一致
   QGuiApplication.setAttribute(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
   app: QApplication = QApplication(sys.argv)
