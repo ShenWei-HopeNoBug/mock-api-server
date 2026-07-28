@@ -101,6 +101,7 @@ def app_build(window=False, timestamp=''):
     f"--name={app_name}",
     f"--contents-directory=site-packages",
     "--add-data", "schema;schema/",
+    "--add-data", "assets;assets/",
     "main.py",
     "-D",
   ]

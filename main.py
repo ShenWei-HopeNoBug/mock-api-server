@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import QApplication, QMessageBox
-from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtGui import QGuiApplication, QIcon
 from PyQt5.QtCore import Qt
 
 import sys
@@ -22,6 +22,7 @@ from lib.app_lib import (
   run_blocking_with_events,
 )
 from app_types.app_gui_types import AppServerRunningData
+import app_env
 
 
 def exception_handler(
@@ -43,6 +44,8 @@ if __name__ == '__main__':
   # 禁止屏幕设置了缩放导致显示不一致
   QGuiApplication.setAttribute(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
   app: QApplication = QApplication(sys.argv)
+  # 设置应用图标（任务栏/标题栏）
+  app.setWindowIcon(QIcon(app_env.APP_ICON))
   # 全局异常捕获
   sys.excepthook = exception_handler
 
