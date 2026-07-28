@@ -64,7 +64,7 @@ Qt 通过 `qt2js_signal` 下发 JSON 字符串，`QtRequestManager` 解析后匹
 | `type` | `string` | 是 | 必须为 `"response"`，否则消息被忽略 |
 | `name` | `string` | 是 | 请求名称 |
 | `action_id` | `string` | 是 | 与请求时的 `action_id` 一一对应，用于匹配 pending 请求 |
-| `status_code` | `number` | 是 | 状态码，`0` 表示成功；非 `0` 表示失败，会以 `RESPONSE_ERROR` 拒绝 Promise |
+| `status_code` | `number` | 是 | 业务状态码，`0` 表示成功；非 `0` 表示失败，会以 `RESPONSE_ERROR` 拒绝 Promise。详见下方业务状态码表 |
 | `status_msg` | `string` | 否 | 状态消息，失败时作为 reject 的 error message |
 | `data` | `object` | 是 | 响应业务数据对象 |
 
@@ -105,6 +105,35 @@ Qt qt2js_signal
 | `SEND_FAILED` | `sendObjMsg` 返回失败或抛异常 |
 | `PARSE_ERROR` | 响应 JSON 解析失败 |
 | `RESPONSE_HANDLE_ERROR` | 响应处理过程中抛异常 |
+
+---
+
+## 业务状态码
+
+业务状态码定义于 `config/enum/BIZ_CODE.py`，编码规则：5 位负数，前两位标识错误大类，后三位标识具体错误。`0` 表示成功。
+
+| 状态码 | 常量名 | 说明 |
+|---|---|---|
+| `0` | `BIZ_SUCCESS` | 操作成功 |
+| `-10001` | `BIZ_UNKNOWN_ERROR` | 未知异常 |
+| `-10002` | `BIZ_INTERNAL_ERROR` | 内部错误 |
+| `-20001` | `BIZ_PARAM_MISSING` | 必填参数缺失 |
+| `-20002` | `BIZ_PARAM_INVALID` | 参数格式非法 |
+| `-30001` | `BIZ_DATA_NOT_FOUND` | 数据不存在 |
+| `-30002` | `BIZ_DATA_ALREADY_EXISTS` | 数据已存在 |
+| `-30003` | `BIZ_DB_ERROR` | 数据库读写异常 |
+| `-40001` | `BIZ_FILE_READ_ERROR` | 文件读取失败 |
+| `-40002` | `BIZ_FILE_WRITE_ERROR` | 文件写入失败 |
+
+### 码段规划
+
+| 码段 | 大类 |
+|---|---|
+| `0` | 成功 |
+| `-10xxx` | 通用/系统错误 |
+| `-20xxx` | 参数校验错误 |
+| `-30xxx` | 数据操作错误 |
+| `-40xxx` | 文件/IO 错误 |
 
 ---
 

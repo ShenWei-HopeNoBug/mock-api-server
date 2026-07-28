@@ -12,6 +12,6 @@ class QtResponsePayload(TypedDict):
   type: str           # 固定 "response"
   name: str           # 请求名称
   action_id: str      # 与请求的 action_id 一一对应
-  status_code: int    # 0=成功，非 0=失败
+  status_code: int    # 业务状态码，0=成功，非 0=失败（详见 config/enum/BIZ_CODE.py）
   status_msg: str     # 状态消息，失败时填充
   data: JsonValue     # 响应业务数据

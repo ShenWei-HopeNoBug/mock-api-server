@@ -21,6 +21,13 @@ from lib.app_lib import (
 from app_types.app_gui_types import AppServerRunningData
 from lib.utils_lib import get_ip_address
 from lib.logger_lib import APP_LOGGER
+from config.enum.BIZ_CODE import (
+  BIZ_SUCCESS,
+  BIZ_UNKNOWN_ERROR,
+  BIZ_PARAM_MISSING,
+  BIZ_FILE_READ_ERROR,
+  BIZ_FILE_WRITE_ERROR,
+)
 
 
 class MitmproxyDataEditDialog(QDialog):
@@ -136,58 +143,62 @@ class MitmproxyDataEditDialog(QDialog):
     if msg_type != 'request':
       return
 
-    def send_response(data: any = None, status_code: int = 0, status_msg: str = ''):
+    def send_response(data: any = None, status_code: int = BIZ_SUCCESS, status_msg: str = ''):
       self.send_qt2js_dict_msg(
         TInteractObj.build_qt_response(name, action_id, data, status_code, status_msg)
       )
 
-    # 请求所有 mock 数据
-    if name == 'get_mock_data':
-      try:
-        mock_data_type = params.get('type', '')
-        # 预览数据列表
-        preview_list = []
-        # 判断要返回的数据源
-        if mock_data_type == 'USER':
-          preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
-        elif mock_data_type == 'MITMPROXY':
-          preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
-        else:
-          preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
-          preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+    handler = self._REQUEST_HANDLERS.get(name)
+    if handler is None:
+      return
 
-        send_response({"list": preview_list})
-      except Exception as e:
-        send_response(None, status_code=1, status_msg=str(e))
-    # 编辑 mock 接口数据
-    elif name == 'edit_mock_data':
-      try:
-        success = update_user_api_data(work_dir=self.work_dir, update_data=params)
-        send_response(success)
-      except Exception as e:
-        send_response(None, status_code=1, status_msg=str(e))
-    # 新增 mock 接口数据
-    elif name == 'add_mock_data':
-      try:
-        success = add_user_api_data(work_dir=self.work_dir, add_data=params)
-        send_response(success)
-      except Exception as e:
-        send_response(None, status_code=1, status_msg=str(e))
-    # 删除 mock 接口数据
-    elif name == 'delete_mock_data':
-      try:
-        delete_id = params.get('id')
-        success = delete_user_api_data(work_dir=self.work_dir, delete_id=delete_id)
-        send_response(success)
-      except Exception as e:
-        send_response(None, status_code=1, status_msg=str(e))
-    # 复制 mock 接口数据
-    elif name == 'copy_mock_data':
-      try:
-        success = add_user_api_data(work_dir=self.work_dir, add_data=params)
-        send_response(success)
-      except Exception as e:
-        send_response(None, status_code=1, status_msg=str(e))
+    try:
+      result = handler(self, params)
+      send_response(result)
+    except KeyError as e:
+      send_response(None, status_code=BIZ_PARAM_MISSING, status_msg=f'缺少必填参数: {e}')
+    except FileNotFoundError as e:
+      send_response(None, status_code=BIZ_FILE_READ_ERROR, status_msg=str(e))
+    except PermissionError as e:
+      send_response(None, status_code=BIZ_FILE_WRITE_ERROR, status_msg=str(e))
+    except Exception as e:
+      send_response(None, status_code=BIZ_UNKNOWN_ERROR, status_msg=str(e))
+
+  # --- 请求 handler：只关注业务逻辑，返回数据 ---
+
+  def _handle_get_mock_data(self, params: dict) -> dict:
+    mock_data_type = params.get('type', '')
+    preview_list = []
+    if mock_data_type == 'USER':
+      preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
+    elif mock_data_type == 'MITMPROXY':
+      preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+    else:
+      preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
+      preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+    return {"list": preview_list}
+
+  def _handle_edit_mock_data(self, params: dict) -> bool:
+    return update_user_api_data(work_dir=self.work_dir, update_data=params)
+
+  def _handle_add_mock_data(self, params: dict) -> bool:
+    return add_user_api_data(work_dir=self.work_dir, add_data=params)
+
+  def _handle_delete_mock_data(self, params: dict) -> bool:
+    delete_id = params.get('id')
+    return delete_user_api_data(work_dir=self.work_dir, delete_id=delete_id)
+
+  def _handle_copy_mock_data(self, params: dict) -> bool:
+    return add_user_api_data(work_dir=self.work_dir, add_data=params)
+
+  # 请求名称 → handler 映射
+  _REQUEST_HANDLERS = {
+    'get_mock_data': _handle_get_mock_data,
+    'edit_mock_data': _handle_edit_mock_data,
+    'add_mock_data': _handle_add_mock_data,
+    'delete_mock_data': _handle_delete_mock_data,
+    'copy_mock_data': _handle_copy_mock_data,
+  }
 
   def closeEvent(self, event: QEvent) -> None:
     if self.loading_widget is not None:
