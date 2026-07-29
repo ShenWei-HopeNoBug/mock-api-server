@@ -452,7 +452,7 @@ class MockDBCache:
     cache_key = os.path.abspath(work_dir)
     if cache_key not in cls._cache:
       db_path = f'{work_dir}{DB_DATA_PATH}'
-      cls._cache[cache_key] = MockDB(db_path)
+      cls._cache[cache_key] = MockDB(os.path.abspath(db_path))
     return cls._cache[cache_key]
 
   @classmethod
