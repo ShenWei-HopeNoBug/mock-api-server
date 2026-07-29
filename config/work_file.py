@@ -9,8 +9,6 @@ from config.default import (
 # APP系统文件工作目录
 SYSTEM_DIR = r'./system'
 
-# 全局配置文件路径
-GLOBALS_CONFIG_PATH = f'{SYSTEM_DIR}/globals.json'
 # 历史记录问价路径
 HISTORY_CONFIG_PATH = f'{SYSTEM_DIR}/history.json'
 
@@ -50,14 +48,6 @@ BACKUP_DIR = r'/backup'
 # -------------------------------------------------------------
 # 系统文件字典
 SYSTEM_FILE_DICT = {
-  "GLOBALS_CONFIG": {
-    "path": GLOBALS_CONFIG_PATH,
-    "default": {
-      "client_exit": False,  # 是否已经退出程序
-      "mitmproxy_stop_signal": False,  # 抓包停止信号
-      "download_exit": False,  # 是否已经退出下载
-    }
-  },
   "HISTORY_CONFIG": {
     "path": HISTORY_CONFIG_PATH,
     "default": {

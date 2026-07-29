@@ -41,7 +41,7 @@ from lib.db_lib import MockDBCache
 from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
 from config.menu import (FILE, EDIT, HELP)
-from lib.system_lib import (GLOBALS_CONFIG_MANAGER, HISTORY_CONFIG_MANAGER)
+from lib.system_lib import HISTORY_CONFIG_MANAGER
 import app_env
 
 from qt_ui.main_win import main_win_style
@@ -82,8 +82,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   def __init__(self, app_sever_running_data: Optional[AppServerRunningData] = None) -> None:
     super().__init__()
-    # 初始化全局变量文件
-    GLOBALS_CONFIG_MANAGER.init(replace=True)
     # 初始化历史数据文件
     HISTORY_CONFIG_MANAGER.init(replace=False)
     # 获取历史工作目录
@@ -802,7 +800,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 退出清理完成槽（主线程）
   def _on_cleanup_done(self) -> None:
     MockDBCache.close_all()
-    GLOBALS_CONFIG_MANAGER.set(key='client_exit', value=True)
     if self._exit_tip_label is not None:
       self._exit_tip_label.setText('正在退出应用…')
     QApplication.quit()

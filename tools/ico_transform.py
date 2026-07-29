@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import sys
+import os
 from PIL import Image
 
 
@@ -7,7 +8,6 @@ def main():
   from_path = '../app-icon.png'
   save_path = '../assets/app.ico'
 
-  import os
   abs_from_path = os.path.abspath(from_path)
   abs_save_path = os.path.abspath(save_path)
 

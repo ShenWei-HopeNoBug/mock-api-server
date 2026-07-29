@@ -29,7 +29,6 @@ from lib.utils_lib import (
 )
 from lib.app_lib import get_mock_api_data_list
 from lib import server_lib
-from lib.system_lib import GLOBALS_CONFIG_MANAGER
 
 
 @error_catch(error_msg='获取导出下载地址列表失败', error_return=[])
@@ -90,12 +89,6 @@ def output_static_files(output_dir: str = './output', output_list: Optional[List
     # 复制静态资源到目标文件夹
     shutil.copy(path, save_dir)
 
-
-# 是否退出下载
-def is_exit_download() -> bool:
-  client_exit = GLOBALS_CONFIG_MANAGER.get(key='client_exit')
-  download_exit = GLOBALS_CONFIG_MANAGER.get(key='download_exit')
-  return client_exit or download_exit
 
 
 @error_catch(error_msg='获取下载配置失败', error_return={})
