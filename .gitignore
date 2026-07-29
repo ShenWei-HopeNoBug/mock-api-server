@@ -28,7 +28,6 @@ __pycache__
 
 # User directories and files
 /system
-/test
 /static
 /server
 /output.*
