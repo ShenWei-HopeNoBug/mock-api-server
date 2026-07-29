@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import os
 from lib.db_lib import MockDBCache
 from typing import List
 from app_types.db_types import ApiRecord

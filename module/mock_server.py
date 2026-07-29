@@ -126,7 +126,7 @@ class MockServer:
     assets_base_url: str = f'{self.static_host}{assets_route}'
 
     # 静态资源文本替换规则
-    def assets_replace_method(match: re.Match[str]) -> str:
+    def assets_replace_method(match: re.Match) -> str:
       assets_url = match[0]
       file_name = assets_url.split('/')[-1]
 
