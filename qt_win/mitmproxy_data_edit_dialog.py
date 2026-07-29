@@ -243,6 +243,7 @@ class MitmproxyDataEditDialog(QDialog):
       'method': source['method'],
       'params': source['params'],
       'response': source['response'],
+      'timeout': source.get('timeout', 0),
     })
 
   # 请求名称 → handler 映射
