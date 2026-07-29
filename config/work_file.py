@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from config.default import (
   DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
-  DEFAULT_HTTP_PARAMS_MATCH_MODE,
   DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT,
 )
 
@@ -117,14 +116,12 @@ WORK_FILE_DICT = {
   # mock 服务的配置
   # include_files: 启动服务后要动态替换的静态资源链接扩展名列表
   # static_match_route: 动态匹配静态资源请求的路由
-  # http_params_match_mode: 请求传参匹配模式
   # ---------------------------------------------------
   "MOCK_SERVER_CONFIG": {
     "path": MOCK_SERVER_CONFIG_PATH,
     "default": {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
       "static_match_route": [],
-      "http_params_match_mode": DEFAULT_HTTP_PARAMS_MATCH_MODE,
     }
   }
 }

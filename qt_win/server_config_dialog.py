@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QWidget, QVBoxLayout, QButtonGroup
+from PyQt5.QtWidgets import QDialog, QWidget, QVBoxLayout
 from PyQt5.QtCore import Qt, QRect
 
 import os
@@ -9,22 +9,10 @@ import copy
 from lib.utils_lib import ConfigFileManager
 from qt_ui.server_config_win.win_ui import Ui_Dialog
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, MOCK_SERVER_CONFIG_PATH)
-from config.enum import SERVER
-from config.default import DEFAULT_HTTP_PARAMS_MATCH_MODE
 from qt_ui.server_config_win.module import (FileTypeListModule, StaticRouteListModule)
 
 from qt_ui.server_config_win import server_config_win_style
 
-SIMPLE_MATCH_RADIO_BUTTON_ID = 1000
-EXACT_MATCH_RADIO_BUTTON_ID = 1001
-PARAMS_MATCH_MODE_DICT: dict = {
-  str(SIMPLE_MATCH_RADIO_BUTTON_ID): SERVER.HTTP_PARAMS_SIMPLE_MATCH,
-  str(EXACT_MATCH_RADIO_BUTTON_ID): SERVER.HTTP_PARAMS_EXACT_MATCH
-}
-MATCH_RADIO_BUTTON_ID_DICT: dict = {
-  str(SERVER.HTTP_PARAMS_SIMPLE_MATCH): SIMPLE_MATCH_RADIO_BUTTON_ID,
-  str(SERVER.HTTP_PARAMS_EXACT_MATCH): EXACT_MATCH_RADIO_BUTTON_ID,
-}
 
 
 class ServerConfigDialog(QDialog, Ui_Dialog):
@@ -44,9 +32,6 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     self.server_config_manager: ConfigFileManager = server_config_manager
     self.file_type_edit_weight: Optional[FileTypeListModule] = None
     self.static_route_edit_weight: Optional[StaticRouteListModule] = None
-    self.params_match_button_group: Optional[QButtonGroup] = None
-    self.params_match_mode: int = DEFAULT_HTTP_PARAMS_MATCH_MODE
-
     self.init_ui()
     self.add_events()
 
@@ -93,39 +78,9 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     self.static_route_edit_weight = static_route_edit_weight
 
   def add_events(self) -> None:
-    params_match_mode: int = self.server_config_manager.get(key='http_params_match_mode')
-    if params_match_mode == SERVER.HTTP_PARAMS_EXACT_MATCH:
-      self.paramsExactMatchRadioButton.setChecked(True)
-      self.params_match_mode = SERVER.HTTP_PARAMS_EXACT_MATCH
-    else:
-      self.paramsSimpleMatchRadioButton.setChecked(True)
-      self.params_match_mode = SERVER.HTTP_PARAMS_SIMPLE_MATCH
-
     self.confirmPushButton.clicked.connect(self.confirm)
-    params_match_button_group = QButtonGroup(self)
-    self.params_match_button_group = params_match_button_group
-
-    # 初始化选中值
-    params_match_button_group.addButton(self.paramsSimpleMatchRadioButton)
-    params_match_button_group.setId(self.paramsSimpleMatchRadioButton, SIMPLE_MATCH_RADIO_BUTTON_ID)
-    params_match_button_group.addButton(self.paramsExactMatchRadioButton)
-    params_match_button_group.setId(self.paramsExactMatchRadioButton, EXACT_MATCH_RADIO_BUTTON_ID)
-
-    def radio_button_clicked():
-      sender = self.sender()
-      params_match_id = sender.checkedId()
-      self.params_match_mode = PARAMS_MATCH_MODE_DICT.get(
-        str(params_match_id),
-        DEFAULT_HTTP_PARAMS_MATCH_MODE,
-      )
-
-    params_match_button_group.buttonClicked.connect(radio_button_clicked)
 
   def confirm(self) -> None:
-    self.server_config_manager.set(
-      key='http_params_match_mode',
-      value=self.params_match_mode,
-    )
     self.server_config_manager.set(
       key='include_files',
       value=self.file_type_edit_weight.get_list(),

@@ -5,7 +5,6 @@ from config.work_file import (
   MOCK_SERVER_CONFIG_PATH,
   STATIC_DIR,
 )
-from config.default import (DEFAULT_HTTP_PARAMS_MATCH_MODE)
 from config.enum import SERVER
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread, error_catch
@@ -55,9 +54,6 @@ class MockServer:
     self.response_delay: int = response_delay
     # 全局静态资源请求加载速率
     self.static_load_speed: int = static_load_speed
-    # http 请求参数匹配模式
-    self.http_params_match_mode: int = DEFAULT_HTTP_PARAMS_MATCH_MODE
-
     # -------------------
     # 初始化
     # -------------------
@@ -78,11 +74,6 @@ class MockServer:
       mock_server_config = json.loads(fl.read())
       include_files: List[str] = mock_server_config.get('include_files', [])
       self.include_files = list(set(include_files))
-      self.http_params_match_mode = mock_server_config.get(
-        'http_params_match_mode',
-        DEFAULT_HTTP_PARAMS_MATCH_MODE,
-      )
-
       static_match_route: List[str] = mock_server_config.get('static_match_route', [])
       static_match_route = list(set(static_match_route))
       # 内置已经占用命名的路由
@@ -355,21 +346,12 @@ class MockServer:
     获取接口传参的 json 字符串
     将 dict 或 json str 统一序列化为标准 json 字符串
     用于生成 response_key 进行 mock 数据匹配
-    精确匹配模式下对 key 排序，消除参数 key 顺序差异
-    非精确模式仅做格式化
+    对 key 排序，消除参数 key 顺序差异
     """
     if isinstance(params, dict):
-      # dict -> json str，精确模式下按 key 排序
-      if self.http_params_match_mode == SERVER.HTTP_PARAMS_EXACT_MATCH:
-        return JsonFormat.sort_dumps(params)
-      else:
-        return JsonFormat.dumps(params)
+      return JsonFormat.sort_dumps(params)
     elif isinstance(params, str):
-      # json str -> 反序列化再序列化，精确模式下按 key 排序
-      if self.http_params_match_mode == SERVER.HTTP_PARAMS_EXACT_MATCH:
-        return JsonFormat.format_and_sort_json_string(params)
-      else:
-        return JsonFormat.format_json_string(params)
+      return JsonFormat.format_and_sort_json_string(params)
     else:
       # 非预期类型，返回空 json 字符串兜底
       return '{}'
