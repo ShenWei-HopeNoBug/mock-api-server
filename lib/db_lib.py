@@ -162,7 +162,8 @@ class MockDB:
       data = {**DATABASE.API_INSERT_DEFAULTS, **r}
       data['id'] = api_id
       data['params'] = JsonFormat.format_json_string(data['params'])
-      insert_data.append((api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0)))
+      insert_data.append(
+        (api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0)))
 
     try:
       with self._transaction() as conn:
@@ -301,7 +302,7 @@ class MockDB:
     if row is None:
       return None
 
-    return {
+    result: ApiData = {
       'id': row[0],
       'type': row[1],
       'url': row[2],
@@ -312,6 +313,8 @@ class MockDB:
       'created_at': row[7],
       'updated_at': row[8],
     }
+
+    return result
 
   # 按 id 更新 api 数据（字段级合并）
   @_ensure_open(default=False)
