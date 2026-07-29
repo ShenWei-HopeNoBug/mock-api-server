@@ -166,7 +166,10 @@ class MockServer:
         # 替换静态资源链接
         if len(self.include_files):
           response = assets_reg.sub(assets_replace_method, response)
-        api_dict[request_key][response_key] = json.loads(response)
+        api_dict[request_key][response_key] = {
+          'response': json.loads(response),
+          'timeout': data['timeout'],
+        }
       except (json.JSONDecodeError, TypeError) as e:
         print(f'mock 数据 JSON 解析失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
 
@@ -310,28 +313,38 @@ class MockServer:
 
       response_key = self.__get_response_dict_key(method, params)
 
-      # 接口响应延时
-      if self.response_delay > 0:
-        print(f'接口响应延时：{self.response_delay}ms, route：{route}')
-        time.sleep(self.response_delay / 1000)
-
-      # 命中 mock 数据直接返回
+      # 命中 mock 数据
       if response_key in api_dict[request_key]:
-        response = api_dict[request_key][response_key]
-        return jsonify(response)
+        entry = api_dict[request_key][response_key]
       else:
         # 没命中 mock 数据，直接返回最后一条数据
         print(f'mock 数据命中失败：\n - {method} {route} {params}')
         if not api_dict[request_key]:
           return jsonify({'error': 'No valid mock data'}), 404
         last_response_key = list(api_dict[request_key].keys())[-1]
-        return jsonify(api_dict[request_key][last_response_key])
+        entry = api_dict[request_key][last_response_key]
+
+      # 接口响应延时（单条 timeout 优先于全局 response_delay）
+      per_entry_delay = entry.get('timeout', 0)
+      if per_entry_delay > 0:
+        print(f'接口响应延时（单条）：{per_entry_delay}ms, route：{route}')
+        time.sleep(per_entry_delay / 1000)
+      elif self.response_delay > 0:
+        print(f'接口响应延时（全局）：{self.response_delay}ms, route：{route}')
+        time.sleep(self.response_delay / 1000)
+
+      return jsonify(entry['response'])
 
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   # 停止本地 mock 服务
   def shutdown(self) -> None:
-    result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING', caller='MOCK_SERVER_SHUTDOWN')
+    result = is_local_server_running(
+      port=self.port,
+      retry=2,
+      retry_condition='NOT_RUNNING',
+      caller='MOCK_SERVER_SHUTDOWN',
+    )
     if result:
       APP_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)

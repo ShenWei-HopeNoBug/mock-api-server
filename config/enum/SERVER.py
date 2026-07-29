@@ -18,4 +18,5 @@ MOCK_API_DATA_DEFAULTS = {
   'method': 'GET',
   'params': '{}',
   'response': '{}',
+  'timeout': 0,
 }
