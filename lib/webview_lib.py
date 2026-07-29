@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import math
 from typing import Optional
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QShortcut
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPainter, QColor, QPen, QPaintEvent
+from PyQt5.QtGui import QPainter, QColor, QPen, QPaintEvent, QKeySequence
 
 
 class SpinnerWidget(QWidget):
@@ -104,3 +105,31 @@ def get_webview_dialog_config() -> dict:
     "height": height,
     "zoom": zoom,
   }
+
+
+def setup_devtools(webview: QWebEngineView, parent: QWidget) -> QWebEngineView:
+  """为 QWebEngineView 绑定 F12 快捷键打开 DevTools 窗口
+
+  :param webview: 需要调试的 QWebEngineView 实例
+  :param parent: 快捷键绑定的父窗口（通常是所在 Dialog）
+  :return: DevTools 的 QWebEngineView 实例，调用方可持有引用以便关闭时清理
+  """
+  devtools_view = QWebEngineView(None)
+  devtools_view.setWindowFlag(Qt.Window)
+  devtools_view.setWindowFlag(Qt.WindowStaysOnTopHint)
+  webview.page().setDevToolsPage(devtools_view.page())
+
+  def _toggle() -> None:
+    if devtools_view.isVisible():
+      devtools_view.close()
+    else:
+      devtools_view.setWindowTitle('DevTools')
+      devtools_view.resize(900, 600)
+      devtools_view.show()
+      devtools_view.raise_()
+      devtools_view.activateWindow()
+      devtools_view.setFocus()
+
+  shortcut = QShortcut(QKeySequence('F12'), parent)
+  shortcut.activated.connect(_toggle)
+  return devtools_view

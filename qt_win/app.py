@@ -226,7 +226,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         work_dir=self.work_dir,
         app_sever_running_data=self.app_sever_running_data,
       )
-      mitmproxy_data_dialog.exec_()
+      mitmproxy_data_dialog.setWindowModality(Qt.WindowModal)
+      mitmproxy_data_dialog.show()
 
     edit_menu = menu_bar.addMenu(EDIT.MENU_NAME)
     self.edit_menu = edit_menu

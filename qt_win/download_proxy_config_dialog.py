@@ -10,7 +10,7 @@ from PyQt5.QtCore import Qt, QUrl, QEvent, pyqtSignal
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
-from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget
+from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
 from lib.utils_lib import (ConfigFileManager, get_ip_address)
 from lib.app_lib import is_app_server_running
 from app_types.app_gui_types import AppServerRunningData
@@ -44,6 +44,7 @@ class DownloadProxyConfigDialog(QDialog):
     self.loading_widget: Optional[WebLoadingWidget] = None
     self.download_config_manager: ConfigFileManager = download_config_manager
     self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
+    self._devtools_view: Optional[QWebEngineView] = None
 
     self.init()
 
@@ -107,6 +108,9 @@ class DownloadProxyConfigDialog(QDialog):
 
     webview.loadFinished.connect(_on_load_finished)
 
+    # F12 打开内嵌 DevTools
+    self._devtools_view = setup_devtools(webview, self)
+
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
@@ -132,6 +136,8 @@ class DownloadProxyConfigDialog(QDialog):
   def closeEvent(self, event: QEvent) -> None:
     if self.loading_widget is not None:
       self.loading_widget.stop()
+    if self._devtools_view is not None:
+      self._devtools_view.close()
     event.accept()
 
   @create_thread

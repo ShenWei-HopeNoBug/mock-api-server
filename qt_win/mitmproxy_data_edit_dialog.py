@@ -3,14 +3,13 @@ import json
 import os
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QShortcut
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QKeySequence
 from PyQt5.QtCore import Qt, QUrl, QEvent
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
-from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget
+from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
 from lib.app_lib import is_app_server_running
 from lib.db_lib import MockDB, MockDBCache
 from app_types.app_gui_types import (
@@ -120,33 +119,14 @@ class MitmproxyDataEditDialog(QDialog):
 
     webview.loadFinished.connect(_on_load_finished)
 
-    # F12 打开内嵌 DevTools（parent=None 脱离模态对话框阻塞）
-    devtools_view = QWebEngineView(None)
-    devtools_view.setWindowFlag(Qt.Window)
-    devtools_view.setWindowFlag(Qt.WindowStaysOnTopHint)
-    current_page.setDevToolsPage(devtools_view.page())
-    self._devtools_view = devtools_view
-    devtools_shortcut = QShortcut(QKeySequence('F12'), self)
-    devtools_shortcut.activated.connect(self._toggle_devtools)
+    # F12 打开内嵌 DevTools
+    self._devtools_view = setup_devtools(webview, self)
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
     layout.addWidget(stack)
     self.setLayout(layout)
-
-  def _toggle_devtools(self) -> None:
-    if self._devtools_view is None:
-      return
-    if self._devtools_view.isVisible():
-      self._devtools_view.close()
-    else:
-      self._devtools_view.setWindowTitle('DevTools')
-      self._devtools_view.resize(900, 600)
-      self._devtools_view.show()
-      self._devtools_view.raise_()
-      self._devtools_view.activateWindow()
-      self._devtools_view.setFocus()
 
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
