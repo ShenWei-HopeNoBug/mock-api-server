@@ -10,4 +10,5 @@ API_INSERT_DEFAULTS = {
   'method': 'GET',
   'params': '{}',
   'response': '{}',
+  'timeout': 0,
 }

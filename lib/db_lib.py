@@ -14,7 +14,7 @@ from config.work_file import DB_DATA_PATH
 from app_types.db_types import ApiRecord, ApiData, ApiQuery, StaticData
 
 # 当前 schema 版本
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 
 def _ensure_open(default: Any = None):
@@ -73,6 +73,14 @@ class MockDB:
       APP_LOGGER.error(f'MockDB 建表失败 (schema v{CURRENT_SCHEMA_VERSION}): {e}')
       raise
 
+  def _migrate_schema(self, from_version: int, to_version: int) -> None:
+    """执行 schema 版本迁移，逐版本升级"""
+    if from_version < 2 <= to_version:
+      # v1 → v2: api_data 新增 timeout 字段
+      self._conn.execute('ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0')
+      APP_LOGGER.info('MockDB schema 迁移: v1 → v2, api_data 新增 timeout 字段')
+    self._conn.execute(f'PRAGMA user_version = {to_version}')
+
   def _check_schema_version(self) -> None:
     """检查数据库 schema 版本，首次写入版本号，降级时输出警告"""
     row = self._conn.execute('PRAGMA user_version').fetchone()
@@ -82,7 +90,7 @@ class MockDB:
     elif db_version == CURRENT_SCHEMA_VERSION:
       pass
     elif db_version < CURRENT_SCHEMA_VERSION:
-      pass
+      self._migrate_schema(db_version, CURRENT_SCHEMA_VERSION)
     else:
       APP_LOGGER.warning(f'MockDB 数据库版本({db_version})比代码版本({CURRENT_SCHEMA_VERSION})新，降级运行可能存在风险')
 
@@ -127,8 +135,8 @@ class MockDB:
     try:
       with self._transaction() as conn:
         conn.execute(
-          'INSERT INTO api_data (id, type, url, method, params, response) VALUES (?, ?, ?, ?, ?, ?)',
-          (api_id, data['type'], data['url'], data['method'], data['params'], data['response']),
+          'INSERT INTO api_data (id, type, url, method, params, response, timeout) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          (api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0)),
         )
       return True
     except Exception:
@@ -147,14 +155,14 @@ class MockDB:
     if not records:
       return False
 
-    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response) VALUES (?, ?, ?, ?, ?, ?)'
+    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, timeout) VALUES (?, ?, ?, ?, ?, ?, ?)'
     insert_data = []
     for r in records:
       api_id = generate_uuid()
       data = {**DATABASE.API_INSERT_DEFAULTS, **r}
       data['id'] = api_id
       data['params'] = JsonFormat.format_json_string(data['params'])
-      insert_data.append((api_id, data['type'], data['url'], data['method'], data['params'], data['response']))
+      insert_data.append((api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0)))
 
     try:
       with self._transaction() as conn:
@@ -175,10 +183,10 @@ class MockDB:
     """查询 API 数据列表，可按 api_type 过滤、按时间正序/倒序排列"""
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     if api_type is not None:
-      sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
+      sql = f'SELECT id, type, url, method, params, response, timeout, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
       params = (api_type,)
     else:
-      sql = f'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data ORDER BY created_at {order}'
+      sql = f'SELECT id, type, url, method, params, response, timeout, created_at, updated_at FROM api_data ORDER BY created_at {order}'
       params = ()
     with self._lock:
       cursor = self._conn.execute(sql, params)
@@ -192,8 +200,9 @@ class MockDB:
         'method': row[3],
         'params': row[4],
         'response': row[5],
-        'created_at': row[6],
-        'updated_at': row[7],
+        'timeout': row[6],
+        'created_at': row[7],
+        'updated_at': row[8],
       })
     return result
 
@@ -247,7 +256,7 @@ class MockDB:
     where_sql, sql_params = self._build_api_where(query)
     user_first = "CASE type WHEN 'USER' THEN 0 ELSE 1 END, " if query.get('api_type') is None else ''
     order_sql = 'ORDER BY {}created_at {}'.format(user_first, order)
-    sql = 'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
+    sql = 'SELECT id, type, url, method, params, response, timeout, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
       where_sql, order_sql)
     sql_params.extend([page_size, offset])
 
@@ -263,8 +272,9 @@ class MockDB:
         'method': row[3],
         'params': row[4],
         'response': row[5],
-        'created_at': row[6],
-        'updated_at': row[7],
+        'timeout': row[6],
+        'created_at': row[7],
+        'updated_at': row[8],
       })
     return result
 
@@ -285,7 +295,7 @@ class MockDB:
       return None
     with self._lock:
       row = self._conn.execute(
-        'SELECT id, type, url, method, params, response, created_at, updated_at FROM api_data WHERE id=?',
+        'SELECT id, type, url, method, params, response, timeout, created_at, updated_at FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
     if row is None:
@@ -298,8 +308,9 @@ class MockDB:
       'method': row[3],
       'params': row[4],
       'response': row[5],
-      'created_at': row[6],
-      'updated_at': row[7],
+      'timeout': row[6],
+      'created_at': row[7],
+      'updated_at': row[8],
     }
 
   # 按 id 更新 api 数据（字段级合并）
@@ -317,7 +328,7 @@ class MockDB:
     # 1. 事务外查询旧记录，不存在则直接返回，避免空事务
     with self._lock:
       row = self._conn.execute(
-        'SELECT type, url, method, params, response FROM api_data WHERE id=?',
+        'SELECT type, url, method, params, response, timeout FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
     if row is None:
@@ -331,6 +342,7 @@ class MockDB:
         'method': row[2],
         'params': row[3],
         'response': row[4],
+        'timeout': row[5],
       }
       merged = {**old, **{k: v for k, v in record.items() if k != 'id' and v is not None}}
       merged['params'] = JsonFormat.format_json_string(merged['params'])
@@ -343,10 +355,11 @@ class MockDB:
                method=?,
                params=?,
                response=?,
+               timeout=?,
                updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
            WHERE id = ?''',
         (merged['type'], merged['url'], merged['method'],
-         merged['params'], merged['response'], api_id),
+         merged['params'], merged['response'], merged.get('timeout', 0), api_id),
       )
       if cursor.rowcount == 0:
         return False

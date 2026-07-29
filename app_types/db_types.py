@@ -18,6 +18,7 @@ class ApiRecord(TypedDict, total=False):
   method: str  # HTTP 方法，如 'GET' / 'POST'
   params: str  # 请求参数，JSON 字符串
   response: str  # 响应体，JSON 字符串
+  timeout: int  # 超时时间（毫秒），0 表示不限制
 
 
 class ApiData(TypedDict):
@@ -32,6 +33,7 @@ class ApiData(TypedDict):
   method: str  # HTTP 方法
   params: str  # 请求参数，JSON 字符串
   response: str  # 响应体，JSON 字符串
+  timeout: int  # 超时时间（毫秒），0 表示不限制
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
