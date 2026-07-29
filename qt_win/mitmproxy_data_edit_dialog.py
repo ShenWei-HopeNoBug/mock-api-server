@@ -3,7 +3,7 @@ import json
 import os
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, QUrl, QEvent
 from PyQt5.QtWebChannel import QWebChannel
@@ -34,8 +34,13 @@ from config.enum.BIZ_CODE import (
 
 
 class MitmproxyDataEditDialog(QDialog):
-  def __init__(self, work_dir: str = '.', app_sever_running_data: Optional[AppServerRunningData] = None) -> None:
-    super().__init__()
+  def __init__(
+      self,
+      parent: Optional[QWidget] = None,
+      work_dir: str = '.',
+      app_sever_running_data: Optional[AppServerRunningData] = None,
+  ) -> None:
+    super().__init__(parent)
     # 工作目录
     self.work_dir: str = work_dir
     self.webview: Optional[QWebEngineView] = None

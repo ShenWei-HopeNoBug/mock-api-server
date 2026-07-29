@@ -4,7 +4,7 @@ import json
 import copy
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, QUrl, QEvent, pyqtSignal
 from PyQt5.QtWebChannel import QWebChannel
@@ -23,10 +23,11 @@ class DownloadProxyConfigDialog(QDialog):
 
   def __init__(
       self,
+      parent: Optional[QWidget] = None,
       work_dir: str = DEFAULT_WORK_DIR,
-      app_sever_running_data: Optional[AppServerRunningData] = None
+      app_sever_running_data: Optional[AppServerRunningData] = None,
   ) -> None:
-    super().__init__()
+    super().__init__(parent)
     # 当前配置文件地址
     download_config_path = os.path.join(r'{}{}'.format(work_dir, DOWNLOAD_CONFIG_PATH))
     download_config = WORK_FILE_DICT.get('DOWNLOAD_CONFIG', {})

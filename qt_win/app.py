@@ -215,6 +215,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def open_mitmproxy_data_edit_dialog():
       mitmproxy_data_dialog = MitmproxyDataEditDialog(
+        parent=self,
         work_dir=self.work_dir,
         app_sever_running_data=self.app_sever_running_data,
       )
@@ -223,6 +224,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     def open_download_proxy_config_dialog():
       mitmproxy_data_dialog = DownloadProxyConfigDialog(
+        parent=self,
         work_dir=self.work_dir,
         app_sever_running_data=self.app_sever_running_data,
       )
