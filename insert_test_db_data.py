@@ -9,7 +9,7 @@ test_api_records: List[ApiRecord] = [
   # GET 无参数 —— 用户列表
   {
     'type': 'USER',
-    'url': 'https://api.example.com/users',
+    'url': 'https://api.example.com/mock_tester/users',
     'method': 'GET',
     'params': '{}',
     'response': '{"code":0,"msg":"success","data":[{"id":1,"name":"Alice","age":25},{"id":2,"name":"Bob","age":30}]}',
@@ -18,7 +18,7 @@ test_api_records: List[ApiRecord] = [
   # GET 带 query 参数 —— 分页查询
   {
     'type': 'USER',
-    'url': 'https://api.example.com/users?page=1&size=10',
+    'url': 'https://api.example.com/mock_tester/users?page=1&size=10',
     'method': 'GET',
     'params': '{"page":"1","size":"10"}',
     'response': '{"code":0,"msg":"success","data":{"list":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}],"total":2,"page":1,"size":10}}',
@@ -27,7 +27,7 @@ test_api_records: List[ApiRecord] = [
   # POST JSON body —— 创建用户
   {
     'type': 'USER',
-    'url': 'https://api.example.com/users',
+    'url': 'https://api.example.com/mock_tester/users',
     'method': 'POST',
     'params': '{"name":"Charlie","age":28}',
     'response': '{"code":0,"msg":"创建成功","data":{"id":3,"name":"Charlie","age":28}}',
@@ -36,7 +36,7 @@ test_api_records: List[ApiRecord] = [
   # POST 表单提交 —— 登录
   {
     'type': 'USER',
-    'url': 'https://api.example.com/login',
+    'url': 'https://api.example.com/mock_tester/login',
     'method': 'POST',
     'params': '{"username":"admin","password":"123456"}',
     'response': '{"code":0,"msg":"登录成功","data":{"token":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.fake-token","expire":3600}}',
@@ -45,7 +45,7 @@ test_api_records: List[ApiRecord] = [
   # 带自定义超时 —— 模拟慢接口
   {
     'type': 'USER',
-    'url': 'https://api.example.com/slow-api',
+    'url': 'https://api.example.com/mock_tester/slow-api',
     'method': 'GET',
     'params': '{}',
     'response': '{"code":0,"msg":"success","data":"this is a slow response"}',
