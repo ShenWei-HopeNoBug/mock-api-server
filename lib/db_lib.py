@@ -150,7 +150,9 @@ class ApiDataMixin:
     if from_version < 2 <= to_version:
       # v1 → v2: api_data 新增 timeout 字段
       self._conn.execute('ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0')
-      APP_LOGGER.info('ApiDataMixin schema 迁移: v1 → v2, api_data 新增 timeout 字段')
+      # v1 → v2: api_data 新增 request_content_type 字段
+      self._conn.execute("ALTER TABLE api_data ADD COLUMN request_content_type TEXT NOT NULL DEFAULT 'NONE'")
+      APP_LOGGER.info('ApiDataMixin schema 迁移: v1 → v2, api_data 新增 timeout 和 request_content_type 字段')
 
   # 新增插入（纯 INSERT，不去重），返回是否成功
   @_ensure_open(default=False)
@@ -162,8 +164,8 @@ class ApiDataMixin:
     try:
       with self._transaction() as conn:
         conn.execute(
-          'INSERT INTO api_data (id, type, url, method, params, response, timeout) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          (api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0)),
+          'INSERT INTO api_data (id, type, url, method, params, response, timeout, request_content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          (api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0), data.get('request_content_type', 'NONE')),
         )
       return True
     except Exception:
@@ -182,7 +184,7 @@ class ApiDataMixin:
     if not records:
       return False
 
-    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, timeout) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, timeout, request_content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     insert_data = []
     for r in records:
       api_id = generate_uuid()
@@ -190,7 +192,7 @@ class ApiDataMixin:
       data['id'] = api_id
       data['params'] = JsonFormat.format_json_string(data['params'])
       insert_data.append(
-        (api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0)))
+        (api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0), data.get('request_content_type', 'NONE')))
 
     try:
       with self._transaction() as conn:
@@ -211,10 +213,10 @@ class ApiDataMixin:
     """查询 API 数据列表，可按 api_type 过滤、按时间正序/倒序排列"""
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     if api_type is not None:
-      sql = f'SELECT id, type, url, method, params, response, timeout, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
+      sql = f'SELECT id, type, url, method, params, response, timeout, request_content_type, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
       params = (api_type,)
     else:
-      sql = f'SELECT id, type, url, method, params, response, timeout, created_at, updated_at FROM api_data ORDER BY created_at {order}'
+      sql = f'SELECT id, type, url, method, params, response, timeout, request_content_type, created_at, updated_at FROM api_data ORDER BY created_at {order}'
       params = ()
     with self._lock:
       cursor = self._conn.execute(sql, params)
@@ -229,8 +231,9 @@ class ApiDataMixin:
         'params': row[4],
         'response': row[5],
         'timeout': row[6],
-        'created_at': row[7],
-        'updated_at': row[8],
+        'request_content_type': row[7],
+        'created_at': row[8],
+        'updated_at': row[9],
       })
     return result
 
@@ -243,6 +246,7 @@ class ApiDataMixin:
     params_like = query.get('params_like')
     response_like = query.get('response_like')
     method = query.get('method')
+    request_content_type = query.get('request_content_type')
     create_start_time = query.get('create_start_time')
     create_end_time = query.get('create_end_time')
     if api_type is not None:
@@ -260,6 +264,9 @@ class ApiDataMixin:
     if method:
       where_clauses.append('method = ?')
       sql_params.append(method)
+    if request_content_type:
+      where_clauses.append('request_content_type = ?')
+      sql_params.append(request_content_type)
     if create_start_time and create_end_time:
       where_clauses.append('datetime(created_at) >= datetime(?)')
       sql_params.append(create_start_time)
@@ -284,7 +291,7 @@ class ApiDataMixin:
     where_sql, sql_params = self._build_api_where(query)
     user_first = "CASE type WHEN 'USER' THEN 0 ELSE 1 END, " if query.get('api_type') is None else ''
     order_sql = 'ORDER BY {}created_at {}'.format(user_first, order)
-    sql = 'SELECT id, type, url, method, params, response, timeout, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
+    sql = 'SELECT id, type, url, method, params, response, timeout, request_content_type, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
       where_sql, order_sql)
     sql_params.extend([page_size, offset])
 
@@ -301,8 +308,9 @@ class ApiDataMixin:
         'params': row[4],
         'response': row[5],
         'timeout': row[6],
-        'created_at': row[7],
-        'updated_at': row[8],
+        'request_content_type': row[7],
+        'created_at': row[8],
+        'updated_at': row[9],
       })
     return result
 
@@ -323,7 +331,7 @@ class ApiDataMixin:
       return None
     with self._lock:
       row = self._conn.execute(
-        'SELECT id, type, url, method, params, response, timeout, created_at, updated_at FROM api_data WHERE id=?',
+        'SELECT id, type, url, method, params, response, timeout, request_content_type, created_at, updated_at FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
     if row is None:
@@ -337,8 +345,9 @@ class ApiDataMixin:
       'params': row[4],
       'response': row[5],
       'timeout': row[6],
-      'created_at': row[7],
-      'updated_at': row[8],
+      'request_content_type': row[7],
+      'created_at': row[8],
+      'updated_at': row[9],
     }
 
     return result
@@ -358,7 +367,7 @@ class ApiDataMixin:
     # 1. 事务外查询旧记录，不存在则直接返回，避免空事务
     with self._lock:
       row = self._conn.execute(
-        'SELECT type, url, method, params, response, timeout FROM api_data WHERE id=?',
+        'SELECT type, url, method, params, response, timeout, request_content_type FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
     if row is None:
@@ -373,6 +382,7 @@ class ApiDataMixin:
         'params': row[3],
         'response': row[4],
         'timeout': row[5],
+        'request_content_type': row[6],
       }
       merged = {**old, **{k: v for k, v in record.items() if k != 'id' and v is not None}}
       merged['params'] = JsonFormat.format_json_string(merged['params'])
@@ -386,10 +396,11 @@ class ApiDataMixin:
                params=?,
                response=?,
                timeout=?,
+               request_content_type=?,
                updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
            WHERE id = ?''',
         (merged['type'], merged['url'], merged['method'],
-         merged['params'], merged['response'], merged.get('timeout', 0), api_id),
+         merged['params'], merged['response'], merged.get('timeout', 0), merged.get('request_content_type', 'NONE'), api_id),
       )
       if cursor.rowcount == 0:
         return False

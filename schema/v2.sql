@@ -2,7 +2,11 @@
 -- schema v2 变更说明（相对 v1）：
 --   api_data 表新增 timeout 字段（INTEGER, NOT NULL, DEFAULT 0）
 --   用途：记录单条 API 的自定义超时时间（毫秒），0 表示不限制
---   迁移方式：ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0
+--   api_data 表新增 request_content_type 字段（TEXT, NOT NULL, DEFAULT 'NONE'）
+--   用途：记录请求 content-type 枚举值，区分同路径不同 content-type 的请求
+--   迁移方式：
+--     ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0;
+--     ALTER TABLE api_data ADD COLUMN request_content_type TEXT NOT NULL DEFAULT 'NONE';
 --   迁移触发：db_lib.py _check_schema_version 中 db_version < 2 时执行
 -- =====================================================
 
@@ -14,6 +18,7 @@ CREATE TABLE IF NOT EXISTS api_data (
   params         TEXT NOT NULL DEFAULT '{}',
   response       TEXT NOT NULL DEFAULT '{}',
   timeout        INTEGER NOT NULL DEFAULT 0,
+  request_content_type TEXT NOT NULL DEFAULT 'NONE',
   created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
   updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
 );

@@ -19,6 +19,7 @@ class ApiRecord(TypedDict, total=False):
   params: str  # 请求参数，JSON 字符串
   response: str  # 响应体，JSON 字符串
   timeout: int  # 超时时间（毫秒），0 表示不限制
+  request_content_type: str  # 请求 content-type 枚举值
 
 
 class ApiData(TypedDict):
@@ -34,6 +35,7 @@ class ApiData(TypedDict):
   params: str  # 请求参数，JSON 字符串
   response: str  # 响应体，JSON 字符串
   timeout: int  # 超时时间（毫秒），0 表示不限制
+  request_content_type: str  # 请求 content-type 枚举值
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
@@ -50,6 +52,7 @@ class ApiQuery(TypedDict, total=False):
   params_like: Optional[str]  # 请求参数模糊查询
   response_like: Optional[str]  # 响应体模糊查询
   method: Optional[str]  # HTTP 方法精确查询
+  request_content_type: Optional[str]  # 请求 content-type 枚举值精确查询
   create_start_time: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS.sss'
   create_end_time: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS.sss'
 

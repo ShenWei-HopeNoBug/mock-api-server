@@ -18,13 +18,14 @@ def save_response_to_cache(record: ApiRecord, cache: ResponseCacheDict) -> None:
   url: str = record.get('url', '')
   method: str = record.get('method', '')
   params: str = record.get('params', JsonFormat.dumps({}))
+  request_content_type: str = record.get('request_content_type', 'NONE')
 
   # 这里的 params 数据做下键名排序，便于相同参数key乱序进行去重匹配
   sort_params: str = JsonFormat.format_and_sort_json_string(params)
 
-  secret_key = r'{}{}'.format(method, sort_params)
+  secret_key = '{}-{}-{}'.format(method, request_content_type, sort_params)
   md5_key = create_md5(secret_key)
-  search_key = r'{}{}'.format(url, method)
+  search_key = '{}-{}-{}'.format(url, method, request_content_type)
   # 创建新 url 的答案映射 dict
   if search_key not in cache:
     cache[search_key] = {}

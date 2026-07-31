@@ -26,6 +26,10 @@ from lib.utils_lib import (
   get_multipart_dict,
 )
 
+from config.enum.REQUEST_CONTENT_TYPE import (
+  get_request_content_type,
+)
+
 
 # 处理请求抓包工具类
 class RequestRecorder:
@@ -113,17 +117,17 @@ class RequestRecorder:
     params: str = '{}'
 
     # 根据请求的 content-type 提取参数，统一转为 json string
-    request_content_type: str = (flow.request.headers.get('content-type') or '').lower()
+    raw_content_type: str = (flow.request.headers.get('content-type') or '').lower()
     if method == 'POST':
       # 表单提交：键值对形式，直接转 dict
-      if 'application/x-www-form-urlencoded' in request_content_type:
+      if 'application/x-www-form-urlencoded' in raw_content_type:
         params = JsonFormat.dumps(dict(flow.request.urlencoded_form or {}))
       # JSON 请求体：原始文本可能是非标准 JSON，format_json_string 做容错格式化
-      elif 'application/json' in request_content_type:
+      elif 'application/json' in raw_content_type:
         params_json: str = flow.request.get_text() or '{}'
         params = JsonFormat.format_json_string(params_json)
       # 文件上传：multipart 内可能含文件字段，get_multipart_dict 对 file 传参做特殊处理（提取文件名等）
-      elif 'multipart/form-data' in request_content_type:
+      elif 'multipart/form-data' in raw_content_type:
         print('content-type 为 multipart/form-data，针对内部的 file 传参作特殊处理：\n{}'.format(url))
         multipart_dict: Dict[str, str] = get_multipart_dict(flow.request.multipart_form)
         params = JsonFormat.dumps(multipart_dict)
@@ -136,10 +140,13 @@ class RequestRecorder:
     # __check_response 已确保 flow.response 非空
     response: str = '{}' if not flow.response else flow.response.get_text() or '{}'
 
+    request_content_type = get_request_content_type(raw_content_type, method)
+
     record: ApiRecord = {
       "type": "MITMPROXY",
       "url": url,
       "method": method,
+      "request_content_type": request_content_type,
       "params": params,
       "response": response,
     }

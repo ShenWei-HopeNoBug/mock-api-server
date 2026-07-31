@@ -24,6 +24,10 @@ from lib.utils_lib import (
   shutdown_local_server,
   is_local_server_running,
 )
+from config.enum.REQUEST_CONTENT_TYPE import (
+  get_request_content_type,
+  RequestContentType,
+)
 
 import json
 import re
@@ -106,7 +110,8 @@ class MockServer:
     3. 逐条遍历 mock 数据：
        - 用 API_INSERT_DEFAULTS 兜底缺失字段
        - 去掉 URL 域名得到路由，GET 请求额外去掉 query 参数
-       - 由 route + method 生成 request_key，由 method + params 生成 response_key
+       - 由 route + method + request_content_type 生成 request_key
+       - 由 method + request_content_type + params 生成 response_key
        - 若配置了 include_files，对 response 做静态资源链接替换
        - 解析 response JSON 存入 api_dict[request_key][response_key]
     """
@@ -134,6 +139,7 @@ class MockServer:
       response: str = data['response']
       method: str = data['method']
       params: str = data['params']
+      request_content_type: str = data.get('request_content_type', 'NONE')
       url: str = data['url']
       # 去掉域名
       route: str = remove_url_domain(url)
@@ -142,7 +148,7 @@ class MockServer:
         route = remove_url_query(route)
 
       # 请求查询键名
-      request_key: str = self.__get_request_dict_key(route, method)
+      request_key: str = self.__get_request_dict_key(route, method, request_content_type)
 
       # 创建 api 映射表
       if request_key not in api_dict:
@@ -152,6 +158,7 @@ class MockServer:
         # 响应数据查询键名
         response_key: str = self.__get_response_dict_key(
           method,
+          request_content_type,
           self.__get_params_json_string(params),
         )
         # 替换静态资源链接
@@ -270,20 +277,14 @@ class MockServer:
       if method == 'GET':
         route = remove_url_query(route)
 
-      # 请求查询键名
-      request_key = self.__get_request_dict_key(route, method)
-      # 请求路径 mock 数据中不存在
-      if request_key not in api_dict:
-        return jsonify({'error': 'Not Found'}), 404
-
       params = self.__get_params_json_string({})
-      request_content_type = (request.headers.get('content-type') or '').lower()
+      request_content_type = get_request_content_type(request.headers.get('content-type') or '', method)
       if method == 'POST':
-        if 'application/x-www-form-urlencoded' in request_content_type:
+        if request_content_type == RequestContentType.APPLICATION_X_WWW_FORM_URLENCODED:
           params = self.__get_params_json_string(request.form or {})
-        elif 'application/json' in request_content_type:
+        elif request_content_type == RequestContentType.APPLICATION_JSON:
           params = self.__get_params_json_string(request.get_data(as_text=True))
-        elif 'multipart/form-data' in request_content_type:
+        elif request_content_type == RequestContentType.MULTIPART_FORM_DATA:
           try:
             multipart_dict = dict(request.form or {})
             file = request.files.get('file')
@@ -297,12 +298,18 @@ class MockServer:
             print('Mock Server 解析 multipart/form-data 传参异常', e)
             return jsonify({'error': 'multipart/form-data parse error'}), 404
         else:
-          # 未识别的 content-type，无法提取参数，直接返回 404 避免误匹配空参数 mock 数据
-          return jsonify({'error': 'Unsupported content-type'}), 404
+          # 未识别的 content-type 按 NONE 处理，params 保持空对象
+          params = self.__get_params_json_string({})
       elif method == 'GET':
         params = self.__get_params_json_string(dict(request.args or {}))
 
-      response_key = self.__get_response_dict_key(method, params)
+      # 请求查询键名
+      request_key = self.__get_request_dict_key(route, method, request_content_type)
+      # 请求路径 mock 数据中不存在
+      if request_key not in api_dict:
+        return jsonify({'error': 'Not Found'}), 404
+
+      response_key = self.__get_response_dict_key(method, request_content_type, params)
 
       # 命中 mock 数据
       if response_key in api_dict[request_key]:
@@ -358,10 +365,10 @@ class MockServer:
 
   # 获取请求查询键名
   @staticmethod
-  def __get_request_dict_key(route: str, method: str) -> str:
-    return create_md5(f'{route}{method}')
+  def __get_request_dict_key(route: str, method: str, request_content_type: str) -> str:
+    return create_md5('{}-{}-{}'.format(route, method, request_content_type))
 
   # 获取响应数据映射表键名
   @staticmethod
-  def __get_response_dict_key(method: str, params: str) -> str:
-    return create_md5(f'{method}{params}')
+  def __get_response_dict_key(method: str, request_content_type: str, params: str) -> str:
+    return create_md5('{}-{}-{}'.format(method, request_content_type, params))
