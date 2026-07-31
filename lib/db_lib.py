@@ -137,23 +137,20 @@ class BaseSQLiteDB:
         self._closed = True
 
 
-class MockDB(BaseSQLiteDB):
+class ApiDataMixin:
   """
-  SQLite 数据访问层，封装 api_data / static_data 的 CRUD 操作
+  api_data 表的数据访问 Mixin
 
-  使用 WAL 模式 + autocommit，事务由 _transaction 上下文管理器显式控制。
-  线程安全：通过 threading.Lock 保护所有读写操作。
+  提供 api_data 表的 CRUD 操作，依赖宿主类提供 _conn / _lock / _transaction 等基础设施。
+  需与 BaseSQLiteDB 组合使用。
   """
 
-  _schema_version = CURRENT_SCHEMA_VERSION
-
-  def _migrate_schema(self, from_version: int, to_version: int) -> None:
-    """执行 schema 版本迁移，逐版本升级"""
+  def _migrate_api(self, from_version: int, to_version: int) -> None:
+    """api_data 表的 schema 版本迁移，逐版本升级"""
     if from_version < 2 <= to_version:
       # v1 → v2: api_data 新增 timeout 字段
       self._conn.execute('ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0')
-      APP_LOGGER.info('MockDB schema 迁移: v1 → v2, api_data 新增 timeout 字段')
-    super()._migrate_schema(from_version, to_version)
+      APP_LOGGER.info('ApiDataMixin schema 迁移: v1 → v2, api_data 新增 timeout 字段')
 
   # 新增插入（纯 INSERT，不去重），返回是否成功
   @_ensure_open(default=False)
@@ -449,6 +446,19 @@ class MockDB(BaseSQLiteDB):
     except Exception:
       return False
 
+
+class StaticDataMixin:
+  """
+  static_data 表的数据访问 Mixin
+
+  提供 static_data 表的 CRUD 操作，依赖宿主类提供 _conn / _lock / _transaction 等基础设施。
+  需与 BaseSQLiteDB 组合使用。
+  """
+
+  def _migrate_static(self, from_version: int, to_version: int) -> None:
+    """static_data 表的 schema 版本迁移，逐版本升级"""
+    pass
+
   # 批量写静态资源到 DB
   @_ensure_open(default=False)
   def batch_insert_static(self, urls: List[str]) -> bool:
@@ -501,6 +511,23 @@ class MockDB(BaseSQLiteDB):
         'updated_at': row[4],
       })
     return result
+
+
+class MockDB(BaseSQLiteDB, ApiDataMixin, StaticDataMixin):
+  """
+  SQLite 数据访问层，封装 api_data / static_data 的 CRUD 操作
+
+  使用 WAL 模式 + autocommit，事务由 _transaction 上下文管理器显式控制。
+  线程安全：通过 threading.Lock 保护所有读写操作。
+  """
+
+  _schema_version = CURRENT_SCHEMA_VERSION
+
+  def _migrate_schema(self, from_version: int, to_version: int) -> None:
+    """执行 schema 版本迁移，调度各 Mixin 的表级迁移逻辑"""
+    self._migrate_api(from_version, to_version)
+    self._migrate_static(from_version, to_version)
+    super()._migrate_schema(from_version, to_version)
 
 
 class MockDBCache:
