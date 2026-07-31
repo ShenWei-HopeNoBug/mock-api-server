@@ -23,11 +23,9 @@ from lib.utils_lib import (
   remove_byte_empty_content,
   shutdown_local_server,
   is_local_server_running,
-)
-from config.enum.REQUEST_CONTENT_TYPE import (
   get_request_content_type,
-  RequestContentType,
 )
+from app_types.app_gui_types import RequestContentType
 
 import json
 import re

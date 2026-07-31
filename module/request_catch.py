@@ -24,9 +24,6 @@ from lib.utils_lib import (
   is_file_request,
   is_url_match,
   get_multipart_dict,
-)
-
-from config.enum.REQUEST_CONTENT_TYPE import (
   get_request_content_type,
 )
 

@@ -15,6 +15,7 @@ import socket
 from mitmproxy.coretypes.multidict import MultiDictView
 
 from lib.decorate import error_catch
+from app_types.app_gui_types import RequestContentType
 import datetime
 import uuid
 from typing import Union, Optional, Any, Dict, List, TypeVar
@@ -79,6 +80,27 @@ def remove_url_domain(url: str = '') -> str:
 # 去掉链接里面的 query 参数
 def remove_url_query(url: str = '') -> str:
   return re.sub(r'\?.*$', '', url)
+
+
+# 根据 content-type header 和 HTTP 方法返回对应的 RequestContentType 枚举值
+def get_request_content_type(content_type_header: str, method: str) -> RequestContentType:
+  """
+  根据 content-type header 和 HTTP 方法返回对应枚举值
+
+  非 POST 方法或 POST 未匹配到以下三种类型时返回 NONE。
+  """
+  if method != 'POST':
+    return RequestContentType.NONE
+
+  raw = (content_type_header or '').lower()
+  if 'application/x-www-form-urlencoded' in raw:
+    return RequestContentType.APPLICATION_X_WWW_FORM_URLENCODED
+  if 'application/json' in raw:
+    return RequestContentType.APPLICATION_JSON
+  if 'multipart/form-data' in raw:
+    return RequestContentType.MULTIPART_FORM_DATA
+
+  return RequestContentType.NONE
 
 
 # 检查并创建文件夹
