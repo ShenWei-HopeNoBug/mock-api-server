@@ -380,6 +380,45 @@ class MockDB:
         return False
       return True
 
+  # 批量删除 api 数据（按 api_type 和创建时间区间筛选）
+  @_ensure_open(default=False)
+  def batch_delete_api(
+      self,
+      api_type: Optional[str] = None,
+      create_start_time: Optional[str] = None,
+      create_end_time: Optional[str] = None,
+  ) -> bool:
+    """
+    批量删除 API 数据，按 api_type 精确匹配和创建时间区间筛选
+
+    没有任何筛选条件时拒绝执行（防止全表删除），返回 False。
+    时间区间必须成对传入才生效，单独传 start 或 end 不作为条件。
+    删除成功（含 0 条匹配）返回 True，异常返回 False。
+    """
+    if not api_type and not (create_start_time and create_end_time):
+      APP_LOGGER.warning('MockDB batch_delete_api 拒绝执行：未提供有效筛选条件')
+      return False
+
+    where_clauses = []
+    sql_params: list = []
+    if api_type:
+      where_clauses.append('type = ?')
+      sql_params.append(api_type)
+    if create_start_time and create_end_time:
+      where_clauses.append('datetime(created_at) >= datetime(?)')
+      sql_params.append(create_start_time)
+      where_clauses.append('datetime(created_at) <= datetime(?)')
+      sql_params.append(create_end_time)
+    where_sql = ' WHERE ' + ' AND '.join(where_clauses)
+
+    try:
+      with self._transaction() as conn:
+        cursor = conn.execute(f'DELETE FROM api_data{where_sql}', tuple(sql_params))
+      APP_LOGGER.info(f'MockDB batch_delete_api 删除 {cursor.rowcount} 条')
+      return True
+    except Exception:
+      return False
+
   # 批量写静态资源到 DB
   @_ensure_open(default=False)
   def batch_insert_static(self, urls: List[str]) -> bool:
