@@ -27,6 +27,7 @@ class GetMockDataPageParams(TypedDict, total=False):
   type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，None 或不传表示全部（USER 在前）。
   url / params / response 为模糊查询关键词，不传表示不过滤。
   method 为精确查询('GET' / 'POST')，None 或不传表示全部。
+  request_content_type 为精确查询，不传表示全部。
   """
   type: Optional[Literal['USER', 'MITMPROXY']]
   page_num: int  # 1-based 页码
@@ -35,6 +36,7 @@ class GetMockDataPageParams(TypedDict, total=False):
   params: Optional[str]  # params 模糊查询关键词
   response: Optional[str]  # response 模糊查询关键词
   method: Optional[Literal['GET', 'POST']]
+  request_content_type: Optional[RequestContentType]  # 请求 content-type 精确查询
   create_start_time: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS'，需与 create_end_time 同时传
   create_end_time: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS'，需与 create_start_time 同时传
 
@@ -66,6 +68,7 @@ class BatchDeleteMockDataParams(TypedDict, total=False):
   type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，不传表示不按类型过滤。
   url / params / response 为模糊查询关键词，不传表示不过滤。
   method 为精确查询('GET' / 'POST')，不传表示全部。
+  request_content_type 为精确查询，不传表示全部。
   create_start_time / create_end_time 为创建时间区间，必须成对传入才生效。
   至少提供任一筛选条件，否则后端拒绝执行（防止全表删除）。
   """
@@ -74,6 +77,7 @@ class BatchDeleteMockDataParams(TypedDict, total=False):
   params: Optional[str]  # params 模糊查询关键词
   response: Optional[str]  # response 模糊查询关键词
   method: Optional[Literal['GET', 'POST']]
+  request_content_type: Optional[RequestContentType]  # 请求 content-type 精确查询
   create_start_time: Optional[str]
   create_end_time: Optional[str]
 

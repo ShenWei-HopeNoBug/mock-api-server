@@ -189,6 +189,7 @@ class MitmproxyDataEditDialog(QDialog):
       'params_like': params.get('params') or None,
       'response_like': params.get('response') or None,
       'method': params.get('method') or None,
+      'request_content_type': params.get('request_content_type') or None,
       'create_start_time': params.get('create_start_time') or None,
       'create_end_time': params.get('create_end_time') or None,
     }
@@ -230,6 +231,7 @@ class MitmproxyDataEditDialog(QDialog):
       'params_like': params.get('params') or None,
       'response_like': params.get('response') or None,
       'method': params.get('method') or None,
+      'request_content_type': params.get('request_content_type') or None,
       'create_start_time': params.get('create_start_time') or None,
       'create_end_time': params.get('create_end_time') or None,
     }
@@ -247,6 +249,7 @@ class MitmproxyDataEditDialog(QDialog):
       'params': source['params'],
       'response': source['response'],
       'timeout': source.get('timeout', 0),
+      'request_content_type': source.get('request_content_type', 'NONE'),
     })
 
   # 请求名称 → handler 映射
