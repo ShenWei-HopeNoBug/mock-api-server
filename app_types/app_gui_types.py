@@ -7,15 +7,6 @@ from typing import List, Literal, Optional, TypedDict
 from app_types.db_types import ApiData
 
 
-class GetMockDataParams(TypedDict, total=False):
-  """
-  get_mock_data 请求参数
-
-  type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，空值或不传表示全部。
-  """
-  type: Literal['USER', 'MITMPROXY']
-
-
 class GetMockDataPageParams(TypedDict, total=False):
   """
   get_mock_data_page 请求参数（分页版）
@@ -52,6 +43,19 @@ class DeleteMockDataParams(TypedDict):
   delete_mock_data 请求参数
   """
   id: str  # 待删除记录的 id
+
+
+class BatchDeleteMockDataParams(TypedDict, total=False):
+  """
+  batch_delete_mock_data 请求参数
+
+  type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，不传表示不按类型过滤。
+  create_start_time / create_end_time 为创建时间区间，必须成对传入才生效。
+  至少提供 type 或时间区间之一，否则后端拒绝执行。
+  """
+  type: Optional[Literal['USER', 'MITMPROXY']]
+  create_start_time: Optional[str]
+  create_end_time: Optional[str]
 
 
 class AddMockDataParams(TypedDict, total=False):

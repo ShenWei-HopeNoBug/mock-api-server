@@ -14,10 +14,10 @@ from lib.app_lib import is_app_server_running
 from lib.db_lib import MockDB, MockDBCache
 from app_types.app_gui_types import (
   AppServerRunningData,
-  GetMockDataParams,
   GetMockDataPageParams,
   MockDataPageResult,
   DeleteMockDataParams,
+  BatchDeleteMockDataParams,
   AddMockDataParams,
   CopyMockDataParams,
 )
@@ -178,18 +178,6 @@ class MitmproxyDataEditDialog(QDialog):
 
   # --- 请求 handler：只关注业务逻辑，返回数据 ---
 
-  def _handle_get_mock_data(self, params: GetMockDataParams) -> dict:
-    mock_data_type = params.get('type', '')
-    mock_db: MockDB = MockDBCache.get(self.work_dir)
-    if mock_data_type == 'USER':
-      preview_list = mock_db.get_api_list(api_type='USER', reverse=True)
-    elif mock_data_type == 'MITMPROXY':
-      preview_list = mock_db.get_api_list(api_type='MITMPROXY', reverse=True)
-    else:
-      preview_list = mock_db.get_api_list(api_type='USER', reverse=True)
-      preview_list.extend(mock_db.get_api_list(api_type='MITMPROXY', reverse=True))
-    return {"list": preview_list}
-
   def _handle_get_mock_data_page(self, params: GetMockDataPageParams) -> MockDataPageResult:
     mock_data_type = params.get('type')
     page_num = params.get('page_num', 1)
@@ -232,6 +220,14 @@ class MitmproxyDataEditDialog(QDialog):
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.delete_api(params.get('id', ''))
 
+  def _handle_batch_delete_mock_data(self, params: BatchDeleteMockDataParams) -> bool:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.batch_delete_api(
+      api_type=params.get('type') or None,
+      create_start_time=params.get('create_start_time') or None,
+      create_end_time=params.get('create_end_time') or None,
+    )
+
   def _handle_copy_mock_data(self, params: CopyMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     source = mock_db.get_api_by_id(params['id'])
@@ -248,11 +244,11 @@ class MitmproxyDataEditDialog(QDialog):
 
   # 请求名称 → handler 映射
   _REQUEST_HANDLERS = {
-    'get_mock_data': _handle_get_mock_data,
     'get_mock_data_page': _handle_get_mock_data_page,
     'edit_mock_data': _handle_edit_mock_data,
     'add_mock_data': _handle_add_mock_data,
     'delete_mock_data': _handle_delete_mock_data,
+    'batch_delete_mock_data': _handle_batch_delete_mock_data,
     'copy_mock_data': _handle_copy_mock_data,
   }
 
