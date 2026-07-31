@@ -18,13 +18,13 @@ CURRENT_SCHEMA_VERSION = 2
 
 
 def _ensure_open(default: Any = None):
-  """MockDB 方法保护装饰器，DB 已关闭时返回 default 而非抛异常"""
+  """DB 方法保护装饰器，DB 已关闭时返回 default 而非抛异常"""
 
   def decorator(method: Callable) -> Callable:
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
       if self._closed:
-        APP_LOGGER.warning(f'MockDB 已关闭，{method.__name__} 未执行')
+        APP_LOGGER.warning(f'{self.__class__.__name__} 已关闭，{method.__name__} 未执行')
         return copy.deepcopy(default)
       return method(self, *args, **kwargs)
 
@@ -33,13 +33,19 @@ def _ensure_open(default: Any = None):
   return decorator
 
 
-class MockDB:
+class BaseSQLiteDB:
   """
-  SQLite 数据访问层，封装所有 DB 读写操作
+  SQLite 数据访问基类，封装与业务无关的基础设施
 
-  使用 WAL 模式 + autocommit，事务由 _transaction 上下文管理器显式控制。
+  提供连接管理、WAL 模式、事务控制、schema 版本管理等通用能力。
+  子类通过 _schema_version 指定 schema 版本，通过 _migrate_schema 实现具体迁移逻辑。
   线程安全：通过 threading.Lock 保护所有读写操作。
   """
+
+  # 子类覆盖：当前 schema 版本
+  _schema_version: int = 1
+  # 子类覆盖：schema 包名
+  _schema_package: str = 'schema'
 
   def __init__(self, db_path: str):
     # 数据库文件路径
@@ -62,23 +68,19 @@ class MockDB:
     self._conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
     # schema 版本管理
     self._check_schema_version()
-    APP_LOGGER.info(f'MockDB 初始化完成: {db_path}')
+    APP_LOGGER.info(f'{self.__class__.__name__} 初始化完成: {db_path}')
 
   def _init_schema(self) -> None:
     """从 schema 包读取 .sql 文件执行建表 DDL"""
     try:
-      schema_sql = read_text('schema', f'v{CURRENT_SCHEMA_VERSION}.sql')
+      schema_sql = read_text(self._schema_package, f'v{self._schema_version}.sql')
       self._conn.executescript(schema_sql)
     except Exception as e:
-      APP_LOGGER.error(f'MockDB 建表失败 (schema v{CURRENT_SCHEMA_VERSION}): {e}')
+      APP_LOGGER.error(f'{self.__class__.__name__} 建表失败 (schema v{self._schema_version}): {e}')
       raise
 
   def _migrate_schema(self, from_version: int, to_version: int) -> None:
-    """执行 schema 版本迁移，逐版本升级"""
-    if from_version < 2 <= to_version:
-      # v1 → v2: api_data 新增 timeout 字段
-      self._conn.execute('ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0')
-      APP_LOGGER.info('MockDB schema 迁移: v1 → v2, api_data 新增 timeout 字段')
+    """schema 版本迁移，子类可 override 添加具体迁移逻辑"""
     self._conn.execute(f'PRAGMA user_version = {to_version}')
 
   def _check_schema_version(self) -> None:
@@ -86,13 +88,14 @@ class MockDB:
     row = self._conn.execute('PRAGMA user_version').fetchone()
     db_version = row[0] if row else 0
     if db_version == 0:
-      self._conn.execute(f'PRAGMA user_version = {CURRENT_SCHEMA_VERSION}')
-    elif db_version == CURRENT_SCHEMA_VERSION:
+      self._conn.execute(f'PRAGMA user_version = {self._schema_version}')
+    elif db_version == self._schema_version:
       pass
-    elif db_version < CURRENT_SCHEMA_VERSION:
-      self._migrate_schema(db_version, CURRENT_SCHEMA_VERSION)
+    elif db_version < self._schema_version:
+      self._migrate_schema(db_version, self._schema_version)
     else:
-      APP_LOGGER.warning(f'MockDB 数据库版本({db_version})比代码版本({CURRENT_SCHEMA_VERSION})新，降级运行可能存在风险')
+      APP_LOGGER.warning(
+        f'{self.__class__.__name__} 数据库版本({db_version})比代码版本({self._schema_version})新，降级运行可能存在风险')
 
   # 执行 PASSIVE checkpoint，供批量写入后调用
   @_ensure_open()
@@ -121,9 +124,36 @@ class MockDB:
         try:
           conn.execute('ROLLBACK')
         except Exception as rb_err:
-          APP_LOGGER.error(f'MockDB ROLLBACK 失败: {rb_err}')
-        APP_LOGGER.error(f'MockDB 事务回滚: {e}')
+          APP_LOGGER.error(f'{self.__class__.__name__} ROLLBACK 失败: {rb_err}')
+        APP_LOGGER.error(f'{self.__class__.__name__} 事务回滚: {e}')
         raise
+
+  # 关闭 DB 连接，触发 SQLite 自动 checkpoint
+  def close(self) -> None:
+    """关闭 DB 连接，触发 SQLite 自动 checkpoint，幂等可重复调用"""
+    with self._lock:
+      if not self._closed:
+        self._conn.close()
+        self._closed = True
+
+
+class MockDB(BaseSQLiteDB):
+  """
+  SQLite 数据访问层，封装 api_data / static_data 的 CRUD 操作
+
+  使用 WAL 模式 + autocommit，事务由 _transaction 上下文管理器显式控制。
+  线程安全：通过 threading.Lock 保护所有读写操作。
+  """
+
+  _schema_version = CURRENT_SCHEMA_VERSION
+
+  def _migrate_schema(self, from_version: int, to_version: int) -> None:
+    """执行 schema 版本迁移，逐版本升级"""
+    if from_version < 2 <= to_version:
+      # v1 → v2: api_data 新增 timeout 字段
+      self._conn.execute('ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0')
+      APP_LOGGER.info('MockDB schema 迁移: v1 → v2, api_data 新增 timeout 字段')
+    super()._migrate_schema(from_version, to_version)
 
   # 新增插入（纯 INSERT，不去重），返回是否成功
   @_ensure_open(default=False)
@@ -471,14 +501,6 @@ class MockDB:
         'updated_at': row[4],
       })
     return result
-
-  # 关闭 DB 连接，触发 SQLite 自动 checkpoint
-  def close(self) -> None:
-    """关闭 DB 连接，触发 SQLite 自动 checkpoint，幂等可重复调用"""
-    with self._lock:
-      if not self._closed:
-        self._conn.close()
-        self._closed = True
 
 
 class MockDBCache:
