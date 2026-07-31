@@ -14,6 +14,7 @@ test_api_records: List[ApiRecord] = [
     'params': '{}',
     'response': '{"code":0,"msg":"success","data":[{"id":1,"name":"Alice","age":25},{"id":2,"name":"Bob","age":30}]}',
     'timeout': 0,
+    'request_content_type': 'NONE',
   },
   # GET 带 query 参数 —— 分页查询
   {
@@ -23,6 +24,7 @@ test_api_records: List[ApiRecord] = [
     'params': '{"page":"1","size":"10"}',
     'response': '{"code":0,"msg":"success","data":{"list":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}],"total":2,"page":1,"size":10}}',
     'timeout': 0,
+    'request_content_type': 'NONE',
   },
   # POST JSON body —— 创建用户
   {
@@ -32,6 +34,7 @@ test_api_records: List[ApiRecord] = [
     'params': '{"name":"Charlie","age":28}',
     'response': '{"code":0,"msg":"创建成功","data":{"id":3,"name":"Charlie","age":28}}',
     'timeout': 0,
+    'request_content_type': 'APPLICATION_JSON',
   },
   # POST 表单提交 —— 登录
   {
@@ -41,6 +44,7 @@ test_api_records: List[ApiRecord] = [
     'params': '{"username":"admin","password":"123456"}',
     'response': '{"code":0,"msg":"登录成功","data":{"token":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.fake-token","expire":3600}}',
     'timeout': 0,
+    'request_content_type': 'APPLICATION_X_WWW_FORM_URLENCODED',
   },
   # 带自定义超时 —— 模拟慢接口
   {
@@ -50,6 +54,7 @@ test_api_records: List[ApiRecord] = [
     'params': '{}',
     'response': '{"code":0,"msg":"success","data":"this is a slow response"}',
     'timeout': 2000,
+    'request_content_type': 'NONE',
   },
 ]
 
