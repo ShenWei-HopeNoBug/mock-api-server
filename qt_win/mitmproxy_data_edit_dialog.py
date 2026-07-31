@@ -222,11 +222,18 @@ class MitmproxyDataEditDialog(QDialog):
 
   def _handle_batch_delete_mock_data(self, params: BatchDeleteMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    return mock_db.batch_delete_api(
-      api_type=params.get('type') or None,
-      create_start_time=params.get('create_start_time') or None,
-      create_end_time=params.get('create_end_time') or None,
-    )
+    mock_data_type = params.get('type')
+    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
+    query: ApiQuery = {
+      'api_type': api_type,
+      'url_like': params.get('url') or None,
+      'params_like': params.get('params') or None,
+      'response_like': params.get('response') or None,
+      'method': params.get('method') or None,
+      'create_start_time': params.get('create_start_time') or None,
+      'create_end_time': params.get('create_end_time') or None,
+    }
+    return mock_db.batch_delete_api(query)
 
   def _handle_copy_mock_data(self, params: CopyMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)

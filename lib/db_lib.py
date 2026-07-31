@@ -407,36 +407,20 @@ class ApiDataMixin:
         return False
       return True
 
-  # 批量删除 api 数据（按 api_type 和创建时间区间筛选）
+  # 批量删除 api 数据（按 ApiQuery 筛选条件，与 get_api_list_page 一致）
   @_ensure_open(default=False)
-  def batch_delete_api(
-      self,
-      api_type: Optional[str] = None,
-      create_start_time: Optional[str] = None,
-      create_end_time: Optional[str] = None,
-  ) -> bool:
+  def batch_delete_api(self, query: ApiQuery) -> bool:
     """
-    批量删除 API 数据，按 api_type 精确匹配和创建时间区间筛选
+    批量删除 API 数据，筛选条件与 get_api_list_page 完全一致
 
+    支持 api_type 精确匹配、url/params/response 模糊查询、method 精确查询、created_at 时间区间查询。
     没有任何筛选条件时拒绝执行（防止全表删除），返回 False。
-    时间区间必须成对传入才生效，单独传 start 或 end 不作为条件。
     删除成功（含 0 条匹配）返回 True，异常返回 False。
     """
-    if not api_type and not (create_start_time and create_end_time):
+    where_sql, sql_params = self._build_api_where(query)
+    if not where_sql:
       APP_LOGGER.warning('MockDB batch_delete_api 拒绝执行：未提供有效筛选条件')
       return False
-
-    where_clauses = []
-    sql_params: list = []
-    if api_type:
-      where_clauses.append('type = ?')
-      sql_params.append(api_type)
-    if create_start_time and create_end_time:
-      where_clauses.append('datetime(created_at) >= datetime(?)')
-      sql_params.append(create_start_time)
-      where_clauses.append('datetime(created_at) <= datetime(?)')
-      sql_params.append(create_end_time)
-    where_sql = ' WHERE ' + ' AND '.join(where_clauses)
 
     try:
       with self._transaction() as conn:

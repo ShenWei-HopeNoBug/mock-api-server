@@ -49,11 +49,18 @@ class BatchDeleteMockDataParams(TypedDict, total=False):
   """
   batch_delete_mock_data 请求参数
 
+  筛选条件与 get_mock_data_page 完全一致，支持按当前表格筛选条件批量删除。
   type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，不传表示不按类型过滤。
+  url / params / response 为模糊查询关键词，不传表示不过滤。
+  method 为精确查询('GET' / 'POST')，不传表示全部。
   create_start_time / create_end_time 为创建时间区间，必须成对传入才生效。
-  至少提供 type 或时间区间之一，否则后端拒绝执行。
+  至少提供任一筛选条件，否则后端拒绝执行（防止全表删除）。
   """
   type: Optional[Literal['USER', 'MITMPROXY']]
+  url: Optional[str]  # url 模糊查询关键词
+  params: Optional[str]  # params 模糊查询关键词
+  response: Optional[str]  # response 模糊查询关键词
+  method: Optional[Literal['GET', 'POST']]
   create_start_time: Optional[str]
   create_end_time: Optional[str]
 
