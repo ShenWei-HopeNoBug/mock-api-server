@@ -4,6 +4,8 @@ import re
 import copy
 import hashlib
 import time
+import itertools
+import threading
 
 import requests
 from urllib.parse import urlparse
@@ -24,10 +26,21 @@ from typing import Union, Optional, Any, Dict, List, TypeVar
 _NumT = TypeVar('_NumT', int, float)
 
 
-# 生成数据的 uuid
+# 用于 generate_uuid 的线程安全递增序号和最新时间戳
+_uuid_lock = threading.Lock()
+_uuid_seq = itertools.count(1)
+_last_ts = 0
+
+
+# 生成有时间序的唯一 id
 def generate_uuid() -> str:
-  name = '{}-{}'.format(uuid.uuid4(), uuid.uuid1())
-  return '{}'.format(uuid.uuid5(uuid.NAMESPACE_DNS, name))
+  global _last_ts
+  with _uuid_lock:
+    # 保证每次生成的时间戳严格递增，避免同一纳秒内生成或系统时间回退导致顺序错乱
+    _last_ts = max(_last_ts + 1, time.time_ns())
+    seq = next(_uuid_seq)
+  # 时间戳(20位) + 序号(10位) + 随机串，字典序即生成顺序
+  return '{:020d}-{:010d}-{}'.format(_last_ts, seq, uuid.uuid4().hex[:8])
 
 
 # 限制数值范围
