@@ -3,7 +3,7 @@ import os
 import time
 import threading
 from collections import OrderedDict
-from typing import Any, Callable, Dict, Generic, List, Tuple, TypeVar, Union
+from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from flask import Request, send_from_directory, jsonify
 
@@ -19,6 +19,9 @@ from lib.utils_lib import (
 from app_types.app_gui_types import RequestContentType
 from app_types.db_types import StaticData
 from app_types.mock_server_types import (
+  ClientStateResult,
+  DeviceId,
+  DeviceState,
   FlaskRouteResult,
   HttpMethod,
   MockApiDict,
@@ -133,6 +136,59 @@ class MockRequestParseError(Exception):
     super().__init__(message)
 
 
+class ClientStateManager:
+  """
+  基于 Mock-Server-Device-Id Header 的客户端状态管理器
+
+  - 不生成 id，只接受客户端传入的 device_id
+  - 内部用 create_md5 对 device_id 归一化，避免超长或特殊字符 key
+  - 使用 OrderedDict + Lock 做 LRU，线程安全
+  """
+
+  def __init__(self, limit: int = 1000) -> None:
+    self._limit: int = limit
+    self._store: 'OrderedDict[str, DeviceState]' = OrderedDict()
+    self._lock: threading.Lock = threading.Lock()
+
+  def get_or_create(self, device_id: DeviceId) -> ClientStateResult:
+    key: str = create_md5(device_id[:128])
+
+    with self._lock:
+      if key in self._store:
+        self._store.move_to_end(key)
+        return {
+          'device_id': device_id,
+          'state': self._store[key],
+          'is_new': False,
+        }
+
+      self._store[key] = {}
+      if len(self._store) > self._limit:
+        self._store.popitem(last=False)
+
+      return {
+        'device_id': device_id,
+        'state': self._store[key],
+        'is_new': True,
+      }
+
+  def get(self, device_id: DeviceId) -> Optional[DeviceState]:
+    key: str = create_md5(device_id[:128])
+    with self._lock:
+      return self._store.get(key)
+
+  def set(self, device_id: DeviceId, state: DeviceState) -> None:
+    key: str = create_md5(device_id[:128])
+    with self._lock:
+      self._store[key] = state
+      self._store.move_to_end(key)
+
+  def delete(self, device_id: DeviceId) -> None:
+    key: str = create_md5(device_id[:128])
+    with self._lock:
+      self._store.pop(key, None)
+
+
 def parse_flask_request(
     request: Request,
     path: str,
@@ -208,6 +264,7 @@ class MockRequestHandler:
     route: Route,
     request_content_type: RequestContentTypeStr,
     params: ParamsJson,
+    state_result: Optional[ClientStateResult] = None,
   ) -> FlaskRouteResult:
     """匹配 mock 数据并返回响应"""
     request_key: RequestKey = self.get_request_key(route, method, request_content_type)

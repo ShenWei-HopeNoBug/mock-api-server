@@ -13,6 +13,7 @@ from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
 from lib.app_lib import get_mock_api_data_list
 from lib.server_lib import (
+  ClientStateManager,
   MockRequestHandler,
   MockRequestParseError,
   StaticFileHandler,
@@ -31,9 +32,10 @@ from lib.utils_lib import (
 )
 import json
 import re
-from typing import Any, Dict, List, Pattern, Union
+from typing import Dict, List, Optional, Pattern
 from app_types.db_types import ApiData
 from app_types.mock_server_types import (
+  ClientStateResult,
   FlaskRouteResult,
   HttpMethod,
   MockApiDict,
@@ -44,7 +46,7 @@ from app_types.mock_server_types import (
   ResponseKey,
   Route,
 )
-from flask import (Flask, request, jsonify)
+from flask import (Flask, request, jsonify, make_response)
 from flask_cors import CORS
 
 
@@ -66,6 +68,10 @@ class MockServer:
     self.response_delay: int = response_delay
     # 全局静态资源请求加载速率
     self.static_load_speed: int = static_load_speed
+    # 客户端状态管理器
+    self.client_state_manager: ClientStateManager = ClientStateManager(
+      limit=SERVER.DEVICE_STATE_LIMIT
+    )
     # -------------------
     # 初始化
     # -------------------
@@ -249,7 +255,18 @@ class MockServer:
         )
       except MockRequestParseError as e:
         return jsonify({'error': e.message}), 404
-      return mock_handler.handle(method, route, request_content_type, params)
+
+      device_id: str = (request.headers.get(SERVER.DEVICE_ID_HEADER, '').strip())[:128]
+
+      state_result: Optional[ClientStateResult] = None
+      if device_id:
+        state_result = self.client_state_manager.get_or_create(device_id)
+
+      result = mock_handler.handle(
+        method, route, request_content_type, params, state_result=state_result
+      )
+
+      return make_response(result)
 
     CORS(app, resources=resources)
     app.run(host='0.0.0.0', port=self.port, threaded=True)

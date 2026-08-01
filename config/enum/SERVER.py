@@ -21,3 +21,8 @@ MOCK_API_DATA_DEFAULTS = {
 STATIC_MATCH_CACHE_LIMIT = 1000
 # 静态资源返回最大延时（秒）
 STATIC_MATCH_MAX_DELAY_SECONDS = 120
+
+# 设备标识 Header 名称
+DEVICE_ID_HEADER = 'Mock-Server-Device-Id'
+# 客户端状态内存存储上限
+DEVICE_STATE_LIMIT = 1000

@@ -70,3 +70,16 @@ class ResponseKeyFunc(Protocol):
       params: ParamsJson,
   ) -> ResponseKey:
     ...
+
+
+# 设备标识
+DeviceId = str
+
+# 客户端状态
+DeviceState = Dict[str, Any]
+
+# ClientStateManager.get_or_create 返回结构
+class ClientStateResult(TypedDict):
+  device_id: DeviceId
+  state: DeviceState
+  is_new: bool
