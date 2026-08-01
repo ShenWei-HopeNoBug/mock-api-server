@@ -5,7 +5,7 @@ import threading
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Generic, List, Tuple, TypeVar, Union
 
-from flask import send_from_directory, jsonify
+from flask import Request, send_from_directory, jsonify
 
 from lib.decorate import error_catch
 from lib.db_lib import MockDBCache
@@ -18,7 +18,12 @@ from lib.utils_lib import (
 )
 from app_types.app_gui_types import RequestContentType
 from app_types.db_types import StaticData
-from app_types.mock_server_types import MockApiDict
+from app_types.mock_server_types import (
+  FlaskRouteResult,
+  MockApiDict,
+  MockApiEntry,
+  ParsedRequest,
+)
 
 
 # 读取 static 数据
@@ -72,17 +77,17 @@ class StaticFileHandler:
       static_url_path: str,
       static_load_speed: int,
       static_folder: str,
-      cache: StaticMatchCache[Any],
+      cache: StaticMatchCache[bool],
       max_delay: Union[int, float],
   ) -> None:
     self.work_dir: str = work_dir
     self.static_url_path: str = static_url_path
     self.static_load_speed: int = static_load_speed
     self.static_folder: str = static_folder
-    self.cache: StaticMatchCache[Any] = cache
+    self.cache: StaticMatchCache[bool] = cache
     self.max_delay: Union[int, float] = max_delay
 
-  def match(self, path: str) -> Any:
+  def match(self, path: str) -> FlaskRouteResult:
     """匹配并返回本地静态资源文件"""
     route_path: str = '/' + path
     # 非文件请求，跳过
@@ -120,15 +125,15 @@ class MockRequestParseError(Exception):
 
 
 def parse_flask_request(
-    request: Any,
+    request: Request,
     path: str,
     get_params_json_string: Callable[[Union[Dict[str, Any], str]], str],
-) -> Tuple[str, str, str, str]:
+) -> ParsedRequest:
   """
   解析 Flask request 对象为 handler 所需的纯参数
 
   Returns:
-    (method, route, request_content_type, params_json)
+    ParsedRequest(method, route, request_content_type, params_json)
   """
   method: str = request.method
   route: str = '/' + path
@@ -165,7 +170,7 @@ def parse_flask_request(
   elif method == 'GET':
     params = get_params_json_string(dict(request.args or {}))
 
-  return method, route, request_content_type, params
+  return ParsedRequest(method, route, request_content_type, params)
 
 
 class MockRequestHandler:
@@ -188,7 +193,7 @@ class MockRequestHandler:
     self.get_request_key: Callable[[str, str, str], str] = get_request_key
     self.get_response_key: Callable[[str, str, str], str] = get_response_key
 
-  def handle(self, method: str, route: str, request_content_type: str, params: str) -> Any:
+  def handle(self, method: str, route: str, request_content_type: str, params: str) -> FlaskRouteResult:
     """匹配 mock 数据并返回响应"""
     request_key: str = self.get_request_key(route, method, request_content_type)
     if request_key not in self.api_dict:
@@ -197,14 +202,14 @@ class MockRequestHandler:
     response_key: str = self.get_response_key(method, request_content_type, params)
 
     if response_key in self.api_dict[request_key]:
-      entry = self.api_dict[request_key][response_key]
+      entry: MockApiEntry = self.api_dict[request_key][response_key]
     else:
       # 没命中 mock 数据，直接返回最后一条数据
       print(f'mock 数据命中失败：\n - {method} {route} {params}')
       if not self.api_dict[request_key]:
         return jsonify({'error': 'No valid mock data'}), 404
       last_response_key: str = list(self.api_dict[request_key].keys())[-1]
-      entry = self.api_dict[request_key][last_response_key]
+      entry: MockApiEntry = self.api_dict[request_key][last_response_key]
 
     # 接口响应延时（单条 timeout 优先于全局 response_delay）
     per_entry_delay: int = entry.get('timeout', 0)

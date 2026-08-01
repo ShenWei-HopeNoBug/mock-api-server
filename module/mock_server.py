@@ -33,7 +33,10 @@ import json
 import re
 from typing import Any, Dict, List, Pattern, Union
 from app_types.db_types import ApiData
-from app_types.mock_server_types import MockApiDict
+from app_types.mock_server_types import (
+  FlaskRouteResult,
+  MockApiDict,
+)
 from flask import (Flask, request, jsonify)
 from flask_cors import CORS
 
@@ -181,7 +184,7 @@ class MockServer:
 
     root_path: str = os.path.abspath(self.work_dir)
     static_folder: str = self.static_url_path.lstrip('/')
-    app = Flask(
+    app: Flask = Flask(
       __name__,
       static_folder=static_folder,
       static_url_path=self.static_url_path,
@@ -193,8 +196,8 @@ class MockServer:
       f"{self.static_url_path}/*": {"origins": "*"},
     }
 
-    cache: StaticMatchCache[Any] = StaticMatchCache(SERVER.STATIC_MATCH_CACHE_LIMIT)
-    static_handler = StaticFileHandler(
+    cache: StaticMatchCache[bool] = StaticMatchCache(SERVER.STATIC_MATCH_CACHE_LIMIT)
+    static_handler: StaticFileHandler = StaticFileHandler(
       work_dir=self.work_dir,
       static_url_path=self.static_url_path,
       static_load_speed=self.static_load_speed,
@@ -203,7 +206,7 @@ class MockServer:
       max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
     )
 
-    mock_handler = MockRequestHandler(
+    mock_handler: MockRequestHandler = MockRequestHandler(
       api_dict=api_dict,
       response_delay=self.response_delay,
       get_request_key=self.__get_request_dict_key,
@@ -217,11 +220,11 @@ class MockServer:
       app.route(f'{static_route}/<path:path>', methods=['GET'])(static_handler.match)
 
     @app.route('/ping', methods=['GET'])
-    def ping() -> Any:
+    def ping() -> FlaskRouteResult:
       return jsonify({'data': 'pong!'})
 
     @app.route(f"{SYSTEM_ROUTE}/shutdown", methods=['GET'])
-    def server_shutdown() -> Any:
+    def server_shutdown() -> FlaskRouteResult:
       @create_thread(daemon=True)
       def delayed_shutdown() -> None:
         APP_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
@@ -232,7 +235,7 @@ class MockServer:
       return jsonify({'data': 'shutting down'})
 
     @app.route(f"{MOCK_API_ROUTE}/<path:path>", methods=['GET', 'POST'])
-    def request_api(path: str) -> Any:
+    def request_api(path: str) -> FlaskRouteResult:
       try:
         method, route, request_content_type, params = parse_flask_request(
           request, path, self.__get_params_json_string
