@@ -12,6 +12,13 @@ from lib.download_lib import get_static_match_regexp
 from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
 from lib.app_lib import get_mock_api_data_list
+from lib.server_lib import (
+  MockRequestHandler,
+  MockRequestParseError,
+  StaticFileHandler,
+  StaticMatchCache,
+  parse_flask_request,
+)
 from lib.db_lib import MockDBCache
 from lib.utils_lib import (
   JsonFormat,
@@ -19,22 +26,15 @@ from lib.utils_lib import (
   remove_url_domain,
   remove_url_query,
   get_ip_address,
-  is_file_request,
-  remove_byte_empty_content,
   shutdown_local_server,
   is_local_server_running,
-  get_request_content_type,
 )
-from app_types.app_gui_types import RequestContentType
-
 import json
 import re
-import threading
-from collections import OrderedDict
 from typing import Any, Dict, List, Pattern, Union
 from app_types.db_types import ApiData
 from app_types.mock_server_types import MockApiDict
-from flask import (Flask, request, send_from_directory, jsonify)
+from flask import (Flask, request, jsonify)
 from flask_cors import CORS
 
 
@@ -177,86 +177,51 @@ class MockServer:
   @create_thread
   def start_server(self) -> None:
     print('>' * 10, '本地 mock 服务启动...')
-    api_dict = self.create_api_dict()
-    # 工作目录的绝对路径
+    api_dict: MockApiDict = self.create_api_dict()
+
     root_path: str = os.path.abspath(self.work_dir)
     static_folder: str = self.static_url_path.lstrip('/')
-    app = Flask(__name__, static_folder=static_folder, static_url_path=self.static_url_path, root_path=root_path)
+    app = Flask(
+      __name__,
+      static_folder=static_folder,
+      static_url_path=self.static_url_path,
+      root_path=root_path,
+    )
 
-    # 配置跨域(/static静态资源文件夹在低版本的Flask加不加都一样)
-    resources = {
+    # 配置跨域
+    resources: Dict[str, Dict[str, str]] = {
       f"{self.static_url_path}/*": {"origins": "*"},
     }
 
-    # 静态资源匹配缓存（按插入顺序保留，超出上限时淘汰最旧数据）
-    static_match_cache: OrderedDict[str, bool] = OrderedDict()
-    # 缓存上限，超出时清除最旧的数据
-    static_match_cache_limit: int = 1000
-    # 保护 static_match_cache 的 check-then-add 原子性，防止多线程并发请求同一文件时延时被执行多次
-    static_match_lock: threading.Lock = threading.Lock()
+    cache: StaticMatchCache[Any] = StaticMatchCache(SERVER.STATIC_MATCH_CACHE_LIMIT)
+    static_handler = StaticFileHandler(
+      work_dir=self.work_dir,
+      static_url_path=self.static_url_path,
+      static_load_speed=self.static_load_speed,
+      static_folder=static_folder,
+      cache=cache,
+      max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
+    )
 
-    # 动态匹配静态资源
-    def static_match(path: str) -> Any:
-      route_path = '/' + path
-      # 非文件请求，跳过
-      if not is_file_request(route_path):
-        return 'Not Found', 404
+    mock_handler = MockRequestHandler(
+      api_dict=api_dict,
+      response_delay=self.response_delay,
+      get_request_key=self.__get_request_dict_key,
+      get_response_key=self.__get_response_dict_key,
+    )
 
-      # 文件名
-      file_name: str = route_path.split('/')[-1]
-      file_path: str = os.path.abspath(f'{self.work_dir}{self.static_url_path}/{file_name}')
-
-      if not os.path.exists(file_path):
-        return 'Not Found', 404
-
-      search_key = create_md5(path)
-
-      # 静态资源响应延时
-      if self.static_load_speed > 0:
-        # 加锁保证 check-then-add 原子性，延时 sleep 在锁外执行不阻塞其他文件请求
-        with static_match_lock:
-          already_cached = search_key in static_match_cache
-          if not already_cached:
-            static_match_cache[search_key] = True
-            # 超出上限时淘汰最旧的数据
-            if len(static_match_cache) > static_match_cache_limit:
-              static_match_cache.popitem(last=False)
-
-        if not already_cached:
-          file_size: float = os.path.getsize(file_path) / 1024
-          delay: float = file_size / self.static_load_speed
-
-          # 限制最大延时时间
-          max_delay: int = 120
-          if delay > max_delay:
-            delay = max_delay
-          print(f'静态资源延时属性  文件大小：{file_size}KB  延时时间：{delay}s')
-          time.sleep(delay)
-
-      return send_from_directory(static_folder, file_name)
-
-    # 批量注册静态资源匹配接口
     for static_route in self.static_match_route:
-      # 配置路由合法性检查
       if not static_route.startswith('/'):
         continue
-
-      # 为静态资源请求路由加跨域头
       resources[f"{static_route}/*"] = {"origins": "*"}
-      # 创建静态资源请求接口
-      app.route(f'{static_route}/<path:path>', methods=['GET'])(static_match)
-
-    # 添加跨域头
-    CORS(app, resources=resources)
+      app.route(f'{static_route}/<path:path>', methods=['GET'])(static_handler.match)
 
     @app.route('/ping', methods=['GET'])
     def ping() -> Any:
       return jsonify({'data': 'pong!'})
 
-    # 服务进程自杀
     @app.route(f"{SYSTEM_ROUTE}/shutdown", methods=['GET'])
     def server_shutdown() -> Any:
-
       @create_thread(daemon=True)
       def delayed_shutdown() -> None:
         APP_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
@@ -266,71 +231,17 @@ class MockServer:
       delayed_shutdown()
       return jsonify({'data': 'shutting down'})
 
-    # 统一 mock 匹配接口
     @app.route(f"{MOCK_API_ROUTE}/<path:path>", methods=['GET', 'POST'])
     def request_api(path: str) -> Any:
-      method = request.method
-      route = '/' + path
-      # GET 请求去掉 query 参数
-      if method == 'GET':
-        route = remove_url_query(route)
+      try:
+        method, route, request_content_type, params = parse_flask_request(
+          request, path, self.__get_params_json_string
+        )
+      except MockRequestParseError as e:
+        return jsonify({'error': e.message}), 404
+      return mock_handler.handle(method, route, request_content_type, params)
 
-      params = self.__get_params_json_string({})
-      request_content_type = get_request_content_type(request.headers.get('content-type') or '', method)
-      if method == 'POST':
-        if request_content_type == RequestContentType.APPLICATION_X_WWW_FORM_URLENCODED:
-          params = self.__get_params_json_string(request.form or {})
-        elif request_content_type == RequestContentType.APPLICATION_JSON:
-          params = self.__get_params_json_string(request.get_data(as_text=True))
-        elif request_content_type == RequestContentType.MULTIPART_FORM_DATA:
-          try:
-            multipart_dict = dict(request.form or {})
-            file = request.files.get('file')
-            if file:
-              content = remove_byte_empty_content(file.read())
-              file_md5 = f'file-{create_md5(content)}'
-              multipart_dict['file'] = file_md5
-              print('params 存在 file 传参：', multipart_dict)
-            params = self.__get_params_json_string(multipart_dict)
-          except Exception as e:
-            print('Mock Server 解析 multipart/form-data 传参异常', e)
-            return jsonify({'error': 'multipart/form-data parse error'}), 404
-        else:
-          # 未识别的 content-type 按 NONE 处理，params 保持空对象
-          params = self.__get_params_json_string({})
-      elif method == 'GET':
-        params = self.__get_params_json_string(dict(request.args or {}))
-
-      # 请求查询键名
-      request_key = self.__get_request_dict_key(route, method, request_content_type)
-      # 请求路径 mock 数据中不存在
-      if request_key not in api_dict:
-        return jsonify({'error': 'Not Found'}), 404
-
-      response_key = self.__get_response_dict_key(method, request_content_type, params)
-
-      # 命中 mock 数据
-      if response_key in api_dict[request_key]:
-        entry = api_dict[request_key][response_key]
-      else:
-        # 没命中 mock 数据，直接返回最后一条数据
-        print(f'mock 数据命中失败：\n - {method} {route} {params}')
-        if not api_dict[request_key]:
-          return jsonify({'error': 'No valid mock data'}), 404
-        last_response_key = list(api_dict[request_key].keys())[-1]
-        entry = api_dict[request_key][last_response_key]
-
-      # 接口响应延时（单条 timeout 优先于全局 response_delay）
-      per_entry_delay = entry.get('timeout', 0)
-      if per_entry_delay > 0:
-        print(f'接口响应延时（单条）：{per_entry_delay}ms, route：{route}')
-        time.sleep(per_entry_delay / 1000)
-      elif self.response_delay > 0:
-        print(f'接口响应延时（全局）：{self.response_delay}ms, route：{route}')
-        time.sleep(self.response_delay / 1000)
-
-      return jsonify(entry['response'])
-
+    CORS(app, resources=resources)
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   # 停止本地 mock 服务

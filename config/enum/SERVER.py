@@ -13,3 +13,11 @@ MOCK_API_DATA_DEFAULTS = {
   'timeout': 0,
   'request_content_type': 'NONE',
 }
+
+# ---------------------------------------------------
+# Mock 服务运行时常量
+# ---------------------------------------------------
+# 静态资源匹配缓存上限
+STATIC_MATCH_CACHE_LIMIT = 1000
+# 静态资源返回最大延时（秒）
+STATIC_MATCH_MAX_DELAY_SECONDS = 120
