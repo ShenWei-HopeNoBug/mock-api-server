@@ -20,9 +20,18 @@ from app_types.app_gui_types import RequestContentType
 from app_types.db_types import StaticData
 from app_types.mock_server_types import (
   FlaskRouteResult,
+  HttpMethod,
   MockApiDict,
   MockApiEntry,
+  ParamsJson,
+  ParamsJsonStringFunc,
   ParsedRequest,
+  RequestContentTypeStr,
+  RequestKey,
+  RequestKeyFunc,
+  ResponseKey,
+  ResponseKeyFunc,
+  Route,
 )
 
 
@@ -127,7 +136,7 @@ class MockRequestParseError(Exception):
 def parse_flask_request(
     request: Request,
     path: str,
-    get_params_json_string: Callable[[Union[Dict[str, Any], str]], str],
+    get_params_json_string: ParamsJsonStringFunc,
 ) -> ParsedRequest:
   """
   解析 Flask request 对象为 handler 所需的纯参数
@@ -135,16 +144,16 @@ def parse_flask_request(
   Returns:
     ParsedRequest(method, route, request_content_type, params_json)
   """
-  method: str = request.method
-  route: str = '/' + path
+  method: HttpMethod = request.method
+  route: Route = '/' + path
   if method == 'GET':
     route = remove_url_query(route)
 
   content_type_enum: RequestContentType = get_request_content_type(
     request.headers.get('content-type') or '', method
   )
-  request_content_type: str = content_type_enum.value
-  params: str = get_params_json_string({})
+  request_content_type: RequestContentTypeStr = content_type_enum.value
+  params: ParamsJson = get_params_json_string({})
 
   if method == 'POST':
     if content_type_enum == RequestContentType.APPLICATION_X_WWW_FORM_URLENCODED:
@@ -185,21 +194,27 @@ class MockRequestHandler:
       self,
       api_dict: MockApiDict,
       response_delay: int,
-      get_request_key: Callable[[str, str, str], str],
-      get_response_key: Callable[[str, str, str], str],
+      get_request_key: RequestKeyFunc,
+      get_response_key: ResponseKeyFunc,
   ) -> None:
     self.api_dict: MockApiDict = api_dict
     self.response_delay: int = response_delay
-    self.get_request_key: Callable[[str, str, str], str] = get_request_key
-    self.get_response_key: Callable[[str, str, str], str] = get_response_key
+    self.get_request_key: RequestKeyFunc = get_request_key
+    self.get_response_key: ResponseKeyFunc = get_response_key
 
-  def handle(self, method: str, route: str, request_content_type: str, params: str) -> FlaskRouteResult:
+  def handle(
+    self,
+    method: HttpMethod,
+    route: Route,
+    request_content_type: RequestContentTypeStr,
+    params: ParamsJson,
+  ) -> FlaskRouteResult:
     """匹配 mock 数据并返回响应"""
-    request_key: str = self.get_request_key(route, method, request_content_type)
+    request_key: RequestKey = self.get_request_key(route, method, request_content_type)
     if request_key not in self.api_dict:
       return jsonify({'error': 'Not Found'}), 404
 
-    response_key: str = self.get_response_key(method, request_content_type, params)
+    response_key: ResponseKey = self.get_response_key(method, request_content_type, params)
 
     if response_key in self.api_dict[request_key]:
       entry: MockApiEntry = self.api_dict[request_key][response_key]
@@ -208,7 +223,7 @@ class MockRequestHandler:
       print(f'mock 数据命中失败：\n - {method} {route} {params}')
       if not self.api_dict[request_key]:
         return jsonify({'error': 'No valid mock data'}), 404
-      last_response_key: str = list(self.api_dict[request_key].keys())[-1]
+      last_response_key: ResponseKey = list(self.api_dict[request_key].keys())[-1]
       entry: MockApiEntry = self.api_dict[request_key][last_response_key]
 
     # 接口响应延时（单条 timeout 优先于全局 response_delay）

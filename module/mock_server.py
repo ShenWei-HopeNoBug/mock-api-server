@@ -35,7 +35,14 @@ from typing import Any, Dict, List, Pattern, Union
 from app_types.db_types import ApiData
 from app_types.mock_server_types import (
   FlaskRouteResult,
+  HttpMethod,
   MockApiDict,
+  ParamsInput,
+  ParamsJson,
+  RequestContentTypeStr,
+  RequestKey,
+  ResponseKey,
+  Route,
 )
 from flask import (Flask, request, jsonify)
 from flask_cors import CORS
@@ -260,7 +267,7 @@ class MockServer:
       shutdown_local_server(port=self.port)
 
   @error_catch(error_msg='__get_params_json_string 解析异常', error_return='{}')
-  def __get_params_json_string(self, params: Union[Dict[str, Any], str]) -> str:
+  def __get_params_json_string(self, params: ParamsInput) -> ParamsJson:
     """
     获取接口传参的 json 字符串
     将 dict 或 json str 统一序列化为标准 json 字符串
@@ -277,10 +284,18 @@ class MockServer:
 
   # 获取请求查询键名
   @staticmethod
-  def __get_request_dict_key(route: str, method: str, request_content_type: str) -> str:
+  def __get_request_dict_key(
+    route: Route,
+    method: HttpMethod,
+    request_content_type: RequestContentTypeStr,
+  ) -> RequestKey:
     return create_md5('{}-{}-{}'.format(route, method, request_content_type))
 
   # 获取响应数据映射表键名
   @staticmethod
-  def __get_response_dict_key(method: str, request_content_type: str, params: str) -> str:
+  def __get_response_dict_key(
+    method: HttpMethod,
+    request_content_type: RequestContentTypeStr,
+    params: ParamsJson,
+  ) -> ResponseKey:
     return create_md5('{}-{}-{}'.format(method, request_content_type, params))
