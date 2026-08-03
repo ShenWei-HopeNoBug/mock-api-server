@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import os
 import sqlite3
 import threading
@@ -11,10 +12,50 @@ from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
 from config.enum import DATABASE
 from config.work_file import DB_DATA_PATH
-from app_types.db_types import ApiRecord, ApiData, ApiQuery, StaticData
+from app_types.db_types import (ApiRecord, ApiData, ApiQuery, StaticData, ApiResponseVariantRecord, ApiResponseVariant)
 
 # 当前 schema 版本
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
+
+
+def _normalize_response_variant_ids(value: Any) -> str:
+  """把 List[str] 或 JSON 字符串统一格式化为标准 JSON 字符串，缺省时返回 '[]'"""
+  if value is None:
+    variant_ids: List[str] = []
+  elif isinstance(value, str):
+    try:
+      parsed = json.loads(value)
+      variant_ids = [str(v) for v in parsed] if isinstance(parsed, list) else []
+    except (json.JSONDecodeError, TypeError):
+      variant_ids = []
+  elif isinstance(value, list):
+    variant_ids = [str(v) for v in value]
+  else:
+    variant_ids = []
+  return JsonFormat.dumps(variant_ids)
+
+
+def _parse_response_variant_ids(value: Any) -> List[str]:
+  """从数据库 JSON 字符串解析为 List[str]，失败时返回空列表"""
+  if not value:
+    return []
+  try:
+    parsed = json.loads(value)
+    return [str(v) for v in parsed] if isinstance(parsed, list) else []
+  except (json.JSONDecodeError, TypeError):
+    return []
+
+
+def _normalize_enabled(value: Any) -> int:
+  """把 bool/int/None 统一转为 0/1，None 时默认启用"""
+  if value is None:
+    return 1
+  return 1 if value else 0
+
+
+def _parse_enabled(value: Any) -> bool:
+  """把数据库 0/1 转为 bool"""
+  return bool(value)
 
 
 def _ensure_open(default: Any = None):
@@ -153,6 +194,63 @@ class ApiDataMixin:
       # v1 → v2: api_data 新增 request_content_type 字段
       self._conn.execute("ALTER TABLE api_data ADD COLUMN request_content_type TEXT NOT NULL DEFAULT 'NONE'")
       APP_LOGGER.info('ApiDataMixin schema 迁移: v1 → v2, api_data 新增 timeout 和 request_content_type 字段')
+    if from_version < 3 <= to_version:
+      # v2 → v3: api_data 新增 response_variant_ids 与 enabled 字段
+      self._conn.execute("ALTER TABLE api_data ADD COLUMN response_variant_ids TEXT NOT NULL DEFAULT '[]'")
+      self._conn.execute('ALTER TABLE api_data ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1')
+      # v2 → v3: 新增 api_response_variants 表
+      self._conn.execute('''
+                         CREATE TABLE IF NOT EXISTS api_response_variants
+                         (
+                             id
+                             TEXT
+                             PRIMARY
+                             KEY,
+                             api_data_id
+                             TEXT
+                             NOT
+                             NULL,
+                             name
+                             TEXT
+                             NOT
+                             NULL
+                             DEFAULT
+                             '',
+                             response
+                             TEXT
+                             NOT
+                             NULL
+                             DEFAULT
+                             '{}',
+                             enabled
+                             INTEGER
+                             NOT
+                             NULL
+                             DEFAULT
+                             1,
+                             created_at
+                             TEXT
+                             NOT
+                             NULL
+                             DEFAULT (
+                             strftime
+                         (
+                             '%Y-%m-%d %H:%M:%f',
+                             'now',
+                             'localtime'
+                         )),
+                             updated_at TEXT NOT NULL DEFAULT
+                         (
+                             strftime
+                         (
+                             '%Y-%m-%d %H:%M:%f',
+                             'now',
+                             'localtime'
+                         ))
+                             )
+                         ''')
+      self._conn.execute('CREATE INDEX IF NOT EXISTS idx_variant_api_data_id ON api_response_variants(api_data_id)')
+      APP_LOGGER.info('ApiDataMixin schema 迁移: v2 → v3, 新增 response 变体支持')
 
   # 新增插入（纯 INSERT，不去重），返回是否成功
   @_ensure_open(default=False)
@@ -161,11 +259,15 @@ class ApiDataMixin:
     api_id = generate_uuid()
     data = {**DATABASE.API_INSERT_DEFAULTS, **record}
     data['params'] = JsonFormat.format_json_string(data['params'])
+    data['response_variant_ids'] = _normalize_response_variant_ids(data.get('response_variant_ids'))
+    data['enabled'] = _normalize_enabled(data.get('enabled'))
     try:
       with self._transaction() as conn:
         conn.execute(
-          'INSERT INTO api_data (id, type, url, method, params, response, timeout, request_content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          (api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0), data.get('request_content_type', 'NONE')),
+          'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          (api_id, data['type'], data['url'], data['method'], data['params'], data['response'],
+           data['response_variant_ids'], data['enabled'], data.get('timeout', 0),
+           data.get('request_content_type', 'NONE')),
         )
       return True
     except Exception:
@@ -184,15 +286,19 @@ class ApiDataMixin:
     if not records:
       return False
 
-    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, timeout, request_content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     insert_data = []
     for r in records:
       api_id = generate_uuid()
       data = {**DATABASE.API_INSERT_DEFAULTS, **r}
       data['id'] = api_id
       data['params'] = JsonFormat.format_json_string(data['params'])
+      data['response_variant_ids'] = _normalize_response_variant_ids(data.get('response_variant_ids'))
+      data['enabled'] = _normalize_enabled(data.get('enabled'))
       insert_data.append(
-        (api_id, data['type'], data['url'], data['method'], data['params'], data['response'], data.get('timeout', 0), data.get('request_content_type', 'NONE')))
+        (api_id, data['type'], data['url'], data['method'], data['params'], data['response'],
+         data['response_variant_ids'], data['enabled'], data.get('timeout', 0),
+         data.get('request_content_type', 'NONE')))
 
     try:
       with self._transaction() as conn:
@@ -213,10 +319,10 @@ class ApiDataMixin:
     """查询 API 数据列表，可按 api_type 过滤、按时间正序/倒序排列"""
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     if api_type is not None:
-      sql = f'SELECT id, type, url, method, params, response, timeout, request_content_type, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
+      sql = f'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
       params = (api_type,)
     else:
-      sql = f'SELECT id, type, url, method, params, response, timeout, request_content_type, created_at, updated_at FROM api_data ORDER BY created_at {order}'
+      sql = f'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data ORDER BY created_at {order}'
       params = ()
     with self._lock:
       cursor = self._conn.execute(sql, params)
@@ -230,10 +336,12 @@ class ApiDataMixin:
         'method': row[3],
         'params': row[4],
         'response': row[5],
-        'timeout': row[6],
-        'request_content_type': row[7],
-        'created_at': row[8],
-        'updated_at': row[9],
+        'response_variant_ids': _parse_response_variant_ids(row[6]),
+        'enabled': _parse_enabled(row[7]),
+        'timeout': row[8],
+        'request_content_type': row[9],
+        'created_at': row[10],
+        'updated_at': row[11],
       })
     return result
 
@@ -291,7 +399,7 @@ class ApiDataMixin:
     where_sql, sql_params = self._build_api_where(query)
     user_first = "CASE type WHEN 'USER' THEN 0 ELSE 1 END, " if query.get('api_type') is None else ''
     order_sql = 'ORDER BY {}created_at {}'.format(user_first, order)
-    sql = 'SELECT id, type, url, method, params, response, timeout, request_content_type, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
+    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
       where_sql, order_sql)
     sql_params.extend([page_size, offset])
 
@@ -307,10 +415,12 @@ class ApiDataMixin:
         'method': row[3],
         'params': row[4],
         'response': row[5],
-        'timeout': row[6],
-        'request_content_type': row[7],
-        'created_at': row[8],
-        'updated_at': row[9],
+        'response_variant_ids': _parse_response_variant_ids(row[6]),
+        'enabled': _parse_enabled(row[7]),
+        'timeout': row[8],
+        'request_content_type': row[9],
+        'created_at': row[10],
+        'updated_at': row[11],
       })
     return result
 
@@ -331,7 +441,7 @@ class ApiDataMixin:
       return None
     with self._lock:
       row = self._conn.execute(
-        'SELECT id, type, url, method, params, response, timeout, request_content_type, created_at, updated_at FROM api_data WHERE id=?',
+        'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
     if row is None:
@@ -344,10 +454,12 @@ class ApiDataMixin:
       'method': row[3],
       'params': row[4],
       'response': row[5],
-      'timeout': row[6],
-      'request_content_type': row[7],
-      'created_at': row[8],
-      'updated_at': row[9],
+      'response_variant_ids': _parse_response_variant_ids(row[6]),
+      'enabled': _parse_enabled(row[7]),
+      'timeout': row[8],
+      'request_content_type': row[9],
+      'created_at': row[10],
+      'updated_at': row[11],
     }
 
     return result
@@ -367,7 +479,7 @@ class ApiDataMixin:
     # 1. 事务外查询旧记录，不存在则直接返回，避免空事务
     with self._lock:
       row = self._conn.execute(
-        'SELECT type, url, method, params, response, timeout, request_content_type FROM api_data WHERE id=?',
+        'SELECT type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
     if row is None:
@@ -381,11 +493,15 @@ class ApiDataMixin:
         'method': row[2],
         'params': row[3],
         'response': row[4],
-        'timeout': row[5],
-        'request_content_type': row[6],
+        'response_variant_ids': row[5],
+        'enabled': row[6],
+        'timeout': row[7],
+        'request_content_type': row[8],
       }
       merged = {**old, **{k: v for k, v in record.items() if k != 'id' and v is not None}}
       merged['params'] = JsonFormat.format_json_string(merged['params'])
+      merged['response_variant_ids'] = _normalize_response_variant_ids(merged.get('response_variant_ids'))
+      merged['enabled'] = _normalize_enabled(merged.get('enabled'))
 
       # 3. 写入合并后的完整记录
       cursor = conn.execute(
@@ -395,12 +511,15 @@ class ApiDataMixin:
                method=?,
                params=?,
                response=?,
+               response_variant_ids=?,
+               enabled=?,
                timeout=?,
                request_content_type=?,
                updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
            WHERE id = ?''',
         (merged['type'], merged['url'], merged['method'],
-         merged['params'], merged['response'], merged.get('timeout', 0), merged.get('request_content_type', 'NONE'), api_id),
+         merged['params'], merged['response'], merged['response_variant_ids'], merged['enabled'],
+         merged.get('timeout', 0), merged.get('request_content_type', 'NONE'), api_id),
       )
       if cursor.rowcount == 0:
         return False
@@ -409,10 +528,11 @@ class ApiDataMixin:
   # 按 id 删除 api 数据
   @_ensure_open(default=False)
   def delete_api(self, api_id: str) -> bool:
-    """按 id 删除 API 数据，记录不存在时返回 False"""
+    """按 id 删除 API 数据，同时级联删除其 response 变体，记录不存在时返回 False"""
     if not api_id:
       return False
     with self._transaction() as conn:
+      conn.execute('DELETE FROM api_response_variants WHERE api_data_id=?', (api_id,))
       cursor = conn.execute('DELETE FROM api_data WHERE id=?', (api_id,))
       if cursor.rowcount == 0:
         return False
@@ -435,6 +555,12 @@ class ApiDataMixin:
 
     try:
       with self._transaction() as conn:
+        # 先查出要删除的 api_data id，再级联删除其变体
+        rows = conn.execute(f'SELECT id FROM api_data{where_sql}', tuple(sql_params)).fetchall()
+        api_ids = [row[0] for row in rows]
+        if api_ids:
+          placeholders = ','.join('?' * len(api_ids))
+          conn.execute(f'DELETE FROM api_response_variants WHERE api_data_id IN ({placeholders})', api_ids)
         cursor = conn.execute(f'DELETE FROM api_data{where_sql}', tuple(sql_params))
       APP_LOGGER.info(f'MockDB batch_delete_api 删除 {cursor.rowcount} 条')
       return True
@@ -452,7 +578,10 @@ class StaticDataMixin:
 
   def _migrate_static(self, from_version: int, to_version: int) -> None:
     """static_data 表的 schema 版本迁移，逐版本升级"""
-    pass
+    if from_version < 3 <= to_version:
+      # v2 → v3: 删除未使用的 idx_static_url 索引
+      self._conn.execute('DROP INDEX IF EXISTS idx_static_url')
+      APP_LOGGER.info('StaticDataMixin schema 迁移: v2 → v3, 删除未使用的 idx_static_url 索引')
 
   # 批量写静态资源到 DB
   @_ensure_open(default=False)
@@ -508,9 +637,199 @@ class StaticDataMixin:
     return result
 
 
-class MockDB(BaseSQLiteDB, ApiDataMixin, StaticDataMixin):
+class ApiResponseVariantMixin:
   """
-  SQLite 数据访问层，封装 api_data / static_data 的 CRUD 操作
+  api_response_variants 表的数据访问 Mixin
+
+  提供 response 变体的 CRUD 操作，以及与 api_data.response_variant_ids 列表的同步维护。
+  依赖宿主类提供 _conn / _lock / _transaction 等基础设施。
+  需与 BaseSQLiteDB 组合使用。
+  """
+
+  @_ensure_open(default=None)
+  def insert_variant(self, record: ApiResponseVariantRecord) -> Optional[str]:
+    """新增一条 response 变体，并自动追加到所属 api_data 的变体列表，失败返回 None"""
+    data = {**DATABASE.API_RESPONSE_VARIANT_INSERT_DEFAULTS, **record}
+    variant_id = data.get('id') or generate_uuid()
+    api_data_id = data.get('api_data_id')
+    if not api_data_id:
+      APP_LOGGER.warning('ApiResponseVariantMixin insert_variant 缺少 api_data_id')
+      return None
+
+    data['response'] = JsonFormat.format_json_string(data['response'])
+    data['enabled'] = _normalize_enabled(data.get('enabled'))
+
+    try:
+      with self._transaction() as conn:
+        # 确认所属 api_data 存在，避免产生孤儿变体
+        row = conn.execute('SELECT response_variant_ids FROM api_data WHERE id=?', (api_data_id,)).fetchone()
+        if row is None:
+          raise ValueError(f'api_data {api_data_id} 不存在')
+        conn.execute(
+          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled) VALUES (?, ?, ?, ?, ?)',
+          (variant_id, api_data_id, data.get('name', ''), data['response'], data['enabled']),
+        )
+        # 把新变体 ID 追加到 api_data.response_variant_ids 列表
+        variant_ids = _parse_response_variant_ids(row[0])
+        if variant_id not in variant_ids:
+          variant_ids.append(variant_id)
+          conn.execute(
+            'UPDATE api_data SET response_variant_ids=?, updated_at=strftime(\'%Y-%m-%d %H:%M:%f\', \'now\', \'localtime\') WHERE id=?',
+            (_normalize_response_variant_ids(variant_ids), api_data_id),
+          )
+      return variant_id
+    except Exception:
+      return None
+
+  @_ensure_open(default=False)
+  def update_variant(self, record: ApiResponseVariantRecord) -> bool:
+    """按 id 更新变体（字段级合并），不允许修改所属 api_data_id，失败返回 False"""
+    variant_id = record.get('id')
+    if not variant_id:
+      return False
+
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT name, response, enabled FROM api_response_variants WHERE id=?',
+        (variant_id,),
+      ).fetchone()
+    if row is None:
+      return False
+
+    old = {
+      'name': row[0],
+      'response': row[1],
+      'enabled': _parse_enabled(row[2]),
+    }
+    # api_data_id 不参与合并，防止破坏绑定关系
+    merged = {**old, **{k: v for k, v in record.items() if k not in ('id', 'api_data_id') and v is not None}}
+    merged['response'] = JsonFormat.format_json_string(merged['response'])
+    merged['enabled'] = _normalize_enabled(merged.get('enabled'))
+
+    try:
+      with self._transaction() as conn:
+        cursor = conn.execute(
+          '''UPDATE api_response_variants
+             SET name=?,
+                 response=?,
+                 enabled=?,
+                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+             WHERE id = ?''',
+          (merged['name'], merged['response'], merged['enabled'], variant_id),
+        )
+        return cursor.rowcount > 0
+    except Exception:
+      return False
+
+  @_ensure_open(default=False)
+  def delete_variant(self, variant_id: str) -> bool:
+    """按 id 删除变体，并同步从 api_data.response_variant_ids 中移除，失败返回 False"""
+    if not variant_id:
+      return False
+
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT api_data_id FROM api_response_variants WHERE id=?',
+        (variant_id,),
+      ).fetchone()
+    if row is None:
+      return False
+    api_data_id = row[0]
+
+    try:
+      with self._transaction() as conn:
+        conn.execute('DELETE FROM api_response_variants WHERE id=?', (variant_id,))
+        list_row = conn.execute('SELECT response_variant_ids FROM api_data WHERE id=?', (api_data_id,)).fetchone()
+        if list_row:
+          variant_ids = _parse_response_variant_ids(list_row[0])
+          if variant_id in variant_ids:
+            variant_ids.remove(variant_id)
+            conn.execute(
+              'UPDATE api_data SET response_variant_ids=?, updated_at=strftime(\'%Y-%m-%d %H:%M:%f\', \'now\', \'localtime\') WHERE id=?',
+              (_normalize_response_variant_ids(variant_ids), api_data_id),
+            )
+      return True
+    except Exception:
+      return False
+
+  @_ensure_open(default=None)
+  def get_variant_by_id(self, variant_id: str) -> Optional[ApiResponseVariant]:
+    """按 id 主键查询单条变体，不存在时返回 None"""
+    if not variant_id:
+      return None
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT id, api_data_id, name, response, enabled, created_at, updated_at FROM api_response_variants WHERE id=?',
+        (variant_id,),
+      ).fetchone()
+    if row is None:
+      return None
+    return {
+      'id': row[0],
+      'api_data_id': row[1],
+      'name': row[2],
+      'response': row[3],
+      'enabled': _parse_enabled(row[4]),
+      'created_at': row[5],
+      'updated_at': row[6],
+    }
+
+  @_ensure_open(default=[])
+  def get_variants_by_api_id(
+      self,
+      api_data_id: str,
+      enabled_only: bool = False,
+  ) -> List[ApiResponseVariant]:
+    """按 api_data_id 查询变体列表，结果按 api_data.response_variant_ids 顺序排列；enabled_only=True 时只返回启用的变体"""
+    if not api_data_id:
+      return []
+    sql = 'SELECT id, api_data_id, name, response, enabled, created_at, updated_at FROM api_response_variants WHERE api_data_id=?'
+    params: List[Any] = [api_data_id]
+    if enabled_only:
+      sql += ' AND enabled=1'
+
+    with self._lock:
+      rows = self._conn.execute(sql, params).fetchall()
+      list_row = self._conn.execute('SELECT response_variant_ids FROM api_data WHERE id=?', (api_data_id,)).fetchone()
+    order_map = {}
+    if list_row:
+      order_map = {v: i for i, v in enumerate(_parse_response_variant_ids(list_row[0]))}
+
+    result = []
+    for row in rows:
+      result.append({
+        'id': row[0],
+        'api_data_id': row[1],
+        'name': row[2],
+        'response': row[3],
+        'enabled': _parse_enabled(row[4]),
+        'created_at': row[5],
+        'updated_at': row[6],
+      })
+    # 按 api_data.response_variant_ids 中的顺序排列，未在列表中的放最后
+    result.sort(key=lambda v: order_map.get(v['id'], len(order_map)))
+    return result
+
+  @_ensure_open(default=False)
+  def bind_variants_to_api(self, api_data_id: str, variant_ids: List[str]) -> bool:
+    """直接替换 api_data 的变体 ID 绑定列表，失败返回 False"""
+    if not api_data_id:
+      return False
+    normalized = _normalize_response_variant_ids(variant_ids)
+    try:
+      with self._transaction() as conn:
+        cursor = conn.execute(
+          'UPDATE api_data SET response_variant_ids=?, updated_at=strftime(\'%Y-%m-%d %H:%M:%f\', \'now\', \'localtime\') WHERE id=?',
+          (normalized, api_data_id),
+        )
+        return cursor.rowcount > 0
+    except Exception:
+      return False
+
+
+class MockDB(BaseSQLiteDB, ApiDataMixin, StaticDataMixin, ApiResponseVariantMixin):
+  """
+  SQLite 数据访问层，封装 api_data / static_data / api_response_variants 的 CRUD 操作
 
   使用 WAL 模式 + autocommit，事务由 _transaction 上下文管理器显式控制。
   线程安全：通过 threading.Lock 保护所有读写操作。

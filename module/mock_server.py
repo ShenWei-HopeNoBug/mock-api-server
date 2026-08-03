@@ -150,6 +150,9 @@ class MockServer:
     # 行遍历
     for row_data in mock_api_data_list:
       data = {**SERVER.MOCK_API_DATA_DEFAULTS, **row_data}
+      # 禁用的 API 不参与 mock 匹配
+      if not data.get('enabled', True):
+        continue
       response: str = data['response']
       method: str = data['method']
       params: str = data['params']
@@ -302,17 +305,17 @@ class MockServer:
   # 获取请求查询键名
   @staticmethod
   def __get_request_dict_key(
-    route: Route,
-    method: HttpMethod,
-    request_content_type: RequestContentTypeStr,
+      route: Route,
+      method: HttpMethod,
+      request_content_type: RequestContentTypeStr,
   ) -> RequestKey:
     return create_md5('{}-{}-{}'.format(route, method, request_content_type))
 
   # 获取响应数据映射表键名
   @staticmethod
   def __get_response_dict_key(
-    method: HttpMethod,
-    request_content_type: RequestContentTypeStr,
-    params: ParamsJson,
+      method: HttpMethod,
+      request_content_type: RequestContentTypeStr,
+      params: ParamsJson,
   ) -> ResponseKey:
     return create_md5('{}-{}-{}'.format(method, request_content_type, params))

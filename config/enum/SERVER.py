@@ -10,6 +10,8 @@ MOCK_API_DATA_DEFAULTS = {
   'method': 'GET',
   'params': '{}',
   'response': '{}',
+  'response_variant_ids': [],
+  'enabled': True,
   'timeout': 0,
   'request_content_type': 'NONE',
 }
