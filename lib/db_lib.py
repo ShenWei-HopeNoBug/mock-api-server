@@ -12,7 +12,15 @@ from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
 from config.enum import DATABASE
 from config.work_file import DB_DATA_PATH
-from app_types.db_types import (ApiRecord, ApiData, ApiQuery, StaticData, ApiResponseVariantRecord, ApiResponseVariant)
+from app_types.db_types import (
+  ApiRecord,
+  ApiData,
+  ApiQuery,
+  StaticData,
+  ApiResponseVariantInsertRecord,
+  ApiResponseVariantRecord,
+  ApiResponseVariant,
+)
 
 # 当前 schema 版本
 CURRENT_SCHEMA_VERSION = 3
@@ -646,15 +654,15 @@ class ApiResponseVariantMixin:
   需与 BaseSQLiteDB 组合使用。
   """
 
-  @_ensure_open(default=None)
-  def insert_variant(self, record: ApiResponseVariantRecord) -> Optional[str]:
-    """新增一条 response 变体，并自动追加到所属 api_data 的变体列表，失败返回 None"""
+  @_ensure_open(default=False)
+  def insert_variant(self, record: ApiResponseVariantInsertRecord) -> bool:
+    """新增一条 response 变体，并自动追加到所属 api_data 的变体列表，成功返回 True，失败返回 False"""
     data = {**DATABASE.API_RESPONSE_VARIANT_INSERT_DEFAULTS, **record}
-    variant_id = data.get('id') or generate_uuid()
+    variant_id = generate_uuid()
     api_data_id = data.get('api_data_id')
     if not api_data_id:
       APP_LOGGER.warning('ApiResponseVariantMixin insert_variant 缺少 api_data_id')
-      return None
+      return False
 
     data['response'] = JsonFormat.format_json_string(data['response'])
     data['enabled'] = _normalize_enabled(data.get('enabled'))
@@ -674,12 +682,16 @@ class ApiResponseVariantMixin:
         if variant_id not in variant_ids:
           variant_ids.append(variant_id)
           conn.execute(
-            'UPDATE api_data SET response_variant_ids=?, updated_at=strftime(\'%Y-%m-%d %H:%M:%f\', \'now\', \'localtime\') WHERE id=?',
+            '''UPDATE api_data
+               SET response_variant_ids=?,
+                   updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+               WHERE id = ?
+            ''',
             (_normalize_response_variant_ids(variant_ids), api_data_id),
           )
-      return variant_id
+      return True
     except Exception:
-      return None
+      return False
 
   @_ensure_open(default=False)
   def update_variant(self, record: ApiResponseVariantRecord) -> bool:
@@ -745,7 +757,11 @@ class ApiResponseVariantMixin:
           if variant_id in variant_ids:
             variant_ids.remove(variant_id)
             conn.execute(
-              'UPDATE api_data SET response_variant_ids=?, updated_at=strftime(\'%Y-%m-%d %H:%M:%f\', \'now\', \'localtime\') WHERE id=?',
+              '''UPDATE api_data
+                 SET response_variant_ids=?,
+                     updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+                 WHERE id = ?
+              ''',
               (_normalize_response_variant_ids(variant_ids), api_data_id),
             )
       return True
@@ -764,7 +780,8 @@ class ApiResponseVariantMixin:
       ).fetchone()
     if row is None:
       return None
-    return {
+
+    result: ApiResponseVariant = {
       'id': row[0],
       'api_data_id': row[1],
       'name': row[2],
@@ -773,20 +790,26 @@ class ApiResponseVariantMixin:
       'created_at': row[5],
       'updated_at': row[6],
     }
+    return result
 
   @_ensure_open(default=[])
   def get_variants_by_api_id(
       self,
       api_data_id: str,
-      enabled_only: bool = False,
+      enabled: Optional[bool] = None,
   ) -> List[ApiResponseVariant]:
-    """按 api_data_id 查询变体列表，结果按 api_data.response_variant_ids 顺序排列；enabled_only=True 时只返回启用的变体"""
+    """按 api_data_id 查询变体列表，结果按 api_data.response_variant_ids 顺序排列；
+
+    enabled=None 返回全部，enabled=True 返回启用，enabled=False 返回禁用
+    """
     if not api_data_id:
       return []
     sql = 'SELECT id, api_data_id, name, response, enabled, created_at, updated_at FROM api_response_variants WHERE api_data_id=?'
     params: List[Any] = [api_data_id]
-    if enabled_only:
+    if enabled is True:
       sql += ' AND enabled=1'
+    elif enabled is False:
+      sql += ' AND enabled=0'
 
     with self._lock:
       rows = self._conn.execute(sql, params).fetchall()
@@ -819,7 +842,11 @@ class ApiResponseVariantMixin:
     try:
       with self._transaction() as conn:
         cursor = conn.execute(
-          'UPDATE api_data SET response_variant_ids=?, updated_at=strftime(\'%Y-%m-%d %H:%M:%f\', \'now\', \'localtime\') WHERE id=?',
+          '''UPDATE api_data
+             SET response_variant_ids=?,
+                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+             WHERE id = ?
+          ''',
           (normalized, api_data_id),
         )
         return cursor.rowcount > 0

@@ -61,18 +61,31 @@ class ApiQuery(TypedDict, total=False):
   create_end_time: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
 
-class ApiResponseVariantRecord(TypedDict, total=False):
+class ApiResponseVariantInsertRecord(TypedDict, total=False):
   """
-  API response 变体写入参数
+  API response 变体新增参数
 
-  用于 insert_variant / update_variant 的入参。
+  用于 insert_variant 的入参。id 由服务端生成，调用方不需要传入。
   total=False 表示所有字段可选，调用方按需传入。
   """
-  id: str  # 记录唯一标识（update 时使用，insert 由代码生成）
   api_data_id: str  # 所属 api_data 的 ID
   name: str  # 变体名称
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用），缺省时默认启用
+
+
+class ApiResponseVariantRecord(TypedDict, total=False):
+  """
+  API response 变体更新参数
+
+  用于 update_variant 的入参。
+  total=False 表示所有字段可选，调用方按需传入。
+  """
+  id: str  # 记录唯一标识（update 时必需）
+  api_data_id: str  # 所属 api_data 的 ID（不允许修改）
+  name: str  # 变体名称
+  response: str  # 变体响应体，JSON 字符串
+  enabled: bool  # 是否启用（True 启用，False 禁用）
 
 
 class ApiResponseVariant(TypedDict):
