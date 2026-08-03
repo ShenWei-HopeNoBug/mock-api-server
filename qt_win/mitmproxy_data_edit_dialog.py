@@ -250,6 +250,7 @@ class MitmproxyDataEditDialog(QDialog):
       'response': source['response'],
       'timeout': source.get('timeout', 0),
       'request_content_type': source.get('request_content_type', 'NONE'),
+      'enabled': source.get('enabled', True),
     })
 
   # 请求名称 → handler 映射
