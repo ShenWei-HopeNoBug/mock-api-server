@@ -29,7 +29,6 @@ from lib.logger_lib import APP_LOGGER
 from lib.utils_lib import check_local_connection, is_local_server_running
 from lib.work_file_lib import (check_work_files, create_work_files)
 from lib.app_lib import (
-  open_mitmproxy_preview_html,
   open_operation_manual_html,
   set_menu_config,
   set_menu_item_disabled,
@@ -181,19 +180,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
       os.startfile(os.path.abspath(self.work_dir))
 
-    def open_preview_html():
-      result = open_mitmproxy_preview_html(root_dir='.', work_dir=self.work_dir)
-      # 打开失败
-      if not result:
-        QMessageBox.critical(self, '异常', '打开抓包数据预览html失败！')
-
     file_menu = menu_bar.addMenu(FILE.MENU_NAME)
     self.file_menu = file_menu
     set_menu_config(file_menu, [
       {"name": FILE.CHANGE_WORK_DIR, "callback": self.select_work_dir},
       {"name": FILE.OPEN_WORK_DIR, "callback": open_work_dir},
       {"name": FILE.OUTPUT_STATIC_FILE, "callback": self.output_static},
-      {"name": FILE.MITMPROXY_DATA_PREVIEW, "callback": open_preview_html},
     ])
 
     # ---------------------
@@ -447,7 +439,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     set_menu_item_disabled(self.file_menu, [
       {"action_name": FILE.CHANGE_WORK_DIR, "disabled": disabled},
-      {"action_name": FILE.MITMPROXY_DATA_PREVIEW, "disabled": disabled},
     ])
     set_menu_item_disabled(self.edit_menu, [
       {"action_name": EDIT.MITMPROXY_EDIT, "disabled": disabled},

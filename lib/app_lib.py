@@ -280,30 +280,6 @@ def get_mock_api_data_list(work_dir: str = '.', enabled: Optional[bool] = None) 
   return api_list
 
 
-# 加工并打开抓包数据预览html
-@error_catch(error_msg='打开抓包数据预览html失败', error_return=False)
-def open_mitmproxy_preview_html(root_dir: str = '.', work_dir: str = '.') -> bool:
-  # 预览数据列表
-  preview_list = get_mock_api_data_list(work_dir=work_dir)
-  base_path = f"{root_dir}/appServer/static/web"
-
-  # 把预览数据写入web的静态资源文件
-  web_mitmproxy_output_file = f'{base_path}/mitmproxy_output.js'
-  if not os.path.exists(web_mitmproxy_output_file):
-    return False
-  with open(web_mitmproxy_output_file, 'w', encoding='utf-8') as fl:
-    content = f"window.MITMPROXY_OUTPUT = {JsonFormat.dumps(preview_list)};\n"
-    fl.write(content)
-
-  preview_html = f'{base_path}/apps/dataPreview/index.html'
-  if not os.path.exists(preview_html):
-    return False
-  # 用浏览器打开预览 html 文件
-  webbrowser.open(os.path.abspath(preview_html))
-
-  return True
-
-
 # 打开操作手册
 @error_catch(error_msg='打开操作手册html失败', error_return=False)
 def open_operation_manual_html(root_dir: str = '.') -> bool:
