@@ -21,7 +21,7 @@ from lib.server_lib import (
   create_assets_replace_func,
   parse_flask_request,
 )
-from lib.db_lib import MockDBCache
+from lib.db import MockDBCache
 from lib.utils_lib import (
   JsonFormat,
   create_md5,

@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
 from flask import Request, send_from_directory, jsonify
 
 from config.route import STATIC_DELAY_ROUTE
-from lib.db_lib import MockDBCache
+from lib.db import MockDBCache
 from lib.download_lib import get_static_match_regexp
 from lib.utils_lib import (
   create_md5,

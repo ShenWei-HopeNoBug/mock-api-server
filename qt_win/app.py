@@ -36,7 +36,7 @@ from lib.app_lib import (
 )
 from app_types.app_gui_types import AppServerRunningData
 from app_types.mitmproxy_types import MitmproxyRunConfig
-from lib.db_lib import MockDBCache
+from lib.db import MockDBCache
 from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
 from config.menu import (FILE, EDIT, HELP)

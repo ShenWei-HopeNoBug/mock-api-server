@@ -17,7 +17,7 @@ from config.work_file import (
   DB_DATA_PATH,
 )
 from lib import mitmproxy_lib
-from lib.db_lib import MockDB
+from lib.db import MockDB
 from lib.work_file_lib import create_work_files
 from lib.utils_lib import (
   JsonFormat,

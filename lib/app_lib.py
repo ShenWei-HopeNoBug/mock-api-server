@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from PyQt5.QtWidgets import QMenu, QAction, QApplication
 from PyQt5.QtCore import QSharedMemory
-from lib.db_lib import MockDB, MockDBCache
+from lib.db import MockDB, MockDBCache
 from lib.decorate import error_catch
 from lib.utils_lib import (
   find_process,

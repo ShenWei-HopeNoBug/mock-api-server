@@ -28,7 +28,7 @@ from lib.utils_lib import (
   is_url_match,
 )
 from lib.app_lib import get_mock_api_data_list
-from lib.db_lib import MockDBCache
+from lib.db import MockDBCache
 
 
 @error_catch(error_msg='获取导出下载地址列表失败', error_return=[])
