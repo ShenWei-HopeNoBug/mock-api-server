@@ -37,6 +37,7 @@ class GetMockDataPageParams(TypedDict, total=False):
   response: Optional[str]  # response 模糊查询关键词
   method: Optional[Literal['GET', 'POST']]
   request_content_type: Optional[RequestContentType]  # 请求 content-type 精确查询
+  enabled: Optional[bool]  # 启用状态精确查询，True 启用，False 禁用，None 或不传表示全部
   create_start_time: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS'，需与 create_end_time 同时传
   create_end_time: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS'，需与 create_start_time 同时传
 
@@ -78,6 +79,7 @@ class BatchDeleteMockDataParams(TypedDict, total=False):
   response: Optional[str]  # response 模糊查询关键词
   method: Optional[Literal['GET', 'POST']]
   request_content_type: Optional[RequestContentType]  # 请求 content-type 精确查询
+  enabled: Optional[bool]  # 启用状态精确查询，True 启用，False 禁用，None 或不传表示全部
   create_start_time: Optional[str]
   create_end_time: Optional[str]
 

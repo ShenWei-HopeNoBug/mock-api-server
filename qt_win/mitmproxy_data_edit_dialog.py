@@ -183,6 +183,7 @@ class MitmproxyDataEditDialog(QDialog):
     page_num = params.get('page_num', 1)
     page_size = params.get('page_size', 20)
     api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
+    enabled = params.get('enabled')
     query: ApiQuery = {
       'api_type': api_type,
       'url_like': params.get('url') or None,
@@ -190,6 +191,7 @@ class MitmproxyDataEditDialog(QDialog):
       'response_like': params.get('response') or None,
       'method': params.get('method') or None,
       'request_content_type': params.get('request_content_type') or None,
+      'enabled': enabled if isinstance(enabled, bool) else None,
       'create_start_time': params.get('create_start_time') or None,
       'create_end_time': params.get('create_end_time') or None,
     }
@@ -225,6 +227,7 @@ class MitmproxyDataEditDialog(QDialog):
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     mock_data_type = params.get('type')
     api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
+    enabled = params.get('enabled')
     query: ApiQuery = {
       'api_type': api_type,
       'url_like': params.get('url') or None,
@@ -232,6 +235,7 @@ class MitmproxyDataEditDialog(QDialog):
       'response_like': params.get('response') or None,
       'method': params.get('method') or None,
       'request_content_type': params.get('request_content_type') or None,
+      'enabled': enabled if isinstance(enabled, bool) else None,
       'create_start_time': params.get('create_start_time') or None,
       'create_end_time': params.get('create_end_time') or None,
     }
