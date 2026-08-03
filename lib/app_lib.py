@@ -11,13 +11,12 @@ from PyQt5.QtCore import QSharedMemory
 from lib.db_lib import MockDB, MockDBCache
 from lib.decorate import error_catch
 from lib.utils_lib import (
-  JsonFormat,
   find_process,
   create_md5,
   is_local_server_running,
 )
 from app_types.app_gui_types import AppServerRunningData
-from app_types.db_types import ApiData, ApiRecord, ApiQuery
+from app_types.db_types import ApiData, ApiQuery
 from lib.logger_lib import APP_LOGGER
 import psutil
 import win32gui
@@ -211,58 +210,6 @@ def get_process_windows(pid: int) -> List[int]:
   hwnds = []
   win32gui.EnumWindows(callback, hwnds)
   return hwnds
-
-
-@error_catch(error_msg='读取 mitmproxy api 数据失败', error_return=[])
-def get_mitmproxy_api_data_list(work_dir: str = '.', reverse: bool = False) -> List[ApiData]:
-  mock_db: MockDB = MockDBCache.get(work_dir)
-  return mock_db.get_api_list(query=ApiQuery(api_type='MITMPROXY'), reverse=reverse)
-
-
-@error_catch(error_msg='读取 user api 数据失败', error_return=[])
-def get_user_api_data_list(work_dir: str = '.', reverse: bool = False) -> List[ApiData]:
-  mock_db: MockDB = MockDBCache.get(work_dir)
-  return mock_db.get_api_list(query=ApiQuery(api_type='USER'), reverse=reverse)
-
-
-@error_catch(error_msg='更新 user api 数据失败', error_return=False)
-def update_user_api_data(work_dir: str = '.', update_data: Optional[ApiRecord] = None) -> bool:
-  # 入参校验
-  if not isinstance(update_data, dict):
-    return False
-
-  update_id = update_data.get('id', '')
-  if not update_id:
-    return False
-
-  mock_db: MockDB = MockDBCache.get(work_dir)
-  return mock_db.update_api(update_data)
-
-
-@error_catch(error_msg='新增 user api 数据失败', error_return=False)
-def add_user_api_data(work_dir: str = '.', add_data: Optional[Dict[str, Any]] = None) -> bool:
-  if not isinstance(add_data, dict):
-    return False
-
-  record = {
-    "type": add_data.get('type', 'USER'),
-    "url": add_data.get('url', ''),
-    "method": add_data.get('method', 'GET'),
-    "params": add_data.get('params', JsonFormat.dumps({})),
-    "response": add_data.get('response', JsonFormat.dumps({})),
-  }
-  mock_db: MockDB = MockDBCache.get(work_dir)
-  mock_db.insert_api(record)
-  return True
-
-
-@error_catch(error_msg='删除 user api 数据失败', error_return=False)
-def delete_user_api_data(work_dir: str = '.', delete_id: str = '') -> bool:
-  if not isinstance(delete_id, str) or not delete_id:
-    return False
-
-  mock_db: MockDB = MockDBCache.get(work_dir)
-  return mock_db.delete_api(delete_id)
 
 
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
