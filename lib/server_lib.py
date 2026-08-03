@@ -401,7 +401,7 @@ class MockRequestHandler:
       response = {}
 
     # 缓存中 timeout 仅作占位，真实响应延时以 ApiMatchMeta.timeout 为准
-    entry = {'response': response, 'timeout': 0}
+    entry: MockApiEntry = {'response': response, 'timeout': 0}
     self.response_cache.set(cache_key, entry)
     return entry
 
@@ -425,7 +425,7 @@ class MockRequestHandler:
     except (json.JSONDecodeError, TypeError):
       response = {}
 
-    entry = {'response': response, 'timeout': 0}
+    entry: MockApiEntry = {'response': response, 'timeout': 0}
     self.response_cache.set(cache_key, entry)
     return entry
 
