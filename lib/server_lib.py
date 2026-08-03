@@ -5,7 +5,7 @@ import re
 import time
 import threading
 from collections import OrderedDict
-from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
 
 from flask import Request, send_from_directory, jsonify
 
@@ -98,6 +98,40 @@ class ThreadSafeLRUCache(Generic[T]):
       if len(self._cache) > self._limit:
         self._cache.popitem(last=False)
       return True
+
+
+# 静态资源 URL 替换函数类型
+AssetsReplaceFunc = Callable[[str], str]
+
+
+def create_assets_replace_func(
+    include_files: List[str],
+    static_host: str,
+    static_url_path: str,
+    static_load_speed: int,
+) -> Optional[AssetsReplaceFunc]:
+  """
+  根据 include_files 等配置构造静态资源 URL 替换函数。
+
+  返回的函数接收原始 response 文本，返回替换后的文本；
+  若 include_files 为空，返回 None，表示无需替换。
+  """
+  if not include_files:
+    return None
+
+  assets_reg: re.Pattern = get_static_match_regexp(include_files)
+  assets_route: str = STATIC_DELAY_ROUTE if static_load_speed > 0 else static_url_path
+  assets_base_url: str = f'{static_host}{assets_route}'
+
+  def replace_assets(response_text: str) -> str:
+    def repl(match: re.Match) -> str:
+      assets_url: str = match[0]
+      file_name: str = assets_url.split('/')[-1]
+      return f'{assets_base_url}/{file_name}'
+
+    return assets_reg.sub(repl, response_text)
+
+  return replace_assets
 
 
 class StaticFileHandler:
@@ -279,10 +313,7 @@ class MockRequestHandler:
       response_delay: int,
       get_request_key: RequestKeyFunc,
       get_response_key: ResponseKeyFunc,
-      include_files: List[str],
-      static_host: str,
-      static_url_path: str,
-      static_load_speed: int,
+      replace_assets: Optional[AssetsReplaceFunc] = None,
   ) -> None:
     self.api_index: MockApiIndex = api_index
     self.work_dir: str = work_dir
@@ -291,30 +322,12 @@ class MockRequestHandler:
     self.get_request_key: RequestKeyFunc = get_request_key
     self.get_response_key: ResponseKeyFunc = get_response_key
 
-    # 静态资源替换配置
-    self.include_files: List[str] = include_files
-    self.assets_reg: Optional[re.Pattern] = None
-    self.assets_base_url: str = static_url_path
-    if self.include_files:
-      self.assets_reg = get_static_match_regexp(self.include_files)
-      assets_route: str = STATIC_DELAY_ROUTE if static_load_speed > 0 else static_url_path
-      self.assets_base_url = f'{static_host}{assets_route}'
+    # 静态资源替换由外部构造并传入，MockRequestHandler 不依赖 include_files 等配置
+    self.replace_assets: Optional[AssetsReplaceFunc] = replace_assets
 
     # 变体状态锁：每个 device 一把锁，保证同一设备并发请求时状态不竞争
     self._state_locks: Dict[str, threading.Lock] = {}
     self._state_locks_lock: threading.Lock = threading.Lock()
-
-  def _assets_replace_method(self, match: re.Match) -> str:
-    """静态资源 URL 替换回调：把远端 URL 替换为本地服务地址"""
-    assets_url: str = match[0]
-    file_name: str = assets_url.split('/')[-1]
-    return f'{self.assets_base_url}/{file_name}'
-
-  def _replace_assets(self, response: str) -> str:
-    """如果配置了 include_files，对 response 文本做静态资源 URL 替换"""
-    if not self.assets_reg:
-      return response
-    return self.assets_reg.sub(self._assets_replace_method, response)
 
   def _get_state_lock(self, device_id: DeviceId) -> threading.Lock:
     """获取/创建某个 device 的状态锁，保证变体状态并发安全"""
@@ -380,7 +393,8 @@ class MockRequestHandler:
       return {'response': {}, 'timeout': 0}
 
     response_text: str = api_data.get('response', '{}')
-    response_text = self._replace_assets(response_text)
+    if self.replace_assets:
+      response_text = self.replace_assets(response_text)
     try:
       response: JsonValue = json.loads(response_text)
     except (json.JSONDecodeError, TypeError):
@@ -404,7 +418,8 @@ class MockRequestHandler:
       return {'response': {}, 'timeout': 0}
 
     response_text: str = variant.get('response', '{}')
-    response_text = self._replace_assets(response_text)
+    if self.replace_assets:
+      response_text = self.replace_assets(response_text)
     try:
       response: JsonValue = json.loads(response_text)
     except (json.JSONDecodeError, TypeError):

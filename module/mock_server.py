@@ -12,11 +12,13 @@ from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
 from lib.app_lib import get_mock_api_data_list
 from lib.server_lib import (
+  AssetsReplaceFunc,
   ClientStateManager,
   MockRequestHandler,
   MockRequestParseError,
   StaticFileHandler,
   ThreadSafeLRUCache,
+  create_assets_replace_func,
   parse_flask_request,
 )
 from lib.db_lib import MockDBCache
@@ -77,6 +79,14 @@ class MockServer:
     # 初始化
     # -------------------
     self.init()
+
+    # 静态资源替换函数：配置确定后一次性构造，避免 start_server 重复构建
+    self.replace_assets: Optional[AssetsReplaceFunc] = create_assets_replace_func(
+      include_files=self.include_files,
+      static_host=self.static_host,
+      static_url_path=self.static_url_path,
+      static_load_speed=self.static_load_speed,
+    )
 
   def init(self) -> None:
     # 工作目录文件检查
@@ -197,7 +207,7 @@ class MockServer:
       f"{self.static_url_path}/*": {"origins": "*"},
     }
 
-    cache: ThreadSafeLRUCache[bool] = ThreadSafeLRUCache(SERVER.STATIC_MATCH_CACHE_LIMIT)
+    cache: ThreadSafeLRUCache[bool] = ThreadSafeLRUCache(limit=SERVER.STATIC_MATCH_CACHE_LIMIT)
     static_handler: StaticFileHandler = StaticFileHandler(
       work_dir=self.work_dir,
       static_url_path=self.static_url_path,
@@ -207,7 +217,8 @@ class MockServer:
       max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
     )
 
-    response_cache: ThreadSafeLRUCache[MockApiEntry] = ThreadSafeLRUCache(SERVER.RESPONSE_CACHE_LIMIT)
+    response_cache: ThreadSafeLRUCache[MockApiEntry] = ThreadSafeLRUCache(limit=SERVER.RESPONSE_CACHE_LIMIT)
+
     mock_handler: MockRequestHandler = MockRequestHandler(
       api_index=api_index,
       work_dir=self.work_dir,
@@ -215,10 +226,7 @@ class MockServer:
       response_delay=self.response_delay,
       get_request_key=self.__get_request_dict_key,
       get_response_key=self.__get_response_dict_key,
-      include_files=self.include_files,
-      static_host=self.static_host,
-      static_url_path=self.static_url_path,
-      static_load_speed=self.static_load_speed,
+      replace_assets=self.replace_assets,
     )
 
     for static_route in self.static_match_route:
