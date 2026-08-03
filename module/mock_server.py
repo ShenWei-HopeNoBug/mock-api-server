@@ -40,7 +40,7 @@ from app_types.mock_server_types import (
   FlaskRouteResult,
   HttpMethod,
   MockApiEntry,
-  MockApiIndex,
+  MockApiMap,
   ParamsInput,
   ParamsJson,
   RequestContentTypeStr,
@@ -124,17 +124,17 @@ class MockServer:
 
       self.static_match_route = route_list
 
-  # 创建并保存 api_index
-  def create_api_dict(self) -> MockApiIndex:
+  # 创建并保存 mock_api_map
+  def create_api_map(self) -> MockApiMap:
     """
-    构建 mock api 轻量索引
+    构建 mock api 轻量匹配映射
 
     1. 从 DB 加载全部启用状态的 mock 数据；
     2. 逐条遍历，按 api_data 启用的变体列表构建元数据；
-    3. 生成 request_key -> response_key -> ApiMatchMeta 的索引；
+    3. 生成 request_key -> response_key -> ApiMatchMeta 的匹配映射；
     4. 不加载 response 文本，不解析 JSON，不关闭 DB，响应体由 MockRequestHandler 按需加载。
     """
-    api_index: MockApiIndex = {}
+    mock_api_map: MockApiMap = {}
     # 所有的 mock 数据列表（MITMPROXY 在前、USER 在后，各自按 created_at 旧→新排序，仅启用状态）
     mock_api_data_list: List[ApiData] = get_mock_api_data_list(work_dir=self.work_dir, enabled=True)
 
@@ -156,9 +156,9 @@ class MockServer:
       # 请求查询键名
       request_key: str = self.__get_request_dict_key(route, method, request_content_type)
 
-      # 创建 api 索引
-      if request_key not in api_index:
-        api_index[request_key] = {}
+      # 创建 api 匹配映射
+      if request_key not in mock_api_map:
+        mock_api_map[request_key] = {}
 
       try:
         # 响应数据查询键名
@@ -175,23 +175,23 @@ class MockServer:
           for v in variants
         ]
 
-        api_index[request_key][response_key] = {
+        mock_api_map[request_key][response_key] = {
           'api_data_id': api_data_id,
           'timeout': data['timeout'],
           'variants': variant_metas,
         }
       except Exception as e:
-        print(f'mock 数据索引构建失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
+        print(f'mock 数据匹配映射构建失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
 
     # 过滤掉所有 mock 数据均处理失败而残留的空字典
-    api_index = {k: v for k, v in api_index.items() if v}
-    return api_index
+    mock_api_map = {k: v for k, v in mock_api_map.items() if v}
+    return mock_api_map
 
   # 启动本地 mock 服务
   @create_thread
   def start_server(self) -> None:
     print('>' * 10, '本地 mock 服务启动...')
-    api_index: MockApiIndex = self.create_api_dict()
+    mock_api_map: MockApiMap = self.create_api_map()
 
     root_path: str = os.path.abspath(self.work_dir)
     static_folder: str = self.static_url_path.lstrip('/')
@@ -220,7 +220,7 @@ class MockServer:
     response_cache: ThreadSafeLRUCache[MockApiEntry] = ThreadSafeLRUCache(limit=SERVER.RESPONSE_CACHE_LIMIT)
 
     mock_handler: MockRequestHandler = MockRequestHandler(
-      api_index=api_index,
+      mock_api_map=mock_api_map,
       work_dir=self.work_dir,
       response_cache=response_cache,
       response_delay=self.response_delay,

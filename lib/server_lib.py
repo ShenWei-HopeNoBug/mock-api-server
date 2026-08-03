@@ -31,7 +31,7 @@ from app_types.mock_server_types import (
   FlaskRouteResult,
   HttpMethod,
   MockApiEntry,
-  MockApiIndex,
+  MockApiMap,
   ParamsJson,
   ParamsJsonStringFunc,
   ParsedRequest,
@@ -300,14 +300,14 @@ class MockRequestHandler:
   """
   mock 接口请求处理器
 
-  负责根据路由、方法、content-type 和 params 命中轻量索引，
+  负责根据路由、方法、content-type 和 params 命中轻量匹配映射，
   并根据 device 状态按顺序命中 response 变体；
   响应体按需从 DB 加载并缓存，支持按单条 timeout 或全局延时模拟接口响应延迟。
   """
 
   def __init__(
       self,
-      api_index: MockApiIndex,
+      mock_api_map: MockApiMap,
       work_dir: str,
       response_cache: 'ThreadSafeLRUCache[MockApiEntry]',
       response_delay: int,
@@ -315,7 +315,7 @@ class MockRequestHandler:
       get_response_key: ResponseKeyFunc,
       replace_assets: Optional[AssetsReplaceFunc] = None,
   ) -> None:
-    self.api_index: MockApiIndex = api_index
+    self.mock_api_map: MockApiMap = mock_api_map
     self.work_dir: str = work_dir
     self.response_cache: 'ThreadSafeLRUCache[MockApiEntry]' = response_cache
     self.response_delay: int = response_delay
@@ -435,10 +435,10 @@ class MockRequestHandler:
     response_key: ResponseKey,
   ) -> Optional[ApiMatchMeta]:
     """根据 request_key / response_key 命中 ApiMatchMeta，未命中时 fallback 默认"""
-    if request_key not in self.api_index:
+    if request_key not in self.mock_api_map:
       return None
 
-    inner: Dict[ResponseKey, ApiMatchMeta] = self.api_index[request_key]
+    inner: Dict[ResponseKey, ApiMatchMeta] = self.mock_api_map[request_key]
 
     if response_key in inner:
       return inner[response_key]

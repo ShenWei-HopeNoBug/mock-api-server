@@ -38,8 +38,8 @@ ResponseKey = str
 # 原始参数输入类型（dict 或 JSON 字符串）
 ParamsInput = Union[Dict[str, Any], str]
 
-# mock api 轻量索引结构: {request_key: {response_key: ApiMatchMeta, ...}, ...}
-MockApiIndex = Dict[RequestKey, Dict[ResponseKey, ApiMatchMeta]]
+# mock api 轻量匹配映射: {request_key: {response_key: ApiMatchMeta, ...}, ...}
+MockApiMap = Dict[RequestKey, Dict[ResponseKey, ApiMatchMeta]]
 
 # 已废弃：旧的全量 response 映射表，保留别名避免外部引用报错
 MockApiDict = Dict[RequestKey, Dict[ResponseKey, MockApiEntry]]
