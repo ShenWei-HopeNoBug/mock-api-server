@@ -8,7 +8,6 @@ from config.work_file import (
 from config.enum import SERVER
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread, error_catch
-from lib.download_lib import get_static_match_regexp
 from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
 from lib.app_lib import get_mock_api_data_list
@@ -16,6 +15,7 @@ from lib.server_lib import (
   ClientStateManager,
   MockRequestHandler,
   MockRequestParseError,
+  ResponseCache,
   StaticFileHandler,
   StaticMatchCache,
   parse_flask_request,
@@ -31,20 +31,22 @@ from lib.utils_lib import (
   is_local_server_running,
 )
 import json
-import re
-from typing import Dict, List, Optional, Pattern
-from app_types.db_types import ApiData
+from typing import Dict, List, Optional
+from app_types.db_types import ApiData, ApiResponseVariant
 from app_types.mock_server_types import (
+  ApiMatchMeta,
   ClientStateResult,
   FlaskRouteResult,
   HttpMethod,
-  MockApiDict,
+  MockApiEntry,
+  MockApiIndex,
   ParamsInput,
   ParamsJson,
   RequestContentTypeStr,
   RequestKey,
   ResponseKey,
   Route,
+  VariantMeta,
 )
 from flask import (Flask, request, jsonify, make_response)
 from flask_cors import CORS
@@ -113,44 +115,25 @@ class MockServer:
 
       self.static_match_route = route_list
 
-  # 创建并保存 api_dict
-  def create_api_dict(self) -> MockApiDict:
+  # 创建并保存 api_index
+  def create_api_dict(self) -> MockApiIndex:
     """
-    构建 mock api 映射表
+    构建 mock api 轻量索引
 
-    1. 准备静态资源替换规则：编译 include_files 正则，确定静态资源路由前缀（延时/非延时），
-       定义替换回调，将响应中的原始静态资源 URL 重写为本地服务地址。
-    2. 从 DB 加载全部 mock 数据，查询完毕后关闭 DB 连接（触发 checkpoint，释放文件锁）。
-    3. 逐条遍历 mock 数据：
-       - 用 API_INSERT_DEFAULTS 兜底缺失字段
-       - 去掉 URL 域名得到路由，GET 请求额外去掉 query 参数
-       - 由 route + method + request_content_type 生成 request_key
-       - 由 method + request_content_type + params 生成 response_key
-       - 若配置了 include_files，对 response 做静态资源链接替换
-       - 解析 response JSON 存入 api_dict[request_key][response_key]
+    1. 从 DB 加载全部启用状态的 mock 数据；
+    2. 逐条遍历，按 api_data 启用的变体列表构建元数据；
+    3. 生成 request_key -> response_key -> ApiMatchMeta 的索引；
+    4. 不加载 response 文本，不解析 JSON，不关闭 DB，响应体由 MockRequestHandler 按需加载。
     """
-    assets_reg: Pattern[str] = get_static_match_regexp(self.include_files)
-    # 区分是否延时两种静态资源的路由
-    assets_route: str = STATIC_DELAY_ROUTE if self.static_load_speed > 0 else self.static_url_path
-    # 静态资源 base_url
-    assets_base_url: str = f'{self.static_host}{assets_route}'
-
-    # 静态资源文本替换规则
-    def assets_replace_method(match: re.Match) -> str:
-      assets_url = match[0]
-      file_name = assets_url.split('/')[-1]
-
-      return f'{assets_base_url}/{file_name}'
-
-    api_dict: MockApiDict = {}
+    api_index: MockApiIndex = {}
     # 所有的 mock 数据列表（MITMPROXY 在前、USER 在后，各自按 created_at 旧→新排序，仅启用状态）
     mock_api_data_list: List[ApiData] = get_mock_api_data_list(work_dir=self.work_dir, enabled=True)
-    # 查询完毕，关闭 DB 连接（触发 checkpoint，释放文件锁）
-    MockDBCache.close(work_dir=self.work_dir)
-    # 行遍历
+
+    mock_db = MockDBCache.get(self.work_dir)
+
     for row_data in mock_api_data_list:
       data = {**SERVER.MOCK_API_DATA_DEFAULTS, **row_data}
-      response: str = data['response']
+      api_data_id: str = data['id']
       method: str = data['method']
       params: str = data['params']
       request_content_type: str = data.get('request_content_type', 'NONE')
@@ -164,9 +147,9 @@ class MockServer:
       # 请求查询键名
       request_key: str = self.__get_request_dict_key(route, method, request_content_type)
 
-      # 创建 api 映射表
-      if request_key not in api_dict:
-        api_dict[request_key] = {}
+      # 创建 api 索引
+      if request_key not in api_index:
+        api_index[request_key] = {}
 
       try:
         # 响应数据查询键名
@@ -175,25 +158,31 @@ class MockServer:
           request_content_type,
           self.__get_params_json_string(params),
         )
-        # 替换静态资源链接
-        if len(self.include_files):
-          response = assets_reg.sub(assets_replace_method, response)
-        api_dict[request_key][response_key] = {
-          'response': json.loads(response),
-          'timeout': data['timeout'],
-        }
-      except (json.JSONDecodeError, TypeError) as e:
-        print(f'mock 数据 JSON 解析失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
 
-    # 过滤掉所有 mock 数据均解析失败而残留的空字典，避免 request_api 取最后一条时 IndexError
-    api_dict = {k: v for k, v in api_dict.items() if v}
-    return api_dict
+        # 获取启用的变体元数据列表（按 response_variant_ids 顺序）
+        variants: List[ApiResponseVariant] = mock_db.get_variants_by_api_id(api_data_id, enabled=True)
+        variant_metas: List[VariantMeta] = [
+          {'id': v['id'], 'timeout': v['timeout']}
+          for v in variants
+        ]
+
+        api_index[request_key][response_key] = {
+          'api_data_id': api_data_id,
+          'timeout': data['timeout'],
+          'variants': variant_metas,
+        }
+      except Exception as e:
+        print(f'mock 数据索引构建失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
+
+    # 过滤掉所有 mock 数据均处理失败而残留的空字典
+    api_index = {k: v for k, v in api_index.items() if v}
+    return api_index
 
   # 启动本地 mock 服务
   @create_thread
   def start_server(self) -> None:
     print('>' * 10, '本地 mock 服务启动...')
-    api_dict: MockApiDict = self.create_api_dict()
+    api_index: MockApiIndex = self.create_api_dict()
 
     root_path: str = os.path.abspath(self.work_dir)
     static_folder: str = self.static_url_path.lstrip('/')
@@ -219,11 +208,18 @@ class MockServer:
       max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
     )
 
+    response_cache: ResponseCache[MockApiEntry] = ResponseCache(SERVER.RESPONSE_CACHE_LIMIT)
     mock_handler: MockRequestHandler = MockRequestHandler(
-      api_dict=api_dict,
+      api_index=api_index,
+      work_dir=self.work_dir,
+      response_cache=response_cache,
       response_delay=self.response_delay,
       get_request_key=self.__get_request_dict_key,
       get_response_key=self.__get_response_dict_key,
+      include_files=self.include_files,
+      static_host=self.static_host,
+      static_url_path=self.static_url_path,
+      static_load_speed=self.static_load_speed,
     )
 
     for static_route in self.static_match_route:

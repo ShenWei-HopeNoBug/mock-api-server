@@ -21,6 +21,8 @@ MOCK_API_DATA_DEFAULTS = {
 # ---------------------------------------------------
 # 静态资源匹配缓存上限
 STATIC_MATCH_CACHE_LIMIT = 1000
+# mock 接口响应缓存上限（按条目数）
+RESPONSE_CACHE_LIMIT = 200
 # 静态资源返回最大延时（秒）
 STATIC_MATCH_MAX_DELAY_SECONDS = 120
 

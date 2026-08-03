@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
+import json
 import os
+import re
 import time
 import threading
 from collections import OrderedDict
@@ -7,8 +9,10 @@ from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from flask import Request, send_from_directory, jsonify
 
+from config.route import STATIC_DELAY_ROUTE
 from lib.decorate import error_catch
 from lib.db_lib import MockDBCache
+from lib.download_lib import get_static_match_regexp
 from lib.utils_lib import (
   create_md5,
   get_request_content_type,
@@ -18,14 +22,16 @@ from lib.utils_lib import (
 )
 from app_types.app_gui_types import RequestContentType
 from app_types.db_types import StaticData
+from app_types.global_types import JsonValue
 from app_types.mock_server_types import (
+  ApiMatchMeta,
   ClientStateResult,
   DeviceId,
   DeviceState,
   FlaskRouteResult,
   HttpMethod,
-  MockApiDict,
   MockApiEntry,
+  MockApiIndex,
   ParamsJson,
   ParamsJsonStringFunc,
   ParsedRequest,
@@ -35,6 +41,8 @@ from app_types.mock_server_types import (
   ResponseKey,
   ResponseKeyFunc,
   Route,
+  VariantMeta,
+  VariantState,
 )
 
 
@@ -74,6 +82,36 @@ class StaticMatchCache(Generic[T]):
       if len(self._cache) > self._limit:
         self._cache.popitem(last=False)
       return True
+
+
+class ResponseCache(Generic[T]):
+  """
+  接口响应缓存
+
+  缓存已做静态资源替换并解析后的响应对象，基于 OrderedDict 实现 LRU 淘汰，
+  配合 Lock 保证多线程安全。
+  """
+
+  def __init__(self, limit: int):
+    self._limit: int = limit
+    self._cache: 'OrderedDict[str, T]' = OrderedDict()
+    self._lock: threading.Lock = threading.Lock()
+
+  def get(self, key: str) -> Optional[T]:
+    """读取缓存，命中时移到队尾表示最近使用"""
+    with self._lock:
+      if key not in self._cache:
+        return None
+      self._cache.move_to_end(key)
+      return self._cache[key]
+
+  def put(self, key: str, value: T) -> None:
+    """写入缓存，超过上限时淘汰最久未使用"""
+    with self._lock:
+      self._cache[key] = value
+      self._cache.move_to_end(key)
+      if len(self._cache) > self._limit:
+        self._cache.popitem(last=False)
 
 
 class StaticFileHandler:
@@ -242,21 +280,179 @@ class MockRequestHandler:
   """
   mock 接口请求处理器
 
-  负责根据路由、方法、content-type 和 params 匹配对应的 mock 响应数据，
-  并支持按单条 timeout 或全局延时模拟接口响应延迟。
+  负责根据路由、方法、content-type 和 params 命中轻量索引，
+  并根据 device 状态按顺序命中 response 变体；
+  响应体按需从 DB 加载并缓存，支持按单条 timeout 或全局延时模拟接口响应延迟。
   """
 
   def __init__(
       self,
-      api_dict: MockApiDict,
+      api_index: MockApiIndex,
+      work_dir: str,
+      response_cache: 'ResponseCache[MockApiEntry]',
       response_delay: int,
       get_request_key: RequestKeyFunc,
       get_response_key: ResponseKeyFunc,
+      include_files: List[str],
+      static_host: str,
+      static_url_path: str,
+      static_load_speed: int,
   ) -> None:
-    self.api_dict: MockApiDict = api_dict
+    self.api_index: MockApiIndex = api_index
+    self.work_dir: str = work_dir
+    self.response_cache: 'ResponseCache[MockApiEntry]' = response_cache
     self.response_delay: int = response_delay
     self.get_request_key: RequestKeyFunc = get_request_key
     self.get_response_key: ResponseKeyFunc = get_response_key
+
+    # 静态资源替换配置
+    self.include_files: List[str] = include_files
+    self.assets_reg: Optional[re.Pattern] = None
+    self.assets_base_url: str = static_url_path
+    if self.include_files:
+      self.assets_reg = get_static_match_regexp(self.include_files)
+      assets_route: str = STATIC_DELAY_ROUTE if static_load_speed > 0 else static_url_path
+      self.assets_base_url = f'{static_host}{assets_route}'
+
+    # 变体状态锁：每个 device 一把锁，保证同一设备并发请求时状态不竞争
+    self._state_locks: Dict[str, threading.Lock] = {}
+    self._state_locks_lock: threading.Lock = threading.Lock()
+
+  def _assets_replace_method(self, match: re.Match) -> str:
+    """静态资源 URL 替换回调：把远端 URL 替换为本地服务地址"""
+    assets_url: str = match[0]
+    file_name: str = assets_url.split('/')[-1]
+    return f'{self.assets_base_url}/{file_name}'
+
+  def _replace_assets(self, response: str) -> str:
+    """如果配置了 include_files，对 response 文本做静态资源 URL 替换"""
+    if not self.assets_reg:
+      return response
+    return self.assets_reg.sub(self._assets_replace_method, response)
+
+  def _get_state_lock(self, device_id: DeviceId) -> threading.Lock:
+    """获取/创建某个 device 的状态锁，保证变体状态并发安全"""
+    key: str = create_md5(device_id[:128])
+    with self._state_locks_lock:
+      if key not in self._state_locks:
+        self._state_locks[key] = threading.Lock()
+      return self._state_locks[key]
+
+  def _select_variant(
+    self,
+    device_state: DeviceState,
+    api_data_id: str,
+    variants: List[VariantMeta],
+  ) -> str:
+    """
+    在已加锁的 device_state 上，按 timeout 规则选择本次应命中的变体 id。
+
+    - 首次命中取 variants[0]， next_index 更新为 1；
+    - 之后按顺序推进，命中最后一个后停留在最后一个；
+    - 超过 last_variant_timeout 未请求，重置为 variants[0]。
+    """
+    variant_states: Dict[str, Any] = device_state.setdefault('variant_state', {})
+
+    state: VariantState = variant_states.setdefault(
+      api_data_id,
+      {
+        'next_index': 0,
+        'last_hit_time': 0.0,
+        'last_variant_timeout': 0,
+      },
+    )
+
+    now: float = time.time()
+    n: int = len(variants)
+
+    # timeout 回退：上次命中变体的 idle 超时时间内没有新请求，重置为第一个
+    if state['last_variant_timeout'] > 0:
+      idle_ms: float = (now - state['last_hit_time']) * 1000
+      if idle_ms > state['last_variant_timeout']:
+        state['next_index'] = 0
+
+    selected_index: int = min(state['next_index'], n - 1)
+    selected: VariantMeta = variants[selected_index]
+
+    # 更新状态：记录本次命中时间和该变体的 timeout，推进索引
+    state['last_hit_time'] = now
+    state['last_variant_timeout'] = selected['timeout']
+    state['next_index'] = min(selected_index + 1, n - 1)
+
+    return selected['id']
+
+  def _load_main_response(self, api_data_id: str) -> MockApiEntry:
+    """加载主响应（api_data.response），经静态资源替换后缓存"""
+    cache_key: str = f'api:{api_data_id}'
+    entry: Optional[MockApiEntry] = self.response_cache.get(cache_key)
+    if entry is not None:
+      return entry
+
+    mock_db = MockDBCache.get(self.work_dir)
+    api_data = mock_db.get_api_by_id(api_data_id)
+    if not api_data:
+      return {'response': {}, 'timeout': 0}
+
+    response_text: str = api_data.get('response', '{}')
+    response_text = self._replace_assets(response_text)
+    try:
+      response: JsonValue = json.loads(response_text)
+    except (json.JSONDecodeError, TypeError):
+      response = {}
+
+    # 缓存中 timeout 仅作占位，真实响应延时以 ApiMatchMeta.timeout 为准
+    entry = {'response': response, 'timeout': 0}
+    self.response_cache.put(cache_key, entry)
+    return entry
+
+  def _load_variant_response(self, variant_id: str) -> MockApiEntry:
+    """加载变体响应，经静态资源替换后缓存"""
+    cache_key: str = f'variant:{variant_id}'
+    entry: Optional[MockApiEntry] = self.response_cache.get(cache_key)
+    if entry is not None:
+      return entry
+
+    mock_db = MockDBCache.get(self.work_dir)
+    variant = mock_db.get_variant_by_id(variant_id)
+    if not variant:
+      return {'response': {}, 'timeout': 0}
+
+    response_text: str = variant.get('response', '{}')
+    response_text = self._replace_assets(response_text)
+    try:
+      response: JsonValue = json.loads(response_text)
+    except (json.JSONDecodeError, TypeError):
+      response = {}
+
+    entry = {'response': response, 'timeout': 0}
+    self.response_cache.put(cache_key, entry)
+    return entry
+
+  def _get_api_match_meta(
+    self,
+    request_key: RequestKey,
+    response_key: ResponseKey,
+  ) -> Optional[ApiMatchMeta]:
+    """根据 request_key / response_key 命中 ApiMatchMeta，未命中时 fallback 默认"""
+    if request_key not in self.api_index:
+      return None
+
+    inner: Dict[ResponseKey, ApiMatchMeta] = self.api_index[request_key]
+
+    if response_key in inner:
+      return inner[response_key]
+
+    # 未命中 response_key，fallback 到该 request 最后插入的匹配项
+    # Python 3.7+ dict 保持插入顺序，next(reversed(inner)) 取最后 key，无需 list 分配
+    if not inner:
+      return None
+
+    try:
+      default_key: ResponseKey = next(reversed(inner))
+    except StopIteration:
+      return None
+
+    return inner[default_key]
 
   def handle(
     self,
@@ -268,23 +464,31 @@ class MockRequestHandler:
   ) -> FlaskRouteResult:
     """匹配 mock 数据并返回响应"""
     request_key: RequestKey = self.get_request_key(route, method, request_content_type)
-    if request_key not in self.api_dict:
-      return jsonify({'error': 'Not Found'}), 404
-
     response_key: ResponseKey = self.get_response_key(method, request_content_type, params)
+    meta: Optional[ApiMatchMeta] = self._get_api_match_meta(request_key, response_key)
 
-    if response_key in self.api_dict[request_key]:
-      entry: MockApiEntry = self.api_dict[request_key][response_key]
-    else:
-      # 没命中 mock 数据，直接返回最后一条数据
+    if meta is None:
       print(f'mock 数据命中失败：\n - {method} {route} {params}')
-      if not self.api_dict[request_key]:
-        return jsonify({'error': 'No valid mock data'}), 404
-      last_response_key: ResponseKey = list(self.api_dict[request_key].keys())[-1]
-      entry: MockApiEntry = self.api_dict[request_key][last_response_key]
+      return jsonify({'error': 'No valid mock data'}), 404
+
+    entry: MockApiEntry
+
+    # 变体命中：有启用变体且存在 device 状态时按顺序命中
+    if meta['variants'] and state_result is not None:
+      device_id: DeviceId = state_result['device_id']
+      with self._get_state_lock(device_id):
+        variant_id: str = self._select_variant(
+          state_result['state'],
+          meta['api_data_id'],
+          meta['variants'],
+        )
+      entry = self._load_variant_response(variant_id)
+    else:
+      # 无启用变体 或 无 device_id：使用 api_data.response 兜底
+      entry = self._load_main_response(meta['api_data_id'])
 
     # 接口响应延时（单条 timeout 优先于全局 response_delay）
-    per_entry_delay: int = entry.get('timeout', 0)
+    per_entry_delay: int = meta['timeout']
     if per_entry_delay > 0:
       print(f'接口响应延时（单条）：{per_entry_delay}ms, route：{route}')
       time.sleep(per_entry_delay / 1000)
