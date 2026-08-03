@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS api_response_variants (
   name        TEXT NOT NULL DEFAULT '',
   response    TEXT NOT NULL DEFAULT '{}',
   enabled     INTEGER NOT NULL DEFAULT 1,
+  timeout     INTEGER NOT NULL DEFAULT 0,  -- 单位毫秒；0 表示不启用 idle 回退
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
   updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
 );

@@ -24,4 +24,5 @@ API_RESPONSE_VARIANT_INSERT_DEFAULTS = {
   'name': '',
   'response': '{}',
   'enabled': True,
+  'timeout': 0,
 }

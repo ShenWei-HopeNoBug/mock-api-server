@@ -72,6 +72,7 @@ class ApiResponseVariantInsertRecord(TypedDict, total=False):
   name: str  # 变体名称
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用），缺省时默认启用
+  timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
 
 
 class ApiResponseVariantRecord(TypedDict, total=False):
@@ -86,6 +87,7 @@ class ApiResponseVariantRecord(TypedDict, total=False):
   name: str  # 变体名称
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用）
+  timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
 
 
 class ApiResponseVariant(TypedDict):
@@ -99,6 +101,7 @@ class ApiResponseVariant(TypedDict):
   name: str  # 变体名称
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用）
+  timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 

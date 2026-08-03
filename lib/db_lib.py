@@ -236,6 +236,12 @@ class ApiDataMixin:
                              NULL
                              DEFAULT
                              1,
+                             timeout
+                             INTEGER
+                             NOT
+                             NULL
+                             DEFAULT
+                             0,
                              created_at
                              TEXT
                              NOT
@@ -666,6 +672,7 @@ class ApiResponseVariantMixin:
 
     data['response'] = JsonFormat.format_json_string(data['response'])
     data['enabled'] = _normalize_enabled(data.get('enabled'))
+    data['timeout'] = int(data.get('timeout', 0))
 
     try:
       with self._transaction() as conn:
@@ -674,8 +681,8 @@ class ApiResponseVariantMixin:
         if row is None:
           raise ValueError(f'api_data {api_data_id} 不存在')
         conn.execute(
-          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled) VALUES (?, ?, ?, ?, ?)',
-          (variant_id, api_data_id, data.get('name', ''), data['response'], data['enabled']),
+          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout) VALUES (?, ?, ?, ?, ?, ?)',
+          (variant_id, api_data_id, data.get('name', ''), data['response'], data['enabled'], data['timeout']),
         )
         # 把新变体 ID 追加到 api_data.response_variant_ids 列表
         variant_ids = _parse_response_variant_ids(row[0])
@@ -702,7 +709,7 @@ class ApiResponseVariantMixin:
 
     with self._lock:
       row = self._conn.execute(
-        'SELECT name, response, enabled FROM api_response_variants WHERE id=?',
+        'SELECT name, response, enabled, timeout FROM api_response_variants WHERE id=?',
         (variant_id,),
       ).fetchone()
     if row is None:
@@ -712,11 +719,13 @@ class ApiResponseVariantMixin:
       'name': row[0],
       'response': row[1],
       'enabled': _parse_enabled(row[2]),
+      'timeout': row[3],
     }
     # api_data_id 不参与合并，防止破坏绑定关系
     merged = {**old, **{k: v for k, v in record.items() if k not in ('id', 'api_data_id') and v is not None}}
     merged['response'] = JsonFormat.format_json_string(merged['response'])
     merged['enabled'] = _normalize_enabled(merged.get('enabled'))
+    merged['timeout'] = int(merged.get('timeout', 0))
 
     try:
       with self._transaction() as conn:
@@ -725,9 +734,10 @@ class ApiResponseVariantMixin:
              SET name=?,
                  response=?,
                  enabled=?,
+                 timeout=?,
                  updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
              WHERE id = ?''',
-          (merged['name'], merged['response'], merged['enabled'], variant_id),
+          (merged['name'], merged['response'], merged['enabled'], merged['timeout'], variant_id),
         )
         return cursor.rowcount > 0
     except Exception:
@@ -775,7 +785,7 @@ class ApiResponseVariantMixin:
       return None
     with self._lock:
       row = self._conn.execute(
-        'SELECT id, api_data_id, name, response, enabled, created_at, updated_at FROM api_response_variants WHERE id=?',
+        'SELECT id, api_data_id, name, response, enabled, timeout, created_at, updated_at FROM api_response_variants WHERE id=?',
         (variant_id,),
       ).fetchone()
     if row is None:
@@ -787,8 +797,9 @@ class ApiResponseVariantMixin:
       'name': row[2],
       'response': row[3],
       'enabled': _parse_enabled(row[4]),
-      'created_at': row[5],
-      'updated_at': row[6],
+      'timeout': row[5],
+      'created_at': row[6],
+      'updated_at': row[7],
     }
     return result
 
@@ -804,7 +815,7 @@ class ApiResponseVariantMixin:
     """
     if not api_data_id:
       return []
-    sql = 'SELECT id, api_data_id, name, response, enabled, created_at, updated_at FROM api_response_variants WHERE api_data_id=?'
+    sql = 'SELECT id, api_data_id, name, response, enabled, timeout, created_at, updated_at FROM api_response_variants WHERE api_data_id=?'
     params: List[Any] = [api_data_id]
     if enabled is True:
       sql += ' AND enabled=1'
@@ -826,8 +837,9 @@ class ApiResponseVariantMixin:
         'name': row[2],
         'response': row[3],
         'enabled': _parse_enabled(row[4]),
-        'created_at': row[5],
-        'updated_at': row[6],
+        'timeout': row[5],
+        'created_at': row[6],
+        'updated_at': row[7],
       })
     # 按 api_data.response_variant_ids 中的顺序排列，未在列表中的放最后
     result.sort(key=lambda v: order_map.get(v['id'], len(order_map)))
