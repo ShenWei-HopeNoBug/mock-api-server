@@ -335,6 +335,7 @@ class ApiDataMixin:
     response_like = query.get('response_like')
     method = query.get('method')
     request_content_type = query.get('request_content_type')
+    enabled = query.get('enabled')
     create_start_time = query.get('create_start_time')
     create_end_time = query.get('create_end_time')
     if api_type is not None:
@@ -355,6 +356,10 @@ class ApiDataMixin:
     if request_content_type:
       where_clauses.append('request_content_type = ?')
       sql_params.append(request_content_type)
+    if enabled is True:
+      where_clauses.append('enabled = 1')
+    elif enabled is False:
+      where_clauses.append('enabled = 0')
     if create_start_time and create_end_time:
       where_clauses.append('datetime(created_at) >= datetime(?)')
       sql_params.append(create_start_time)

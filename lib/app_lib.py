@@ -266,10 +266,16 @@ def delete_user_api_data(work_dir: str = '.', delete_id: str = '') -> bool:
 
 
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
-def get_mock_api_data_list(work_dir: str = '.') -> List[ApiData]:
+def get_mock_api_data_list(work_dir: str = '.', enabled: Optional[bool] = None) -> List[ApiData]:
   mock_db: MockDB = MockDBCache.get(work_dir)
-  api_list = mock_db.get_api_list(query=ApiQuery(api_type='MITMPROXY'))
-  api_list.extend(mock_db.get_api_list(query=ApiQuery(api_type='USER')))
+  api_list = mock_db.get_api_list(
+    query=ApiQuery(api_type='MITMPROXY', enabled=enabled),
+    reverse=False,
+  )
+  api_list.extend(mock_db.get_api_list(
+    query=ApiQuery(api_type='USER', enabled=enabled),
+    reverse=False),
+  )
 
   return api_list
 

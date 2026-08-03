@@ -143,16 +143,13 @@ class MockServer:
       return f'{assets_base_url}/{file_name}'
 
     api_dict: MockApiDict = {}
-    # 所有的 mock 数据列表（MITMPROXY 在前、USER 在后，各自按 created_at 旧→新排序）
-    mock_api_data_list: List[ApiData] = get_mock_api_data_list(work_dir=self.work_dir)
+    # 所有的 mock 数据列表（MITMPROXY 在前、USER 在后，各自按 created_at 旧→新排序，仅启用状态）
+    mock_api_data_list: List[ApiData] = get_mock_api_data_list(work_dir=self.work_dir, enabled=True)
     # 查询完毕，关闭 DB 连接（触发 checkpoint，释放文件锁）
     MockDBCache.close(work_dir=self.work_dir)
     # 行遍历
     for row_data in mock_api_data_list:
       data = {**SERVER.MOCK_API_DATA_DEFAULTS, **row_data}
-      # 禁用的 API 不参与 mock 匹配
-      if not data.get('enabled', True):
-        continue
       response: str = data['response']
       method: str = data['method']
       params: str = data['params']

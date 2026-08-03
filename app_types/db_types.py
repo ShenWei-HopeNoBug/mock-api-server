@@ -57,6 +57,7 @@ class ApiQuery(TypedDict, total=False):
   response_like: Optional[str]  # 响应体模糊查询
   method: Optional[str]  # HTTP 方法精确查询
   request_content_type: Optional[str]  # 请求 content-type 枚举值精确查询
+  enabled: Optional[bool]  # 是否启用，True 启用，False 禁用，None 不筛选
   create_start_time: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS.sss'
   create_end_time: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
