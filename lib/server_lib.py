@@ -56,40 +56,12 @@ def get_static_data_list(work_dir: str = '.') -> List[StaticData]:
 T = TypeVar('T')
 
 
-class StaticMatchCache(Generic[T]):
+class ThreadSafeLRUCache(Generic[T]):
   """
-  静态资源匹配缓存
+  线程安全的 LRU 缓存
 
-  用于记录某个静态资源是否已经被请求过，从而保证延时只触发一次。
-  基于 OrderedDict 实现 LRU 淘汰，配合 Lock 保证 check-then-add 的原子性。
-  """
-
-  def __init__(self, limit: int):
-    self._limit: int = limit
-    self._cache: 'OrderedDict[str, T]' = OrderedDict()
-    self._lock: threading.Lock = threading.Lock()
-
-  def mark(self, key: str, value: T) -> bool:
-    """
-    原子性 check-then-add：
-    - 若 key 已存在，返回 False
-    - 若 key 不存在，写入并返回 True
-    """
-    with self._lock:
-      if key in self._cache:
-        return False
-      self._cache[key] = value
-      if len(self._cache) > self._limit:
-        self._cache.popitem(last=False)
-      return True
-
-
-class ResponseCache(Generic[T]):
-  """
-  接口响应缓存
-
-  缓存已做静态资源替换并解析后的响应对象，基于 OrderedDict 实现 LRU 淘汰，
-  配合 Lock 保证多线程安全。
+  基于 OrderedDict 实现最近最久未使用淘汰，配合 Lock 保证多线程安全。
+  调用点直接使用该通用泛型类，无需额外封装。
   """
 
   def __init__(self, limit: int):
@@ -105,13 +77,27 @@ class ResponseCache(Generic[T]):
       self._cache.move_to_end(key)
       return self._cache[key]
 
-  def put(self, key: str, value: T) -> None:
+  def set(self, key: str, value: T) -> None:
     """写入缓存，超过上限时淘汰最久未使用"""
     with self._lock:
       self._cache[key] = value
       self._cache.move_to_end(key)
       if len(self._cache) > self._limit:
         self._cache.popitem(last=False)
+
+  def set_once(self, key: str, value: T) -> bool:
+    """
+    原子性 check-then-set：
+    - 若 key 已存在，返回 False
+    - 若 key 不存在，写入并返回 True
+    """
+    with self._lock:
+      if key in self._cache:
+        return False
+      self._cache[key] = value
+      if len(self._cache) > self._limit:
+        self._cache.popitem(last=False)
+      return True
 
 
 class StaticFileHandler:
@@ -127,14 +113,14 @@ class StaticFileHandler:
       static_url_path: str,
       static_load_speed: int,
       static_folder: str,
-      cache: StaticMatchCache[bool],
+      cache: ThreadSafeLRUCache[bool],
       max_delay: Union[int, float],
   ) -> None:
     self.work_dir: str = work_dir
     self.static_url_path: str = static_url_path
     self.static_load_speed: int = static_load_speed
     self.static_folder: str = static_folder
-    self.cache: StaticMatchCache[bool] = cache
+    self.cache: ThreadSafeLRUCache[bool] = cache
     self.max_delay: Union[int, float] = max_delay
 
   def match(self, path: str) -> FlaskRouteResult:
@@ -154,7 +140,7 @@ class StaticFileHandler:
 
     # 静态资源响应延时
     if self.static_load_speed > 0:
-      is_first: bool = self.cache.mark(search_key, True)
+      is_first: bool = self.cache.set_once(search_key, True)
       if is_first:
         file_size: float = os.path.getsize(file_path) / 1024
         delay: float = file_size / self.static_load_speed
@@ -289,7 +275,7 @@ class MockRequestHandler:
       self,
       api_index: MockApiIndex,
       work_dir: str,
-      response_cache: 'ResponseCache[MockApiEntry]',
+      response_cache: 'ThreadSafeLRUCache[MockApiEntry]',
       response_delay: int,
       get_request_key: RequestKeyFunc,
       get_response_key: ResponseKeyFunc,
@@ -300,7 +286,7 @@ class MockRequestHandler:
   ) -> None:
     self.api_index: MockApiIndex = api_index
     self.work_dir: str = work_dir
-    self.response_cache: 'ResponseCache[MockApiEntry]' = response_cache
+    self.response_cache: 'ThreadSafeLRUCache[MockApiEntry]' = response_cache
     self.response_delay: int = response_delay
     self.get_request_key: RequestKeyFunc = get_request_key
     self.get_response_key: ResponseKeyFunc = get_response_key
@@ -402,7 +388,7 @@ class MockRequestHandler:
 
     # 缓存中 timeout 仅作占位，真实响应延时以 ApiMatchMeta.timeout 为准
     entry = {'response': response, 'timeout': 0}
-    self.response_cache.put(cache_key, entry)
+    self.response_cache.set(cache_key, entry)
     return entry
 
   def _load_variant_response(self, variant_id: str) -> MockApiEntry:
@@ -425,7 +411,7 @@ class MockRequestHandler:
       response = {}
 
     entry = {'response': response, 'timeout': 0}
-    self.response_cache.put(cache_key, entry)
+    self.response_cache.set(cache_key, entry)
     return entry
 
   def _get_api_match_meta(

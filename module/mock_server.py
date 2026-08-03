@@ -15,9 +15,8 @@ from lib.server_lib import (
   ClientStateManager,
   MockRequestHandler,
   MockRequestParseError,
-  ResponseCache,
   StaticFileHandler,
-  StaticMatchCache,
+  ThreadSafeLRUCache,
   parse_flask_request,
 )
 from lib.db_lib import MockDBCache
@@ -198,7 +197,7 @@ class MockServer:
       f"{self.static_url_path}/*": {"origins": "*"},
     }
 
-    cache: StaticMatchCache[bool] = StaticMatchCache(SERVER.STATIC_MATCH_CACHE_LIMIT)
+    cache: ThreadSafeLRUCache[bool] = ThreadSafeLRUCache(SERVER.STATIC_MATCH_CACHE_LIMIT)
     static_handler: StaticFileHandler = StaticFileHandler(
       work_dir=self.work_dir,
       static_url_path=self.static_url_path,
@@ -208,7 +207,7 @@ class MockServer:
       max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
     )
 
-    response_cache: ResponseCache[MockApiEntry] = ResponseCache(SERVER.RESPONSE_CACHE_LIMIT)
+    response_cache: ThreadSafeLRUCache[MockApiEntry] = ThreadSafeLRUCache(SERVER.RESPONSE_CACHE_LIMIT)
     mock_handler: MockRequestHandler = MockRequestHandler(
       api_index=api_index,
       work_dir=self.work_dir,
