@@ -48,7 +48,7 @@ class ApiQuery(TypedDict, total=False):
   """
   API 数据查询过滤参数
 
-  用于 get_api_list_page / get_api_count 的入参。
+  用于 get_api_list / get_api_list_page / get_api_count 的入参。
   total=False 表示所有字段可选，调用方按需传入。
   """
   api_type: Optional[str]  # 数据来源类型精确匹配，如 'USER' / 'MITMPROXY'

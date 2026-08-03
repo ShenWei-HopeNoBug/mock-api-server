@@ -289,17 +289,23 @@ class ApiDataMixin:
 
   # 查询 api 数据列表
   @_ensure_open(default=[])
-  def get_api_list(self, api_type: Optional[str] = None, reverse: bool = False) -> List[ApiData]:
-    """查询 API 数据列表，可按 api_type 过滤、按时间正序/倒序排列"""
+  def get_api_list(
+      self,
+      query: Optional[ApiQuery] = None,
+      reverse: bool = False,
+  ) -> List[ApiData]:
+    """查询 API 数据列表，支持 ApiQuery 全部筛选条件，按时间正序/倒序排列"""
+    if query is None:
+      query = ApiQuery()
+
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
-    if api_type is not None:
-      sql = f'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data WHERE type=? ORDER BY created_at {order}'
-      params = (api_type,)
-    else:
-      sql = f'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data ORDER BY created_at {order}'
-      params = ()
+    where_sql, sql_params = self._build_api_where(query)
+    order_sql = 'ORDER BY created_at {}'.format(order)
+    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data{} {}'.format(
+      where_sql, order_sql)
+
     with self._lock:
-      cursor = self._conn.execute(sql, params)
+      cursor = self._conn.execute(sql, tuple(sql_params))
       rows = cursor.fetchall()
     result = []
     for row in rows:
@@ -371,8 +377,7 @@ class ApiDataMixin:
     offset = (page_num - 1) * page_size
 
     where_sql, sql_params = self._build_api_where(query)
-    user_first = "CASE type WHEN 'USER' THEN 0 ELSE 1 END, " if query.get('api_type') is None else ''
-    order_sql = 'ORDER BY {}created_at {}'.format(user_first, order)
+    order_sql = 'ORDER BY created_at {}'.format(order)
     sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
       where_sql, order_sql)
     sql_params.extend([page_size, offset])
