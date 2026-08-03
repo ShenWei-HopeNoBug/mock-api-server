@@ -207,62 +207,22 @@ class ApiDataMixin:
       self._conn.execute("ALTER TABLE api_data ADD COLUMN response_variant_ids TEXT NOT NULL DEFAULT '[]'")
       self._conn.execute('ALTER TABLE api_data ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1')
       # v2 → v3: 新增 api_response_variants 表
-      self._conn.execute('''
-                         CREATE TABLE IF NOT EXISTS api_response_variants
-                         (
-                             id
-                             TEXT
-                             PRIMARY
-                             KEY,
-                             api_data_id
-                             TEXT
-                             NOT
-                             NULL,
-                             name
-                             TEXT
-                             NOT
-                             NULL
-                             DEFAULT
-                             '',
-                             response
-                             TEXT
-                             NOT
-                             NULL
-                             DEFAULT
-                             '{}',
-                             enabled
-                             INTEGER
-                             NOT
-                             NULL
-                             DEFAULT
-                             1,
-                             timeout
-                             INTEGER
-                             NOT
-                             NULL
-                             DEFAULT
-                             0,
-                             created_at
-                             TEXT
-                             NOT
-                             NULL
-                             DEFAULT (
-                             strftime
-                         (
-                             '%Y-%m-%d %H:%M:%f',
-                             'now',
-                             'localtime'
-                         )),
-                             updated_at TEXT NOT NULL DEFAULT
-                         (
-                             strftime
-                         (
-                             '%Y-%m-%d %H:%M:%f',
-                             'now',
-                             'localtime'
-                         ))
-                             )
-                         ''')
+      # @formatter:off
+      self._conn.execute(
+        '''
+          CREATE TABLE IF NOT EXISTS api_response_variants (
+            id          TEXT PRIMARY KEY,
+            api_data_id TEXT NOT NULL,
+            name        TEXT NOT NULL DEFAULT '',
+            response    TEXT NOT NULL DEFAULT '{}',
+            enabled     INTEGER NOT NULL DEFAULT 1,
+            timeout     INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
+            updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
+          )
+        '''
+      )
+      # @formatter:on
       self._conn.execute('CREATE INDEX IF NOT EXISTS idx_variant_api_data_id ON api_response_variants(api_data_id)')
       APP_LOGGER.info('ApiDataMixin schema 迁移: v2 → v3, 新增 response 变体支持')
 
