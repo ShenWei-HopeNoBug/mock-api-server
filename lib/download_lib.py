@@ -28,7 +28,7 @@ from lib.utils_lib import (
   is_url_match,
 )
 from lib.app_lib import get_mock_api_data_list
-from lib import server_lib
+from lib.db_lib import MockDBCache
 
 
 @error_catch(error_msg='获取导出下载地址列表失败', error_return=[])
@@ -127,7 +127,8 @@ def get_download_assets_list(work_dir: str = '.') -> List[str]:
   # mock 数据列表（包括抓包数据和自定义数据）
   mock_api_data_list = get_mock_api_data_list(work_dir=work_dir)
   # 抓取的静态资源数据
-  static_data_list = server_lib.get_static_data_list(work_dir=work_dir)
+  mock_db = MockDBCache.get(work_dir)
+  static_data_list = mock_db.get_static_list()
 
   # 静态资源链接列表
   assets_list = []

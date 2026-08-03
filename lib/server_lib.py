@@ -21,7 +21,6 @@ from lib.utils_lib import (
   remove_url_query,
 )
 from app_types.app_gui_types import RequestContentType
-from app_types.db_types import StaticData
 from app_types.global_types import JsonValue
 from app_types.mock_server_types import (
   ApiMatchMeta,
@@ -44,13 +43,6 @@ from app_types.mock_server_types import (
   VariantMeta,
   VariantState,
 )
-
-
-# 读取 static 数据
-@error_catch(error_msg='读取 static 数据失败', error_return=[])
-def get_static_data_list(work_dir: str = '.') -> List[StaticData]:
-  mock_db = MockDBCache.get(work_dir)
-  return mock_db.get_static_list()
 
 
 T = TypeVar('T')
