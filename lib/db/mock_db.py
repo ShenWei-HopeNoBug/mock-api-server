@@ -16,6 +16,13 @@ class MockDB(BaseSQLiteDB, ApiDataMixin, StaticDataMixin, ApiResponseVariantMixi
 
   _schema_version = CURRENT_SCHEMA_VERSION
 
+  def _fetch_variants(self, api_id: str) -> list:
+    """覆写 ApiDataMixin._fetch_variants hook，委托给 ApiResponseVariantMixin.get_variants_by_api_id
+
+    MockDB 作为组合根，在此显式连接两个 Mixin 的能力，消除 ApiDataMixin 对 ApiResponseVariantMixin 的隐式依赖
+    """
+    return self.get_variants_by_api_id(api_id)
+
   def _migrate_schema(self, from_version: int, to_version: int) -> None:
     """执行 schema 版本迁移，调度各 Mixin 的表级迁移逻辑"""
     self._migrate_api(from_version, to_version)

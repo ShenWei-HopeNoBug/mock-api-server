@@ -27,6 +27,17 @@ class ApiDataMixin:
   需与 BaseSQLiteDB 组合使用。
   """
 
+  def _fetch_variants(self, api_id: str) -> list:
+    """Hook：获取指定 api 的变体列表，默认返回空列表，宿主类可覆写以注入真实实现
+
+    get_api_detail 需要关联查询 response 变体列表，但变体数据的 CRUD 属于
+    ApiResponseVariantMixin 的职责。为避免 Mixin 之间隐式耦合，这里通过
+    私有 hook 解耦：
+      - 默认实现返回空列表（安全降级，单独使用 ApiDataMixin 不会崩溃）
+      - MockDB 作为组合根覆写此 hook，委托给 ApiResponseVariantMixin.get_variants_by_api_id
+    """
+    return []
+
   def _migrate_api(self, from_version: int, to_version: int) -> None:
     """api_data 表的 schema 版本迁移，逐版本升级"""
     if from_version < 2 <= to_version:
@@ -264,8 +275,8 @@ class ApiDataMixin:
     if row is None:
       return None
 
-    # 关联查询变体列表（复用 ApiResponseVariantMixin 的方法）
-    response_variants = self.get_variants_by_api_id(api_id)
+    # 通过 hook 获取变体列表，具体实现由宿主类（MockDB）注入
+    response_variants = self._fetch_variants(api_id)
 
     result: ApiDataDetail = {
       'id': row[0],
