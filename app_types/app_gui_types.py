@@ -22,7 +22,7 @@ class RequestContentType(str, Enum):
 
 class GetMockDataPageParams(TypedDict, total=False):
   """
-  get_mock_data_page 请求参数（分页版）
+  /mock_data/list 请求参数（分页版）
 
   type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，None 或不传表示全部（USER 在前）。
   url / params / response 为模糊查询关键词，不传表示不过滤。
@@ -44,7 +44,7 @@ class GetMockDataPageParams(TypedDict, total=False):
 
 class MockDataPageResult(TypedDict):
   """
-  get_mock_data_page 返回数据（分页版）
+  /mock_data/list 返回数据（分页版）
 
   list 为当前页的 API 记录列表，total 为符合条件的总记录数。
   """
@@ -56,16 +56,16 @@ class MockDataPageResult(TypedDict):
 
 class DeleteMockDataParams(TypedDict):
   """
-  delete_mock_data 请求参数
+  /mock_data/delete 请求参数
   """
   id: str  # 待删除记录的 id
 
 
 class BatchDeleteMockDataParams(TypedDict, total=False):
   """
-  batch_delete_mock_data 请求参数
+  /mock_data/batch_delete 请求参数
 
-  筛选条件与 get_mock_data_page 完全一致，支持按当前表格筛选条件批量删除。
+  筛选条件与 /mock_data/list 完全一致，支持按当前表格筛选条件批量删除。
   type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，不传表示不按类型过滤。
   url / params / response 为模糊查询关键词，不传表示不过滤。
   method 为精确查询('GET' / 'POST')，不传表示全部。
@@ -86,7 +86,7 @@ class BatchDeleteMockDataParams(TypedDict, total=False):
 
 class AddMockDataParams(TypedDict, total=False):
   """
-  add_mock_data 请求参数
+  /mock_data/create 请求参数
 
   type 由 handler 硬编码为 'USER'，id 由 MockDB.insert_api 内部生成，均不需要前端传入。
   """
@@ -98,7 +98,7 @@ class AddMockDataParams(TypedDict, total=False):
 
 class CopyMockDataParams(TypedDict):
   """
-  copy_mock_data 请求参数
+  /mock_data/copy 请求参数
 
   只需传源记录的 id，handler 按 id 查库取完整数据后复制插入。
   """

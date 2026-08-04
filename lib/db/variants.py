@@ -183,7 +183,7 @@ class ApiResponseVariantMixin:
     if not api_data_id:
       return []
     sql = 'SELECT id, api_data_id, name, response, enabled, timeout, created_at, updated_at FROM api_response_variants WHERE api_data_id=?'
-    params: List[Any] = [api_data_id]
+    params: List[str] = [api_data_id]
     if enabled is True:
       sql += ' AND enabled=1'
     elif enabled is False:

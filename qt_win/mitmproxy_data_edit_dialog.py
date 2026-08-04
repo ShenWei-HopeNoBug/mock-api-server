@@ -97,7 +97,8 @@ class MitmproxyDataEditDialog(QDialog):
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      local_server_url = f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}"
+      # local_server_url = f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}"
+      local_server_url = f"http://localhost:3000/apps/dataManager/{web_route}"
       APP_LOGGER.info(f"[mitmproxy_data_edit_dialog]以本地服务方式加载编辑页面: {local_server_url}")
       current_page.load(QUrl(local_server_url))
     else:
@@ -257,14 +258,14 @@ class MitmproxyDataEditDialog(QDialog):
       'enabled': source.get('enabled', True),
     })
 
-  # 请求名称 → handler 映射
+  # 请求名称 → handler 映射（/mock_data 命名空间，动作作为路径末级）
   _REQUEST_HANDLERS = {
-    'get_mock_data_page': _handle_get_mock_data_page,
-    'edit_mock_data': _handle_edit_mock_data,
-    'add_mock_data': _handle_add_mock_data,
-    'delete_mock_data': _handle_delete_mock_data,
-    'batch_delete_mock_data': _handle_batch_delete_mock_data,
-    'copy_mock_data': _handle_copy_mock_data,
+    '/mock_data/list': _handle_get_mock_data_page,
+    '/mock_data/create': _handle_add_mock_data,
+    '/mock_data/update': _handle_edit_mock_data,
+    '/mock_data/delete': _handle_delete_mock_data,
+    '/mock_data/batch_delete': _handle_batch_delete_mock_data,
+    '/mock_data/copy': _handle_copy_mock_data,
   }
 
   def closeEvent(self, event: QEvent) -> None:
