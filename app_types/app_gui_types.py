@@ -114,6 +114,41 @@ class GetMockDataDetailParams(TypedDict):
   id: str  # 待查询记录的 id
 
 
+class AddVariantParams(TypedDict, total=False):
+  """
+  /variant/create 请求参数
+
+  用于创建并绑定 response 变体到指定 api_data。
+  id 由 MockDB.insert_variant 内部生成，不需要前端传入。
+  """
+  api_data_id: str  # 所属 api_data 的 ID
+  name: str  # 变体名称
+  response: str  # 变体响应体，JSON 字符串
+  enabled: bool  # 是否启用（True 启用，False 禁用），缺省时默认启用
+  timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
+
+
+class UpdateVariantParams(TypedDict, total=False):
+  """
+  /variant/update 请求参数
+
+  用于更新指定 response 变体，字段级合并，id 为必需。
+  api_data_id 不允许通过此接口修改。
+  """
+  id: str  # 待更新变体的 ID
+  name: str  # 变体名称
+  response: str  # 变体响应体，JSON 字符串
+  enabled: bool  # 是否启用（True 启用，False 禁用）
+  timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
+
+
+class DeleteVariantParams(TypedDict):
+  """
+  /variant/delete 请求参数
+  """
+  id: str  # 待删除变体的 ID
+
+
 class AppServerRunningData(TypedDict):
   """
   APP_SERVER 启动结果数据

@@ -21,6 +21,9 @@ from app_types.app_gui_types import (
   AddMockDataParams,
   CopyMockDataParams,
   GetMockDataDetailParams,
+  AddVariantParams,
+  UpdateVariantParams,
+  DeleteVariantParams,
 )
 from app_types.db_types import ApiRecord, ApiQuery, ApiDataDetail
 from lib.utils_lib import get_ip_address
@@ -262,6 +265,18 @@ class MitmproxyDataEditDialog(QDialog):
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.get_api_detail(params['id'])
 
+  def _handle_add_variant(self, params: AddVariantParams) -> bool:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.insert_variant(params)
+
+  def _handle_update_variant(self, params: UpdateVariantParams) -> bool:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.update_variant(params)
+
+  def _handle_delete_variant(self, params: DeleteVariantParams) -> bool:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.delete_variant(params.get('id', ''))
+
   # 请求名称 → handler 映射（/mock_data 命名空间，动作作为路径末级）
   _REQUEST_HANDLERS = {
     '/mock_data/list': _handle_get_mock_data_page,
@@ -271,6 +286,9 @@ class MitmproxyDataEditDialog(QDialog):
     '/mock_data/delete': _handle_delete_mock_data,
     '/mock_data/batch_delete': _handle_batch_delete_mock_data,
     '/mock_data/copy': _handle_copy_mock_data,
+    '/variant/create': _handle_add_variant,
+    '/variant/update': _handle_update_variant,
+    '/variant/delete': _handle_delete_variant,
   }
 
   def closeEvent(self, event: QEvent) -> None:
