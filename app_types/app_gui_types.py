@@ -5,7 +5,7 @@ GUI 相关的类型定义
 from enum import Enum
 from typing import List, Literal, Optional, TypedDict
 
-from app_types.db_types import ApiData, ApiDataDetail
+from app_types.db_types import ApiData
 
 
 class RequestContentType(str, Enum):

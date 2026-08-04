@@ -98,8 +98,7 @@ class MitmproxyDataEditDialog(QDialog):
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      # local_server_url = f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}"
-      local_server_url = f"http://localhost:3000/apps/dataManager/{web_route}"
+      local_server_url = f"http://{get_ip_address()}:{app_server_port}/static{web_base_path}{web_route}"
       APP_LOGGER.info(f"[mitmproxy_data_edit_dialog]以本地服务方式加载编辑页面: {local_server_url}")
       current_page.load(QUrl(local_server_url))
     else:
