@@ -379,7 +379,7 @@ class MockRequestHandler:
       return entry
 
     mock_db = MockDBCache.get(self.work_dir)
-    api_data = mock_db.get_api_by_id(api_data_id)
+    api_data = mock_db.get_api_detail(api_data_id)
     if not api_data:
       return {'response': {}, 'timeout': 0}
 

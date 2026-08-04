@@ -5,7 +5,7 @@ GUI 相关的类型定义
 from enum import Enum
 from typing import List, Literal, Optional, TypedDict
 
-from app_types.db_types import ApiData
+from app_types.db_types import ApiData, ApiDataDetail
 
 
 class RequestContentType(str, Enum):
@@ -103,6 +103,15 @@ class CopyMockDataParams(TypedDict):
   只需传源记录的 id，handler 按 id 查库取完整数据后复制插入。
   """
   id: str  # 待复制的源记录 id
+
+
+class GetMockDataDetailParams(TypedDict):
+  """
+  /mock_data/detail 请求参数
+
+  只需传记录 id，handler 按 id 查库返回完整详情（含变体列表）。
+  """
+  id: str  # 待查询记录的 id
 
 
 class AppServerRunningData(TypedDict):

@@ -20,8 +20,9 @@ from app_types.app_gui_types import (
   BatchDeleteMockDataParams,
   AddMockDataParams,
   CopyMockDataParams,
+  GetMockDataDetailParams,
 )
-from app_types.db_types import ApiRecord, ApiQuery
+from app_types.db_types import ApiRecord, ApiQuery, ApiDataDetail
 from lib.utils_lib import get_ip_address
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
@@ -244,7 +245,7 @@ class MitmproxyDataEditDialog(QDialog):
 
   def _handle_copy_mock_data(self, params: CopyMockDataParams) -> bool:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    source = mock_db.get_api_by_id(params['id'])
+    source = mock_db.get_api_detail(params['id'])
     if source is None:
       return False
     return mock_db.insert_api({
@@ -258,9 +259,14 @@ class MitmproxyDataEditDialog(QDialog):
       'enabled': source.get('enabled', True),
     })
 
+  def _handle_get_mock_data_detail(self, params: GetMockDataDetailParams) -> Optional[ApiDataDetail]:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.get_api_detail(params['id'])
+
   # 请求名称 → handler 映射（/mock_data 命名空间，动作作为路径末级）
   _REQUEST_HANDLERS = {
     '/mock_data/list': _handle_get_mock_data_page,
+    '/mock_data/detail': _handle_get_mock_data_detail,
     '/mock_data/create': _handle_add_mock_data,
     '/mock_data/update': _handle_edit_mock_data,
     '/mock_data/delete': _handle_delete_mock_data,

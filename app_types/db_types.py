@@ -107,6 +107,27 @@ class ApiResponseVariant(TypedDict):
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
 
+class ApiDataDetail(TypedDict):
+  """
+  API 数据详情（含变体列表）
+
+  用于 get_api_detail 的返回值，在 ApiData 基础上关联查询 response 变体列表。
+  """
+  id: str  # 记录唯一标识
+  type: str  # 数据来源类型
+  url: str  # 请求 URL
+  method: str  # HTTP 方法
+  params: str  # 请求参数，JSON 字符串
+  response: str  # 响应体，JSON 字符串
+  response_variant_ids: List[str]  # 绑定的 response 变体 ID 列表
+  response_variants: List[ApiResponseVariant]  # 关联查询的变体列表
+  enabled: bool  # 是否启用（True 启用，False 禁用）
+  timeout: int  # 超时时间（毫秒），0 表示不限制
+  request_content_type: str  # 请求 content-type 枚举值
+  created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+  updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+
+
 class StaticData(TypedDict):
   """
   静态资源数据记录

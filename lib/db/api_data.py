@@ -8,6 +8,7 @@ from app_types.db_types import (
   ApiRecord,
   ApiQuery,
   ApiData,
+  ApiDataDetail,
 )
 from .utils import (
   _ensure_open,
@@ -249,10 +250,10 @@ class ApiDataMixin:
     with self._lock:
       return self._conn.execute(sql, tuple(sql_params)).fetchone()[0]
 
-  # 按 id 查询单条 api 数据
+  # 按 id 查询单条 api 数据详情（含变体列表）
   @_ensure_open(default=None)
-  def get_api_by_id(self, api_id: str) -> Optional[ApiData]:
-    """按 id 主键查询单条 API 数据，不存在时返回 None"""
+  def get_api_detail(self, api_id: str) -> Optional[ApiDataDetail]:
+    """获取单条 API 数据详情，关联查询其 response 变体列表，不存在时返回 None"""
     if not api_id:
       return None
     with self._lock:
@@ -263,7 +264,10 @@ class ApiDataMixin:
     if row is None:
       return None
 
-    result: ApiData = {
+    # 关联查询变体列表（复用 ApiResponseVariantMixin 的方法）
+    response_variants = self.get_variants_by_api_id(api_id)
+
+    result: ApiDataDetail = {
       'id': row[0],
       'type': row[1],
       'url': row[2],
@@ -271,6 +275,7 @@ class ApiDataMixin:
       'params': row[4],
       'response': row[5],
       'response_variant_ids': _parse_response_variant_ids(row[6]),
+      'response_variants': response_variants,
       'enabled': _parse_enabled(row[7]),
       'timeout': row[8],
       'request_content_type': row[9],
