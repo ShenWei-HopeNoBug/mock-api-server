@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from typing import List, Optional
+import sqlite3
+import threading
+from typing import Callable, ContextManager, List, Optional
 
 from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
@@ -26,6 +28,13 @@ class ApiResponseVariantMixin:
   依赖宿主类提供 _conn / _lock / _transaction 等基础设施。
   需与 BaseSQLiteDB 组合使用。
   """
+
+  # 基础设施属性声明（由宿主类 BaseSQLiteDB 提供，此处仅用于 IDE 类型提示）
+  _conn: sqlite3.Connection
+  _lock: threading.Lock
+  _closed: bool
+  _transaction: Callable[[], ContextManager[sqlite3.Connection]]
+  _wal_checkpoint_passive: Callable[[], None]
 
   @_ensure_open(default=False)
   def insert_variant(self, record: ApiResponseVariantInsertRecord) -> bool:

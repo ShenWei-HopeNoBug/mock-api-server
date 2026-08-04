@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from typing import List, Optional
+import sqlite3
+import threading
+from typing import Callable, ContextManager, List, Optional
 
 from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
@@ -26,6 +28,13 @@ class ApiDataMixin:
   提供 api_data 表的 CRUD 操作，依赖宿主类提供 _conn / _lock / _transaction 等基础设施。
   需与 BaseSQLiteDB 组合使用。
   """
+
+  # 基础设施属性声明（由宿主类 BaseSQLiteDB 提供，此处仅用于 IDE 类型提示）
+  _conn: sqlite3.Connection
+  _lock: threading.Lock
+  _closed: bool
+  _transaction: Callable[[], ContextManager[sqlite3.Connection]]
+  _wal_checkpoint_passive: Callable[[], None]
 
   def _fetch_variants(self, api_id: str) -> list:
     """Hook：获取指定 api 的变体列表，默认返回空列表，宿主类可覆写以注入真实实现

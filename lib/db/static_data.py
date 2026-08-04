@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from typing import List
+import sqlite3
+import threading
+from typing import Callable, ContextManager, List
 
 from lib.utils_lib import generate_uuid
 from lib.logger_lib import APP_LOGGER
@@ -14,6 +16,13 @@ class StaticDataMixin:
   提供 static_data 表的 CRUD 操作，依赖宿主类提供 _conn / _lock / _transaction 等基础设施。
   需与 BaseSQLiteDB 组合使用。
   """
+
+  # 基础设施属性声明（由宿主类 BaseSQLiteDB 提供，此处仅用于 IDE 类型提示）
+  _conn: sqlite3.Connection
+  _lock: threading.Lock
+  _closed: bool
+  _transaction: Callable[[], ContextManager[sqlite3.Connection]]
+  _wal_checkpoint_passive: Callable[[], None]
 
   def _migrate_static(self, from_version: int, to_version: int) -> None:
     """static_data 表的 schema 版本迁移，逐版本升级"""
