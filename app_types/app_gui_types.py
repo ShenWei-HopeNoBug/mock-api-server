@@ -149,6 +149,17 @@ class DeleteVariantParams(TypedDict):
   id: str  # 待删除变体的 ID
 
 
+class ReorderVariantParams(TypedDict):
+  """
+  /variant/reorder 请求参数
+
+  用于重新排序 api_data 绑定的 response_variant_ids。
+  variant_ids 必须与当前绑定的 id 列表元素完全一致（仅顺序不同），否则后端拒绝。
+  """
+  api_data_id: str  # 所属 api_data 的 ID
+  variant_ids: List[str]  # 重新排序后的变体 ID 列表
+
+
 class AppServerRunningData(TypedDict):
   """
   APP_SERVER 启动结果数据

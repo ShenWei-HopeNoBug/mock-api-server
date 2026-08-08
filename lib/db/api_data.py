@@ -366,6 +366,47 @@ class ApiDataMixin:
         return False
       return True
 
+  # 重新排序 api_data 绑定的 response_variant_ids
+  @_ensure_open(default=False)
+  def reorder_response_variant_ids(self, api_data_id: str, variant_ids: List[str]) -> bool:
+    """
+    重新排序 api_data 的 response_variant_ids，返回是否修改成功
+
+    校验传入的 variant_ids 与当前绑定的 id 列表元素完全一致（仅顺序不同），
+    不一致直接返回 False。成功更新后返回 True。
+    """
+    if not api_data_id:
+      return False
+
+    # 事务外查询当前绑定的 variant_ids
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT response_variant_ids FROM api_data WHERE id=?',
+        (api_data_id,),
+      ).fetchone()
+    if row is None:
+      return False
+
+    current_ids = _parse_response_variant_ids(row[0])
+
+    # 校验：传入的 id 列表与当前绑定的 id 列表元素完全一致（仅顺序不同）
+    if len(variant_ids) != len(current_ids) or set(variant_ids) != set(current_ids):
+      return False
+
+    try:
+      with self._transaction() as conn:
+        cursor = conn.execute(
+          '''UPDATE api_data
+             SET response_variant_ids=?,
+                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+             WHERE id = ?
+          ''',
+          (_normalize_response_variant_ids(variant_ids), api_data_id),
+        )
+        return cursor.rowcount > 0
+    except Exception:
+      return False
+
   # 按 id 删除 api 数据
   @_ensure_open(default=False)
   def delete_api(self, api_id: str) -> bool:

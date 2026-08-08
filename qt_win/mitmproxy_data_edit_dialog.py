@@ -24,6 +24,7 @@ from app_types.app_gui_types import (
   AddVariantParams,
   UpdateVariantParams,
   DeleteVariantParams,
+  ReorderVariantParams,
 )
 from app_types.db_types import ApiRecord, ApiQuery, ApiDataDetail
 from lib.utils_lib import get_ip_address
@@ -277,6 +278,13 @@ class MitmproxyDataEditDialog(QDialog):
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.delete_variant(params.get('id', ''))
 
+  def _handle_reorder_variants(self, params: ReorderVariantParams) -> bool:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.reorder_response_variant_ids(
+      api_data_id=params['api_data_id'],
+      variant_ids=params['variant_ids']
+    )
+
   # 请求名称 → handler 映射（/mock_data 命名空间，动作作为路径末级）
   _REQUEST_HANDLERS = {
     '/mock_data/list': _handle_get_mock_data_page,
@@ -289,6 +297,7 @@ class MitmproxyDataEditDialog(QDialog):
     '/variant/create': _handle_add_variant,
     '/variant/update': _handle_update_variant,
     '/variant/delete': _handle_delete_variant,
+    '/variant/reorder': _handle_reorder_variants,
   }
 
   def closeEvent(self, event: QEvent) -> None:
