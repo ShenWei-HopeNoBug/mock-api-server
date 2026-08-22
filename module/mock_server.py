@@ -277,7 +277,7 @@ class MockServer:
   def shutdown(self) -> None:
     result = is_local_server_running(
       port=self.port,
-      retry=2,
+      retry=20,
       retry_condition='NOT_RUNNING',
       caller='MOCK_SERVER_SHUTDOWN',
     )

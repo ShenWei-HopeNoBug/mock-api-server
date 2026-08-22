@@ -49,7 +49,12 @@ class AppServer:
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   def shutdown(self) -> None:
-    result = is_local_server_running(port=self.port, retry=2, retry_condition='NOT_RUNNING', caller='APP_SERVER_SHUTDOWN')
+    result = is_local_server_running(
+      port=self.port,
+      retry=20,
+      retry_condition='NOT_RUNNING',
+      caller='APP_SERVER_SHUTDOWN',
+    )
     if result:
       APP_LOGGER.info(f"即将关闭 APP_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)
@@ -95,7 +100,7 @@ def start_app_server() -> AppServerRunningData:
 
   _start_server(port=app_server_port)
   time.sleep(1)
-  result: bool = is_local_server_running(port=app_server_port, retry=5, caller='APP_SERVER_START')
+  result: bool = is_local_server_running(port=app_server_port, retry=20, caller='APP_SERVER_START')
 
   if not result:
     APP_LOGGER.error(f"APP_SERVER 准备启动失败! port={app_server_port}")

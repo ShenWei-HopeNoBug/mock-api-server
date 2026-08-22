@@ -43,7 +43,6 @@ from app_types.mock_server_types import (
   VariantState,
 )
 
-
 T = TypeVar('T')
 
 
@@ -329,10 +328,10 @@ class MockRequestHandler:
       return self._state_locks[key]
 
   def _select_variant(
-    self,
-    device_state: DeviceState,
-    api_data_id: str,
-    variants: List[VariantMeta],
+      self,
+      device_state: DeviceState,
+      api_data_id: str,
+      variants: List[VariantMeta],
   ) -> str:
     """
     在已加锁的 device_state 上，按 timeout 规则选择本次应命中的变体 id。
@@ -421,9 +420,9 @@ class MockRequestHandler:
     return entry
 
   def _get_api_match_meta(
-    self,
-    request_key: RequestKey,
-    response_key: ResponseKey,
+      self,
+      request_key: RequestKey,
+      response_key: ResponseKey,
   ) -> Optional[ApiMatchMeta]:
     """根据 request_key / response_key 命中 ApiMatchMeta，未命中时 fallback 默认"""
     if request_key not in self.mock_api_map:
@@ -447,12 +446,12 @@ class MockRequestHandler:
     return inner[default_key]
 
   def handle(
-    self,
-    method: HttpMethod,
-    route: Route,
-    request_content_type: RequestContentTypeStr,
-    params: ParamsJson,
-    state_result: Optional[ClientStateResult] = None,
+      self,
+      method: HttpMethod,
+      route: Route,
+      request_content_type: RequestContentTypeStr,
+      params: ParamsJson,
+      state_result: Optional[ClientStateResult] = None,
   ) -> FlaskRouteResult:
     """匹配 mock 数据并返回响应"""
     request_key: RequestKey = self.get_request_key(route, method, request_content_type)
@@ -489,3 +488,23 @@ class MockRequestHandler:
       time.sleep(self.response_delay / 1000)
 
     return jsonify(entry['response'])
+
+
+# mock 服务进程启动（子进程入口，避免在 qt_win/app.py 中定义以减少子进程模块导入开销）
+def server_process_start(server_config: Dict[str, Any]) -> None:
+  print('server_config', server_config)
+  port = server_config.get('port', 5000)
+  work_dir = server_config.get('work_dir', '.')
+  response_delay = server_config.get('response_delay', 0)
+  static_load_speed = server_config.get('static_load_speed', 0)
+  # 延迟导入避免与 module.mock_server 形成循环依赖
+  from module.mock_server import MockServer
+  # 初始化 mock 服务实例
+  server = MockServer(
+    work_dir=work_dir,
+    port=port,
+    response_delay=response_delay,
+    static_load_speed=static_load_speed,
+  )
+  # 启动本地 mock 服务
+  server.start_server()

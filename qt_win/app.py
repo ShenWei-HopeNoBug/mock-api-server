@@ -20,13 +20,13 @@ import time
 import requests
 from config import globals
 from qt_ui.main_win.win_ui import Ui_MainWindow
-from module.mock_server import MockServer
 from module.asyncio_mitmproxy_server import start_mitmproxy
 from multiprocessing import Process, Event
 from multiprocessing.synchronize import Event as EventType
 from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APP_LOGGER
 from lib.utils_lib import check_local_connection, is_local_server_running
+from lib.server_lib import server_process_start
 from lib.work_file_lib import (check_work_files, create_work_files)
 from lib.app_lib import (
   open_operation_manual_html,
@@ -44,24 +44,6 @@ from lib.system_lib import HISTORY_CONFIG_MANAGER
 import app_env
 
 from qt_ui.main_win import main_win_style
-
-
-# mock 服务进程启动
-def server_process_start(server_config: Dict[str, Any]) -> None:
-  print('server_config', server_config)
-  port = server_config.get('port', 5000)
-  work_dir = server_config.get('work_dir', '.')
-  response_delay = server_config.get('response_delay', 0)
-  static_load_speed = server_config.get('static_load_speed', 0)
-  # 初始化 mock 服务实例
-  server = MockServer(
-    work_dir=work_dir,
-    port=port,
-    response_delay=response_delay,
-    static_load_speed=static_load_speed,
-  )
-  # 启动本地 mock 服务
-  server.start_server()
 
 
 # app 主窗口
@@ -132,6 +114,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # APP 服务启动端口号
     self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
 
+    # mock 服务子进程引用
+    self._mock_server_process: Optional[Process] = None
     # mitmproxy 子进程引用
     self.mitmproxy_process: Optional[Process] = None
     # mitmproxy 停止信号 Event（跨进程）
@@ -609,6 +593,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 清空下载详情数据
     self.download_detail = {}
 
+  # 强制终止 mock 服务子进程并清理引用
+  def _terminate_mock_process(self, reason: str, timeout: int = 3) -> None:
+    if self._mock_server_process is None:
+      return
+    if self._mock_server_process.is_alive():
+      APP_LOGGER.warning(f'{reason}，强制终止子进程！port={self.server_port}')
+      self._mock_server_process.terminate()
+      self._mock_server_process.join(timeout=timeout)
+    self._mock_server_process = None
+
   # 启动mock服务
   @create_thread
   def start_server(self) -> None:
@@ -633,12 +627,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       args=(server_config,),
       name='mock_server',
     )
+    self._mock_server_process = server_process
 
     server_process.start()
     time.sleep(1)
     result: bool = is_local_server_running(
       port=self.server_port,
-      retry=3,
+      retry=20,
       retry_condition='NOT_RUNNING',
       caller='MOCK_SERVER_START'
     )
@@ -647,6 +642,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if result:
       self.server_status_signal.emit('RUNNING')
     else:
+      # 启动失败，终止子进程避免孤儿进程阻止主进程退出
+      self._terminate_mock_process(reason='MOCK_SERVER 启动检测失败')
       self.message_dialog_signal.emit(
         'critical',
         '启动失败',
@@ -665,7 +662,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     time.sleep(1)
     result: bool = is_local_server_running(
       port=self.server_port,
-      retry=3,
+      retry=20,
       retry_condition='RUNNING',
       caller='MOCK_SERVER_STOP'
     )
@@ -679,6 +676,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       )
       self.server_status_signal.emit('RUNNING')
     else:
+      # 停止成功，清理进程引用
+      self._terminate_mock_process(reason='', timeout=3)
       self.server_status_signal.emit('READY')
 
   # 停止mock服务
@@ -781,6 +780,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if self.server_status == 'RUNNING':
       self.cleanup_progress_signal.emit('正在清理 Mock 服务…')
       self._stop_server()
+    elif self._mock_server_process is not None and self._mock_server_process.is_alive():
+      # 启动检测失败但子进程仍在运行（孤儿进程），强制终止
+      self.cleanup_progress_signal.emit('正在清理 Mock 服务…')
+      self._terminate_mock_process(reason='退出清理：检测到 MOCK_SERVER 孤儿子进程仍在运行', timeout=5)
     if is_app_server_running(self.app_sever_running_data):
       self.cleanup_progress_signal.emit('正在清理 APP 服务…')
       self._stop_app_server()
