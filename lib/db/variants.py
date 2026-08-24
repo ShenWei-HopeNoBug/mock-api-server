@@ -222,6 +222,56 @@ class ApiResponseVariantMixin:
     return result
 
   @_ensure_open(default=False)
+  def copy_variant(self, variant_id: str, api_data_id: str) -> bool:
+    """复制一条 response 变体，并绑定到指定的 api_data 上。
+
+    新变体的 enabled 固定为 False（默认不启用），不复制源变体的启用状态。
+
+    variant_id: 源变体 ID
+    api_data_id: 目标 api_data ID（可以与源变体所属的 api_data 不同）
+    """
+    if not variant_id or not api_data_id:
+      return False
+
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT name, response, enabled, timeout FROM api_response_variants WHERE id=?',
+        (variant_id,),
+      ).fetchone()
+    if row is None:
+      return False
+
+    name, response, _, timeout = row
+    new_variant_id = generate_uuid()
+    new_name = f'{name} (副本)' if name else '副本'
+
+    try:
+      with self._transaction() as conn:
+        target_row = conn.execute(
+          'SELECT response_variant_ids FROM api_data WHERE id=?', (api_data_id,)
+        ).fetchone()
+        if target_row is None:
+          raise ValueError(f'api_data {api_data_id} 不存在')
+
+        conn.execute(
+          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout) VALUES (?, ?, ?, ?, ?, ?)',
+          (new_variant_id, api_data_id, new_name, response, False, timeout),
+        )
+        variant_ids = _parse_response_variant_ids(target_row[0])
+        variant_ids.append(new_variant_id)
+        conn.execute(
+          '''UPDATE api_data
+             SET response_variant_ids=?,
+                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+             WHERE id = ?
+          ''',
+          (_normalize_response_variant_ids(variant_ids), api_data_id),
+        )
+      return True
+    except Exception:
+      return False
+
+  @_ensure_open(default=False)
   def bind_variants_to_api(self, api_data_id: str, variant_ids: List[str]) -> bool:
     """直接替换 api_data 的变体 ID 绑定列表，失败返回 False"""
     if not api_data_id:

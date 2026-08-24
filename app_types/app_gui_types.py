@@ -160,6 +160,17 @@ class ReorderVariantParams(TypedDict):
   variant_ids: List[str]  # 重新排序后的变体 ID 列表
 
 
+class CopyVariantParams(TypedDict):
+  """
+  /variant/copy 请求参数
+
+  传入源变体 id 和目标 api_data_id，handler 按 id 查库取源变体数据，
+  复制后绑定到指定的 api_data 上。新变体默认不启用。
+  """
+  id: str            # 源变体 ID
+  api_data_id: str   # 目标 api_data ID
+
+
 class AppServerRunningData(TypedDict):
   """
   APP_SERVER 启动结果数据
