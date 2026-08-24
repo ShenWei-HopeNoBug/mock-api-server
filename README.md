@@ -1,8 +1,8 @@
-﻿# Mock API Server
+# Mock API Server
 
 ## 环境要求
 
-- Python 3.10.11
+- Python 3.13.15
 
 ## 快速开始
 
