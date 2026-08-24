@@ -219,6 +219,12 @@ def get_mock_api_data_list(work_dir: str = '.', enabled: Optional[bool] = None) 
     query=ApiQuery(api_type='MITMPROXY', enabled=enabled),
     reverse=False,
   )
+
+  api_list.extend(mock_db.get_api_list(
+    query=ApiQuery(api_type='MCP', enabled=enabled),
+    reverse=False),
+  )
+
   api_list.extend(mock_db.get_api_list(
     query=ApiQuery(api_type='USER', enabled=enabled),
     reverse=False),

@@ -24,12 +24,12 @@ class GetMockDataPageParams(TypedDict, total=False):
   """
   /mock_data/list 请求参数（分页版）
 
-  type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，None 或不传表示全部（USER 在前）。
+  type 为数据来源类型过滤: 'USER' / 'MITMPROXY' / 'MCP'，None 或不传表示全部（USER 在前）。
   url / params / response 为模糊查询关键词，不传表示不过滤。
   method 为精确查询('GET' / 'POST')，None 或不传表示全部。
   request_content_type 为精确查询，不传表示全部。
   """
-  type: Optional[Literal['USER', 'MITMPROXY']]
+  type: Optional[Literal['USER', 'MITMPROXY', 'MCP']]
   page_num: int  # 1-based 页码
   page_size: int  # 每页条数
   url: Optional[str]  # url 模糊查询关键词
@@ -66,14 +66,14 @@ class BatchDeleteMockDataParams(TypedDict, total=False):
   /mock_data/batch_delete 请求参数
 
   筛选条件与 /mock_data/list 完全一致，支持按当前表格筛选条件批量删除。
-  type 为数据来源类型过滤: 'USER' / 'MITMPROXY'，不传表示不按类型过滤。
+  type 为数据来源类型过滤: 'USER' / 'MITMPROXY' / 'MCP'，不传表示不按类型过滤。
   url / params / response 为模糊查询关键词，不传表示不过滤。
   method 为精确查询('GET' / 'POST')，不传表示全部。
   request_content_type 为精确查询，不传表示全部。
   create_start_time / create_end_time 为创建时间区间，必须成对传入才生效。
   至少提供任一筛选条件，否则后端拒绝执行（防止全表删除）。
   """
-  type: Optional[Literal['USER', 'MITMPROXY']]
+  type: Optional[Literal['USER', 'MITMPROXY', 'MCP']]
   url: Optional[str]  # url 模糊查询关键词
   params: Optional[str]  # params 模糊查询关键词
   response: Optional[str]  # response 模糊查询关键词

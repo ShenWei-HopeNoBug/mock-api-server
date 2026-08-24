@@ -27,7 +27,7 @@ from app_types.app_gui_types import (
   ReorderVariantParams,
   CopyVariantParams,
 )
-from app_types.db_types import ApiRecord, ApiQuery, ApiDataDetail
+from app_types.db_types import ApiRecord, ApiQuery, ApiDataDetail, OperationResult, OperationResultWithOptionalId, BatchOperationResult
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
   BIZ_SUCCESS,
@@ -187,7 +187,7 @@ class MitmproxyDataEditDialog(QDialog):
     mock_data_type = params.get('type')
     page_num = params.get('page_num', 1)
     page_size = params.get('page_size', 20)
-    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
+    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY', 'MCP') else None
     enabled = params.get('enabled')
     query: ApiQuery = {
       'api_type': api_type,
@@ -216,22 +216,22 @@ class MitmproxyDataEditDialog(QDialog):
       "page_size": page_size,
     }
 
-  def _handle_edit_mock_data(self, params: ApiRecord) -> bool:
+  def _handle_edit_mock_data(self, params: ApiRecord) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.update_api(params)
 
-  def _handle_add_mock_data(self, params: AddMockDataParams) -> bool:
+  def _handle_add_mock_data(self, params: AddMockDataParams) -> OperationResultWithOptionalId:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.insert_api({'type': 'USER', **params})
 
-  def _handle_delete_mock_data(self, params: DeleteMockDataParams) -> bool:
+  def _handle_delete_mock_data(self, params: DeleteMockDataParams) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.delete_api(params.get('id', ''))
 
-  def _handle_batch_delete_mock_data(self, params: BatchDeleteMockDataParams) -> bool:
+  def _handle_batch_delete_mock_data(self, params: BatchDeleteMockDataParams) -> BatchOperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     mock_data_type = params.get('type')
-    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY') else None
+    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY', 'MCP') else None
     enabled = params.get('enabled')
     query: ApiQuery = {
       'api_type': api_type,
@@ -246,11 +246,11 @@ class MitmproxyDataEditDialog(QDialog):
     }
     return mock_db.batch_delete_api(query)
 
-  def _handle_copy_mock_data(self, params: CopyMockDataParams) -> bool:
+  def _handle_copy_mock_data(self, params: CopyMockDataParams) -> OperationResultWithOptionalId:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     source = mock_db.get_api_detail(params['id'])
     if source is None:
-      return False
+      return {"success": False, "id": None}
     return mock_db.insert_api({
       'type': 'USER',
       'url': source['url'],
@@ -266,26 +266,26 @@ class MitmproxyDataEditDialog(QDialog):
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.get_api_detail(params['id'])
 
-  def _handle_add_variant(self, params: AddVariantParams) -> bool:
+  def _handle_add_variant(self, params: AddVariantParams) -> OperationResultWithOptionalId:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.insert_variant(params)
 
-  def _handle_update_variant(self, params: UpdateVariantParams) -> bool:
+  def _handle_update_variant(self, params: UpdateVariantParams) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.update_variant(params)
 
-  def _handle_delete_variant(self, params: DeleteVariantParams) -> bool:
+  def _handle_delete_variant(self, params: DeleteVariantParams) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.delete_variant(params.get('id', ''))
 
-  def _handle_reorder_variants(self, params: ReorderVariantParams) -> bool:
+  def _handle_reorder_variants(self, params: ReorderVariantParams) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.reorder_response_variant_ids(
       api_data_id=params['api_data_id'],
       variant_ids=params['variant_ids']
     )
 
-  def _handle_copy_variant(self, params: CopyVariantParams) -> bool:
+  def _handle_copy_variant(self, params: CopyVariantParams) -> OperationResultWithOptionalId:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.copy_variant(params['id'], params['api_data_id'])
 
