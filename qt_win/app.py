@@ -21,6 +21,7 @@ import requests
 from config import globals
 from qt_ui.main_win.win_ui import Ui_MainWindow
 from module.asyncio_mitmproxy_server import start_mitmproxy
+from module.mcp_server import start_mcp_server
 from multiprocessing import Process, Event
 from multiprocessing.synchronize import Event as EventType
 from lib.decorate import create_thread, error_catch
@@ -36,6 +37,7 @@ from lib.app_lib import (
 )
 from app_types.app_gui_types import AppServerRunningData
 from app_types.mitmproxy_types import MitmproxyRunConfig
+from app_types.mcp_server_types import McpServerRunConfig
 from lib.db import MockDBCache
 from lib.download_lib import download_server_static
 from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
@@ -54,6 +56,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   downloading_signal: pyqtSignal = pyqtSignal(str)
   # mock 服务运行信号
   server_status_signal: pyqtSignal = pyqtSignal(str)
+  # MCP 服务运行信号
+  mcp_server_status_signal: pyqtSignal = pyqtSignal(str)
   # 提示弹窗信号
   message_dialog_signal: pyqtSignal = pyqtSignal(str, str, str)
   # 退出清理完成信号
@@ -116,6 +120,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # mock 服务子进程引用
     self._mock_server_process: Optional[Process] = None
+    # -----------------
+    # MCP 服务运行状态
+    # READY：待运行
+    # START_WAIT：正在开始
+    # RUNNING：运行中
+    # STOP_WAIT：正在停止
+    # -----------------
+    self.mcp_server_status: str = 'READY'
+    # MCP 服务端口号
+    self.mcp_server_port: int = 8765
+    # MCP 服务子进程引用
+    self._mcp_server_process: Optional[Process] = None
+    # MCP 停止信号 Event（跨进程）
+    self._mcp_stop_event: Optional[EventType] = None
     # mitmproxy 子进程引用
     self.mitmproxy_process: Optional[Process] = None
     # mitmproxy 停止信号 Event（跨进程）
@@ -238,6 +256,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def add_events(self) -> None:
     # 监听信号变化
     self.server_status_signal.connect(self.server_status_change)
+    self.mcp_server_status_signal.connect(self.mcp_server_status_change)
     self.downloading_signal.connect(self.downloading_change)
     self.mitmproxy_server_status_signal.connect(self.mitmproxy_server_status_change)
     self.message_dialog_signal.connect(self.show_message_dialog)
@@ -259,6 +278,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def server_port_change(value):
       self.server_port = value
 
+    def mcp_server_port_change(value):
+      self.mcp_server_port = value
+
     def response_delay_change(value):
       self.response_delay = value
 
@@ -270,6 +292,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.catchServerPortSpinBox.valueChanged.connect(catch_server_port_change)
     self.serverPortSpinBox.setValue(self.server_port)
     self.serverPortSpinBox.valueChanged.connect(server_port_change)
+    self.mcpServerPortSpinBox.setValue(self.mcp_server_port)
+    self.mcpServerPortSpinBox.valueChanged.connect(mcp_server_port_change)
     self.responseDelaySpinBox.setValue(self.response_delay)
     self.responseDelaySpinBox.valueChanged.connect(response_delay_change)
     self.staticLoadSpeedSpinBox.setValue(self.static_load_speed)
@@ -282,6 +306,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.staticDownloadButton.clicked.connect(static_download_button_click)
     # mock 服务按钮
     self.serverButton.clicked.connect(self.server_button_click)
+    # MCP 服务按钮
+    self.mcpServerButton.clicked.connect(self.mcp_server_button_click)
 
     # 选择服务的工作目录
     self.serverWorkDirLineEdit.setText(self.work_dir)
@@ -441,6 +467,40 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     elif self.server_status == 'RUNNING':
       self.server_status_signal.emit('STOP_WAIT')
       self.stop_server()
+
+  # MCP 服务启动状态变化
+  def mcp_server_status_change(self, text: str) -> None:
+    button_text: str = ''
+    disabled: bool = False
+
+    if text == 'RUNNING':
+      button_text = '停止MCP服务'
+      disabled = True
+    elif text == 'START_WAIT':
+      button_text = '正在启动...'
+      disabled = True
+    elif text == 'STOP_WAIT':
+      button_text = '正在停止...'
+      disabled = True
+    elif text == 'READY':
+      button_text = '启动MCP服务'
+      disabled = False
+
+    self.mcp_server_status = text
+    self.mcpServerButton.setText(button_text)
+    self.mcpServerButton.setDisabled(text in ('START_WAIT', 'STOP_WAIT'))
+    self.mcpServerPortSpinBox.setDisabled(disabled)
+
+  # 点击 MCP 服务按钮
+  def mcp_server_button_click(self) -> None:
+    if self.mcp_server_status in ('START_WAIT', 'STOP_WAIT'):
+      return
+    if self.mcp_server_status == 'READY':
+      self.mcp_server_status_signal.emit('START_WAIT')
+      self.start_mcp_server()
+    elif self.mcp_server_status == 'RUNNING':
+      self.mcp_server_status_signal.emit('STOP_WAIT')
+      self.stop_mcp_server()
 
   # 点击抓包服务按钮
   def catch_server_button_click(self) -> None:
@@ -685,6 +745,90 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def stop_server(self) -> None:
     self._stop_server()
 
+  # 启动 MCP 服务
+  @create_thread
+  def start_mcp_server(self) -> None:
+    # 网络监听端口检查
+    if check_local_connection('0.0.0.0', self.mcp_server_port):
+      self.message_dialog_signal.emit(
+        'critical',
+        '端口检查',
+        f'{self.mcp_server_port} 端口已被占用，启动 MCP 服务失败！',
+      )
+      self.mcp_server_status_signal.emit('READY')
+      return
+
+    mcp_config: McpServerRunConfig = {
+      "port": self.mcp_server_port,
+    }
+    self._mcp_stop_event = Event()
+    self._mcp_server_process = start_mcp_server(mcp_config, stop_event=self._mcp_stop_event)
+    time.sleep(1)
+    result: bool = is_local_server_running(
+      port=self.mcp_server_port,
+      retry=20,
+      retry_condition='NOT_RUNNING',
+      caller='MCP_SERVER_START',
+    )
+    APP_LOGGER.info(f"点击启动 MCP_SERVER 后检测服务当前是否运行：{result}")
+    time.sleep(0.5)
+    if result:
+      self.mcp_server_status_signal.emit('RUNNING')
+    else:
+      # 启动失败，终止子进程避免孤儿进程
+      if self._mcp_server_process is not None and self._mcp_server_process.is_alive():
+        APP_LOGGER.warning(f'MCP_SERVER 启动检测失败，强制终止子进程！port={self.mcp_server_port}')
+        self._mcp_server_process.terminate()
+        self._mcp_server_process.join(timeout=3)
+      self._mcp_server_process = None
+      self.message_dialog_signal.emit(
+        'critical',
+        '启动失败',
+        f'MCP_SERVER 启动失败，请检查日志！port={self.mcp_server_port}',
+      )
+      self.mcp_server_status_signal.emit('READY')
+
+  # 停止 MCP 服务（同步）
+  def _stop_mcp_server(self) -> None:
+    # 设置 stop_event 通知子进程优雅关闭
+    if self._mcp_stop_event is not None:
+      self._mcp_stop_event.set()
+
+    # 等待子进程退出（带超时兜底）
+    if self._mcp_server_process is not None:
+      self._mcp_server_process.join(timeout=5)
+      if self._mcp_server_process.is_alive():
+        # 优雅关闭超时，强制终止
+        APP_LOGGER.warning(f'MCP_SERVER 优雅关闭超时，强制终止！port={self.mcp_server_port}')
+        self._mcp_server_process.terminate()
+        self._mcp_server_process.join(timeout=3)
+
+    # 确认端口已释放
+    result: bool = is_local_server_running(
+      port=self.mcp_server_port,
+      retry=20,
+      retry_condition='RUNNING',
+      caller='MCP_SERVER_STOP',
+    )
+    APP_LOGGER.info(f"点击停止 MCP_SERVER 后检测服务当前是否运行：{result}")
+    # 清理引用
+    self._mcp_stop_event = None
+    self._mcp_server_process = None
+    if result:
+      self.message_dialog_signal.emit(
+        'critical',
+        '停止失败',
+        f'MCP_SERVER 停止失败，服务仍在运行！port={self.mcp_server_port}',
+      )
+      self.mcp_server_status_signal.emit('RUNNING')
+    else:
+      self.mcp_server_status_signal.emit('READY')
+
+  # 停止 MCP 服务
+  @create_thread
+  def stop_mcp_server(self) -> None:
+    self._stop_mcp_server()
+
   # 停止 APP_SERVER 服务（同步）
   def _stop_app_server(self) -> None:
     # 检查 APP_SERVER 是否正常启动
@@ -784,6 +928,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       # 启动检测失败但子进程仍在运行（孤儿进程），强制终止
       self.cleanup_progress_signal.emit('正在清理 Mock 服务…')
       self._terminate_mock_process(reason='退出清理：检测到 MOCK_SERVER 孤儿子进程仍在运行', timeout=5)
+    if self.mcp_server_status == 'RUNNING':
+      self.cleanup_progress_signal.emit('正在清理 MCP 服务…')
+      self._stop_mcp_server()
+    elif self._mcp_server_process is not None and self._mcp_server_process.is_alive():
+      self.cleanup_progress_signal.emit('正在清理 MCP 服务…')
+      if self._mcp_stop_event is not None:
+        self._mcp_stop_event.set()
+      self._mcp_server_process.join(timeout=5)
+      if self._mcp_server_process.is_alive():
+        self._mcp_server_process.terminate()
+        self._mcp_server_process.join(timeout=3)
+      self._mcp_stop_event = None
+      self._mcp_server_process = None
     if is_app_server_running(self.app_sever_running_data):
       self.cleanup_progress_signal.emit('正在清理 APP 服务…')
       self._stop_app_server()

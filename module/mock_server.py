@@ -283,7 +283,7 @@ class MockServer:
     )
     if result:
       APP_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
-      shutdown_local_server(port=self.port)
+      shutdown_local_server(ip='0.0.0.0', port=self.port)
 
   @error_catch(error_msg='__get_params_json_string 解析异常', error_return='{}')
   def __get_params_json_string(self, params: ParamsInput) -> ParamsJson:

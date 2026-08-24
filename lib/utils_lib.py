@@ -25,7 +25,6 @@ from typing import Union, Optional, Any, Dict, List, TypeVar
 # 数值类型 TypeVar，传入 int 返回 int，传入 float 返回 float
 _NumT = TypeVar('_NumT', int, float)
 
-
 # 用于 generate_uuid 的线程安全递增序号和最新时间戳
 _uuid_lock = threading.Lock()
 _uuid_seq = itertools.count(1)
@@ -447,8 +446,8 @@ def is_local_server_running(
 
 
 @error_catch(error_msg='关闭本地服务异常！')
-def shutdown_local_server(port: int = 5000) -> None:
-  process_list = find_connection_process(ip='0.0.0.0', port=port)
+def shutdown_local_server(ip: str = '0.0.0.0', port: int = 5000) -> None:
+  process_list = find_connection_process(ip=ip, port=port)
   if len(process_list) == 0:
     print(f"未找到本地服务进程！port={port}")
 
