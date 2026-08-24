@@ -11,7 +11,7 @@ from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
-from lib.utils_lib import (ConfigFileManager, get_ip_address)
+from lib.utils_lib import (ConfigFileManager)
 from lib.app_lib import is_app_server_running
 from app_types.app_gui_types import AppServerRunningData
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
@@ -115,7 +115,7 @@ class DownloadProxyConfigDialog(QDialog):
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      local_server_url = f"http://{get_ip_address()}:{app_server_port}/static/web/apps/configEdit/index.html"
+      local_server_url = f"http://127.0.0.1:{app_server_port}/static/web/apps/configEdit/index.html"
       APP_LOGGER.info(f"[download_proxy_config_dialog]以本地服务方式加载编辑页面: {local_server_url}")
       current_page.load(QUrl(local_server_url))
     else:
