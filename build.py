@@ -12,7 +12,7 @@ from lib.utils_lib import create_timestamp
 BUILD_CONFIG_MODULE = './_build_config.py'
 
 
-def generate_build_config(mitmproxy_log, version):
+def generate_build_config(mitmproxy_log, mcp_log, version):
   """生成构建配置 Python 模块
 
   打包时会被 PyInstaller 编译进 exe 的 PYZ 字节码中，
@@ -21,6 +21,7 @@ def generate_build_config(mitmproxy_log, version):
   content = f'''# -*- coding: utf-8 -*-
 # 此文件由 build.py 自动生成，请勿手动编辑
 MITMPROXY_LOG = {mitmproxy_log}
+MCP_LOG = {mcp_log}
 VERSION = '{version}'
 '''
   with open(BUILD_CONFIG_MODULE, 'w', encoding='utf-8') as f:
@@ -94,7 +95,7 @@ def app_build(window=False, timestamp=''):
   app_version_tag = name_info['app_version_tag']
 
   # 生成此变体的构建配置
-  generate_build_config(mitmproxy_log=window, version=app_version_tag)
+  generate_build_config(mitmproxy_log=window, mcp_log=window, version=app_version_tag)
 
   args = [
     "pyinstaller",
@@ -144,7 +145,7 @@ def exe_only_build(spec_file, window, timestamp=''):
   app_version_tag = name_info['app_version_tag']
 
   # 生成此变体的构建配置（会编译进新 exe 的 PYZ 中）
-  generate_build_config(mitmproxy_log=window, version=app_version_tag)
+  generate_build_config(mitmproxy_log=window, mcp_log=window, version=app_version_tag)
 
   # 基于 spec 文件构建，修改 name 和 console，跳过 COLLECT
   _modify_spec_for_exe_only(spec_file, app_name, window)

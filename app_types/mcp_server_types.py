@@ -14,3 +14,4 @@ class McpServerRunConfig(TypedDict, total=False):
   """
   port: int  # MCP 服务监听端口号，默认 8765
   work_dir: str  # APP 工作目录绝对路径，用于定位 SQLite 数据库
+  mcp_log: bool  # 是否开启 uvicorn 控制台日志，无黑窗产物设为 False

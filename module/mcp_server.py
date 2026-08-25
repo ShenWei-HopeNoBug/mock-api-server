@@ -30,10 +30,11 @@ from app_types.mcp_server_types import McpServerRunConfig
 # -------------------
 
 class McpServer:
-  def __init__(self, port: int = 8765, work_dir: str = '.', stop_event: Optional[EventType] = None) -> None:
+  def __init__(self, port: int = 8765, work_dir: str = '.', stop_event: Optional[EventType] = None, mcp_log: bool = True) -> None:
     self.port: int = port
     self.work_dir: str = work_dir
     self.stop_event: Optional[EventType] = stop_event
+    self.mcp_log: bool = mcp_log
     self._uvicorn_server: Optional[uvicorn.Server] = None
     # MCP 服务实例（每个 McpServer 独享，避免多实例工具注册冲突）
     self.mcp = MCPServer('mock-api-server')
@@ -520,7 +521,26 @@ class McpServer:
     app = self.mcp.streamable_http_app()
     app.routes.append(Route('/ping', lambda request: JSONResponse({'data': 'pong!'}), methods=['GET']))
 
-    config = uvicorn.Config(app, host='127.0.0.1', port=self.port, log_level='info')
+    # 无控制台环境（mcp_log=False）下使用禁用 StreamHandler 的日志配置，
+    # 避免 uvicorn DefaultFormatter 访问 sys.stdout.isatty() 报错
+    if self.mcp_log:
+      log_config = uvicorn.config.LOGGING_CONFIG
+    else:
+      log_config = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+          'default': {'class': 'logging.NullHandler'},
+          'access': {'class': 'logging.NullHandler'},
+          'error': {'class': 'logging.NullHandler'},
+        },
+        'loggers': {
+          'uvicorn': {'handlers': ['default'], 'level': 'INFO', 'propagate': False},
+          'uvicorn.error': {'handlers': ['error'], 'level': 'INFO', 'propagate': False},
+          'uvicorn.access': {'handlers': ['access'], 'level': 'INFO', 'propagate': False},
+        },
+      }
+    config = uvicorn.Config(app, host='127.0.0.1', port=self.port, log_level='info', log_config=log_config)
     self._uvicorn_server = uvicorn.Server(config)
 
     # 启动 stop_event 监听协程
@@ -540,7 +560,8 @@ def run_mcp_server(config: McpServerRunConfig, stop_event: Optional[EventType] =
   print('mcp_config', config)
   port = config.get('port', 8765)
   work_dir = config.get('work_dir', '.')
-  server = McpServer(port=port, work_dir=work_dir, stop_event=stop_event)
+  mcp_log = config.get('mcp_log', True)
+  server = McpServer(port=port, work_dir=work_dir, stop_event=stop_event, mcp_log=mcp_log)
   server.start_server()
 
 

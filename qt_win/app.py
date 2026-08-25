@@ -765,6 +765,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     mcp_config: McpServerRunConfig = {
       "port": self.mcp_server_port,
       "work_dir": self.work_dir,
+      "mcp_log": app_env.MCP_LOG,
     }
     self._mcp_stop_event = Event()
     self._mcp_server_process = start_mcp_server(mcp_config, stop_event=self._mcp_stop_event)
