@@ -40,6 +40,7 @@ class GetMockDataPageParams(TypedDict, total=False):
   enabled: Optional[bool]  # 启用状态精确查询，True 启用，False 禁用，None 或不传表示全部
   create_start_time: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS'，需与 create_end_time 同时传
   create_end_time: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS'，需与 create_start_time 同时传
+  operator: Optional[str]  # 操作来源精确匹配，如 'USER' / 'MCP'，不传表示全部
 
 
 class MockDataPageResult(TypedDict):
@@ -82,6 +83,7 @@ class BatchDeleteMockDataParams(TypedDict, total=False):
   enabled: Optional[bool]  # 启用状态精确查询，True 启用，False 禁用，None 或不传表示全部
   create_start_time: Optional[str]
   create_end_time: Optional[str]
+  operator: Optional[str]  # 操作来源精确匹配，如 'USER' / 'MCP'，不传表示不筛选
 
 
 class AddMockDataParams(TypedDict, total=False):
@@ -91,7 +93,7 @@ class AddMockDataParams(TypedDict, total=False):
   type 由 handler 硬编码为 'USER'，id 由 MockDB.insert_api 内部生成，均不需要前端传入。
   """
   url: str  # 请求 URL
-  method: str  # HTTP 方法
+  method: str  # HTTP 方法，仅支持 'GET' / 'POST'
   params: str  # 请求参数，JSON 字符串
   response: str  # 响应体，JSON 字符串
 

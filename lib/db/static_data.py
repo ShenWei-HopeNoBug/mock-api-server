@@ -36,6 +36,10 @@ class StaticDataMixin:
       # v2 → v3: 删除未使用的 idx_static_url 索引
       self._conn.execute('DROP INDEX IF EXISTS idx_static_url')
       APP_LOGGER.info('StaticDataMixin schema 迁移: v2 → v3, 删除未使用的 idx_static_url 索引')
+    if from_version < 4 <= to_version:
+      # v3 → v4: static_data 新增 operator 字段
+      self._conn.execute("ALTER TABLE static_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
+      APP_LOGGER.info('StaticDataMixin schema 迁移: v3 → v4, static_data 新增 operator 字段')
 
   # 批量写静态资源到 DB
   @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "批量插入失败", "affected_count": 0})
@@ -49,13 +53,13 @@ class StaticDataMixin:
     if not urls:
       return {"success": False, "status_code": BIZ_DATA_EMPTY, "status_msg": "数据为空", "affected_count": 0}
 
-    insert_sql = 'INSERT INTO static_data (id, url, type) VALUES (?, ?, ?)'
+    insert_sql = 'INSERT INTO static_data (id, url, type, operator) VALUES (?, ?, ?, ?)'
     insert_data = []
     for url in urls:
       if not url or not url.strip():
         continue
       static_id = generate_uuid()
-      insert_data.append((static_id, url, 'MITMPROXY'))
+      insert_data.append((static_id, url, 'MITMPROXY', ''))
 
     try:
       with self._transaction() as conn:
@@ -75,7 +79,7 @@ class StaticDataMixin:
   def get_static_list(self, reverse: bool = False) -> List[StaticData]:
     """查询全部静态资源列表，可按时间正序/倒序排列"""
     order = 'DESC, url DESC' if reverse else 'ASC, url ASC'
-    sql = f'SELECT id, url, type, created_at, updated_at FROM static_data ORDER BY created_at {order}'
+    sql = f'SELECT id, url, type, operator, created_at, updated_at FROM static_data ORDER BY created_at {order}'
     with self._lock:
       cursor = self._conn.execute(sql)
       rows = cursor.fetchall()
@@ -85,7 +89,8 @@ class StaticDataMixin:
         'id': row[0],
         'url': row[1],
         'type': row[2],
-        'created_at': row[3],
-        'updated_at': row[4],
+        'operator': row[3],
+        'created_at': row[4],
+        'updated_at': row[5],
       })
     return result

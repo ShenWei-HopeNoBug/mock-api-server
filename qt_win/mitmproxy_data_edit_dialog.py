@@ -27,7 +27,14 @@ from app_types.app_gui_types import (
   ReorderVariantParams,
   CopyVariantParams,
 )
-from app_types.db_types import ApiRecord, ApiQuery, ApiDataDetail, OperationResult, OperationResultWithOptionalId, BatchOperationResult
+from app_types.db_types import (
+  ApiRecord,
+  ApiQuery,
+  ApiDataDetail,
+  OperationResult,
+  OperationResultWithOptionalId,
+  BatchOperationResult,
+)
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
   BIZ_SUCCESS,
@@ -199,6 +206,7 @@ class MitmproxyDataEditDialog(QDialog):
       'enabled': enabled if isinstance(enabled, bool) else None,
       'create_start_time': params.get('create_start_time') or None,
       'create_end_time': params.get('create_end_time') or None,
+      'operator': params.get('operator') or None,
     }
     mock_db: MockDB = MockDBCache.get(self.work_dir)
 
@@ -218,11 +226,11 @@ class MitmproxyDataEditDialog(QDialog):
 
   def _handle_edit_mock_data(self, params: ApiRecord) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    return mock_db.update_api(params)
+    return mock_db.update_api({'operator': 'USER', **params})
 
   def _handle_add_mock_data(self, params: AddMockDataParams) -> OperationResultWithOptionalId:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    return mock_db.insert_api({'type': 'USER', **params})
+    return mock_db.insert_api({'type': 'USER', 'operator': 'USER', **params})
 
   def _handle_delete_mock_data(self, params: DeleteMockDataParams) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
@@ -243,6 +251,7 @@ class MitmproxyDataEditDialog(QDialog):
       'enabled': enabled if isinstance(enabled, bool) else None,
       'create_start_time': params.get('create_start_time') or None,
       'create_end_time': params.get('create_end_time') or None,
+      'operator': params.get('operator') or None,
     }
     return mock_db.batch_delete_api(query)
 
@@ -253,6 +262,7 @@ class MitmproxyDataEditDialog(QDialog):
       return {"success": False, "id": None}
     return mock_db.insert_api({
       'type': 'USER',
+      'operator': 'USER',
       'url': source['url'],
       'method': source['method'],
       'params': source['params'],
@@ -268,11 +278,11 @@ class MitmproxyDataEditDialog(QDialog):
 
   def _handle_add_variant(self, params: AddVariantParams) -> OperationResultWithOptionalId:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    return mock_db.insert_variant(params)
+    return mock_db.insert_variant({'operator': 'USER', **params})
 
   def _handle_update_variant(self, params: UpdateVariantParams) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    return mock_db.update_variant(params)
+    return mock_db.update_variant({'operator': 'USER', **params})
 
   def _handle_delete_variant(self, params: DeleteVariantParams) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)

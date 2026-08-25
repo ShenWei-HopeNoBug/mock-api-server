@@ -27,4 +27,5 @@ class MockDB(BaseSQLiteDB, ApiDataMixin, StaticDataMixin, ApiResponseVariantMixi
     """执行 schema 版本迁移，调度各 Mixin 的表级迁移逻辑"""
     self._migrate_api(from_version, to_version)
     self._migrate_static(from_version, to_version)
+    self._migrate_variant(from_version, to_version)
     super()._migrate_schema(from_version, to_version)

@@ -45,6 +45,33 @@ class ApiResponseVariantMixin:
   _transaction: Callable[[], ContextManager[sqlite3.Connection]]
   _wal_checkpoint_passive: Callable[[], None]
 
+  def _migrate_variant(self, from_version: int, to_version: int) -> None:
+    """api_response_variants 表的 schema 版本迁移，逐版本升级"""
+    if from_version < 3 <= to_version:
+      # v2 → v3: 新增 api_response_variants 表
+      # @formatter:off
+      self._conn.execute(
+        '''
+          CREATE TABLE IF NOT EXISTS api_response_variants (
+            id          TEXT PRIMARY KEY,
+            api_data_id TEXT NOT NULL,
+            name        TEXT NOT NULL DEFAULT '',
+            response    TEXT NOT NULL DEFAULT '{}',
+            enabled     INTEGER NOT NULL DEFAULT 1,
+            timeout     INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
+            updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
+          )
+        '''
+      )
+      # @formatter:on
+      self._conn.execute('CREATE INDEX IF NOT EXISTS idx_variant_api_data_id ON api_response_variants(api_data_id)')
+      APP_LOGGER.info('ApiResponseVariantMixin schema 迁移: v2 → v3, 新增 response 变体支持')
+    if from_version < 4 <= to_version:
+      # v3 → v4: api_response_variants 新增 operator 字段
+      self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
+      APP_LOGGER.info('ApiResponseVariantMixin schema 迁移: v3 → v4, api_response_variants 新增 operator 字段')
+
   @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "插入变体失败"})
   def insert_variant(self, record: ApiResponseVariantInsertRecord) -> OperationResultWithOptionalId:
     """新增一条 response 变体，并自动追加到所属 api_data 的变体列表，成功返回 {"success": True, "id": "uuid", "status_code": 0, "status_msg": "成功"}"""
@@ -66,8 +93,8 @@ class ApiResponseVariantMixin:
         if row is None:
           return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"关联的 API 数据不存在: {api_data_id}"}
         conn.execute(
-          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout) VALUES (?, ?, ?, ?, ?, ?)',
-          (variant_id, api_data_id, data.get('name', ''), data['response'], data['enabled'], data['timeout']),
+          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout, operator) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          (variant_id, api_data_id, data.get('name', ''), data['response'], data['enabled'], data['timeout'], data.get('operator', '')),
         )
         # 把新变体 ID 追加到 api_data.response_variant_ids 列表
         variant_ids = _parse_response_variant_ids(row[0])
@@ -94,7 +121,7 @@ class ApiResponseVariantMixin:
 
     with self._lock:
       row = self._conn.execute(
-        'SELECT name, response, enabled, timeout FROM api_response_variants WHERE id=?',
+        'SELECT name, response, enabled, timeout, operator FROM api_response_variants WHERE id=?',
         (variant_id,),
       ).fetchone()
     if row is None:
@@ -105,6 +132,7 @@ class ApiResponseVariantMixin:
       'response': row[1],
       'enabled': _parse_enabled(row[2]),
       'timeout': row[3],
+      'operator': row[4],
     }
     # api_data_id 不参与合并，防止破坏绑定关系
     merged = {**old, **{k: v for k, v in record.items() if k not in ('id', 'api_data_id') and v is not None}}
@@ -120,9 +148,10 @@ class ApiResponseVariantMixin:
                  response=?,
                  enabled=?,
                  timeout=?,
+                 operator=?,
                  updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
              WHERE id = ?''',
-          (merged['name'], merged['response'], merged['enabled'], merged['timeout'], variant_id),
+          (merged['name'], merged['response'], merged['enabled'], merged['timeout'], merged.get('operator', ''), variant_id),
         )
         return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
     except Exception as e:
@@ -170,7 +199,7 @@ class ApiResponseVariantMixin:
       return None
     with self._lock:
       row = self._conn.execute(
-        'SELECT id, api_data_id, name, response, enabled, timeout, created_at, updated_at FROM api_response_variants WHERE id=?',
+        'SELECT id, api_data_id, name, response, enabled, timeout, operator, created_at, updated_at FROM api_response_variants WHERE id=?',
         (variant_id,),
       ).fetchone()
     if row is None:
@@ -183,8 +212,9 @@ class ApiResponseVariantMixin:
       'response': row[3],
       'enabled': _parse_enabled(row[4]),
       'timeout': row[5],
-      'created_at': row[6],
-      'updated_at': row[7],
+      'operator': row[6],
+      'created_at': row[7],
+      'updated_at': row[8],
     }
     return result
 
@@ -200,7 +230,7 @@ class ApiResponseVariantMixin:
     """
     if not api_data_id:
       return []
-    sql = 'SELECT id, api_data_id, name, response, enabled, timeout, created_at, updated_at FROM api_response_variants WHERE api_data_id=?'
+    sql = 'SELECT id, api_data_id, name, response, enabled, timeout, operator, created_at, updated_at FROM api_response_variants WHERE api_data_id=?'
     params: List[str] = [api_data_id]
     if enabled is True:
       sql += ' AND enabled=1'
@@ -223,8 +253,9 @@ class ApiResponseVariantMixin:
         'response': row[3],
         'enabled': _parse_enabled(row[4]),
         'timeout': row[5],
-        'created_at': row[6],
-        'updated_at': row[7],
+        'operator': row[6],
+        'created_at': row[7],
+        'updated_at': row[8],
       })
     # 按 api_data.response_variant_ids 中的顺序排列，未在列表中的放最后
     result.sort(key=lambda v: order_map.get(v['id'], len(order_map)))
@@ -246,13 +277,13 @@ class ApiResponseVariantMixin:
 
     with self._lock:
       row = self._conn.execute(
-        'SELECT name, response, enabled, timeout FROM api_response_variants WHERE id=?',
+        'SELECT name, response, enabled, timeout, operator FROM api_response_variants WHERE id=?',
         (variant_id,),
       ).fetchone()
     if row is None:
       return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"源变体不存在: {variant_id}"}
 
-    name, response, _, timeout = row
+    name, response, _, timeout, operator = row
     new_variant_id = generate_uuid()
     new_name = f'{name} (副本)' if name else '副本'
 
@@ -265,8 +296,8 @@ class ApiResponseVariantMixin:
           return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"目标 API 数据不存在: {api_data_id}"}
 
         conn.execute(
-          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout) VALUES (?, ?, ?, ?, ?, ?)',
-          (new_variant_id, api_data_id, new_name, response, False, timeout),
+          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout, operator) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          (new_variant_id, api_data_id, new_name, response, False, timeout, operator),
         )
         variant_ids = _parse_response_variant_ids(target_row[0])
         variant_ids.append(new_variant_id)

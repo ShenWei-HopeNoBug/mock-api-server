@@ -6,9 +6,11 @@ from typing import Callable, ContextManager, List, Optional
 from lib.utils_lib import generate_uuid, JsonFormat
 from lib.logger_lib import APP_LOGGER
 from config.enum import DATABASE
+from config.enum.DATABASE import VALID_HTTP_METHODS, VALID_REQUEST_CONTENT_TYPES
 from config.enum.BIZ_CODE import (
   BIZ_SUCCESS,
   BIZ_PARAM_MISSING,
+  BIZ_PARAM_INVALID,
   BIZ_DATA_NOT_FOUND,
   BIZ_DATA_EMPTY,
   BIZ_DB_ERROR,
@@ -71,25 +73,11 @@ class ApiDataMixin:
       # v2 → v3: api_data 新增 response_variant_ids 与 enabled 字段
       self._conn.execute("ALTER TABLE api_data ADD COLUMN response_variant_ids TEXT NOT NULL DEFAULT '[]'")
       self._conn.execute('ALTER TABLE api_data ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1')
-      # v2 → v3: 新增 api_response_variants 表
-      # @formatter:off
-      self._conn.execute(
-        '''
-          CREATE TABLE IF NOT EXISTS api_response_variants (
-            id          TEXT PRIMARY KEY,
-            api_data_id TEXT NOT NULL,
-            name        TEXT NOT NULL DEFAULT '',
-            response    TEXT NOT NULL DEFAULT '{}',
-            enabled     INTEGER NOT NULL DEFAULT 1,
-            timeout     INTEGER NOT NULL DEFAULT 0,
-            created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime')),
-            updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
-          )
-        '''
-      )
-      # @formatter:on
-      self._conn.execute('CREATE INDEX IF NOT EXISTS idx_variant_api_data_id ON api_response_variants(api_data_id)')
-      APP_LOGGER.info('ApiDataMixin schema 迁移: v2 → v3, 新增 response 变体支持')
+      APP_LOGGER.info('ApiDataMixin schema 迁移: v2 → v3, api_data 新增 response_variant_ids 和 enabled 字段')
+    if from_version < 4 <= to_version:
+      # v3 → v4: api_data 新增 operator 字段
+      self._conn.execute("ALTER TABLE api_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
+      APP_LOGGER.info('ApiDataMixin schema 迁移: v3 → v4, api_data 新增 operator 字段')
 
   # 新增插入（纯 INSERT，不去重），返回是否成功
   @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "插入失败"})
@@ -104,14 +92,21 @@ class ApiDataMixin:
     # 参数校验
     if not data.get('url'):
       return {"success": False, "id": None, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: url"}
+    if data['method'] not in VALID_HTTP_METHODS:
+      return {"success": False, "id": None, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 HTTP 方法: {data['method']}，仅支持 {VALID_HTTP_METHODS}"}
+    if data['request_content_type'] not in VALID_REQUEST_CONTENT_TYPES:
+      return {"success": False, "id": None, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 request_content_type: {data['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}"}
+    # GET 请求固定 request_content_type 为 NONE
+    if data['method'] == 'GET':
+      data['request_content_type'] = 'NONE'
 
     try:
       with self._transaction() as conn:
         conn.execute(
-          'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           (api_id, data['type'], data['url'], data['method'], data['params'], data['response'],
            data['response_variant_ids'], data['enabled'], data.get('timeout', 0),
-           data.get('request_content_type', 'NONE')),
+           data.get('request_content_type', 'NONE'), data.get('operator', '')),
         )
       return {"success": True, "id": api_id, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
     except Exception as e:
@@ -131,7 +126,7 @@ class ApiDataMixin:
     if not records:
       return {"success": False, "status_code": BIZ_DATA_EMPTY, "status_msg": "数据为空", "affected_count": 0}
 
-    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     insert_data = []
     for r in records:
       api_id = generate_uuid()
@@ -140,10 +135,18 @@ class ApiDataMixin:
       data['params'] = JsonFormat.format_json_string(data['params'])
       data['response_variant_ids'] = _normalize_response_variant_ids(data.get('response_variant_ids'))
       data['enabled'] = _normalize_enabled(data.get('enabled'))
+      # 校验 method 和 request_content_type
+      if data['method'] not in VALID_HTTP_METHODS:
+        return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 HTTP 方法: {data['method']}，仅支持 {VALID_HTTP_METHODS}", "affected_count": 0}
+      if data['request_content_type'] not in VALID_REQUEST_CONTENT_TYPES:
+        return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 request_content_type: {data['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}", "affected_count": 0}
+      # GET 请求固定 request_content_type 为 NONE
+      if data['method'] == 'GET':
+        data['request_content_type'] = 'NONE'
       insert_data.append(
         (api_id, data['type'], data['url'], data['method'], data['params'], data['response'],
          data['response_variant_ids'], data['enabled'], data.get('timeout', 0),
-         data.get('request_content_type', 'NONE')))
+         data.get('request_content_type', 'NONE'), data.get('operator', '')))
 
     try:
       with self._transaction() as conn:
@@ -175,7 +178,7 @@ class ApiDataMixin:
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     where_sql, sql_params = self._build_api_where(query)
     order_sql = 'ORDER BY created_at {}'.format(order)
-    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data{} {}'.format(
+    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, created_at, updated_at FROM api_data{} {}'.format(
       where_sql, order_sql)
 
     with self._lock:
@@ -194,8 +197,9 @@ class ApiDataMixin:
         'enabled': _parse_enabled(row[7]),
         'timeout': row[8],
         'request_content_type': row[9],
-        'created_at': row[10],
-        'updated_at': row[11],
+        'operator': row[10],
+        'created_at': row[11],
+        'updated_at': row[12],
       })
     return result
 
@@ -212,6 +216,7 @@ class ApiDataMixin:
     enabled = query.get('enabled')
     create_start_time = query.get('create_start_time')
     create_end_time = query.get('create_end_time')
+    operator = query.get('operator')
     if api_type is not None:
       where_clauses.append('type = ?')
       sql_params.append(api_type)
@@ -239,6 +244,9 @@ class ApiDataMixin:
       sql_params.append(create_start_time)
       where_clauses.append('datetime(created_at) <= datetime(?)')
       sql_params.append(create_end_time)
+    if operator:
+      where_clauses.append('operator = ?')
+      sql_params.append(operator)
     where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
     return where_sql, sql_params
 
@@ -257,7 +265,7 @@ class ApiDataMixin:
 
     where_sql, sql_params = self._build_api_where(query)
     order_sql = 'ORDER BY created_at {}'.format(order)
-    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
+    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
       where_sql, order_sql)
     sql_params.extend([page_size, offset])
 
@@ -277,8 +285,9 @@ class ApiDataMixin:
         'enabled': _parse_enabled(row[7]),
         'timeout': row[8],
         'request_content_type': row[9],
-        'created_at': row[10],
-        'updated_at': row[11],
+        'operator': row[10],
+        'created_at': row[11],
+        'updated_at': row[12],
       })
     return result
 
@@ -299,7 +308,7 @@ class ApiDataMixin:
       return None
     with self._lock:
       row = self._conn.execute(
-        'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, created_at, updated_at FROM api_data WHERE id=?',
+        'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, created_at, updated_at FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
     if row is None:
@@ -320,8 +329,9 @@ class ApiDataMixin:
       'enabled': _parse_enabled(row[7]),
       'timeout': row[8],
       'request_content_type': row[9],
-      'created_at': row[10],
-      'updated_at': row[11],
+      'operator': row[10],
+      'created_at': row[11],
+      'updated_at': row[12],
     }
 
     return result
@@ -342,7 +352,7 @@ class ApiDataMixin:
     # 1. 事务外查询旧记录，不存在则直接返回，避免空事务
     with self._lock:
       row = self._conn.execute(
-        'SELECT type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type FROM api_data WHERE id=?',
+        'SELECT type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
     if row is None:
@@ -361,11 +371,21 @@ class ApiDataMixin:
           'enabled': row[6],
           'timeout': row[7],
           'request_content_type': row[8],
+          'operator': row[9],
         }
         merged = {**old, **{k: v for k, v in record.items() if k != 'id' and v is not None}}
         merged['params'] = JsonFormat.format_json_string(merged['params'])
         merged['response_variant_ids'] = _normalize_response_variant_ids(merged.get('response_variant_ids'))
         merged['enabled'] = _normalize_enabled(merged.get('enabled'))
+
+        # 校验合并后的 method 和 request_content_type
+        if merged['method'] not in VALID_HTTP_METHODS:
+          return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 HTTP 方法: {merged['method']}，仅支持 {VALID_HTTP_METHODS}"}
+        if merged['request_content_type'] not in VALID_REQUEST_CONTENT_TYPES:
+          return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 request_content_type: {merged['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}"}
+        # GET 请求固定 request_content_type 为 NONE
+        if merged['method'] == 'GET':
+          merged['request_content_type'] = 'NONE'
 
         # 3. 写入合并后的完整记录
         cursor = conn.execute(
@@ -379,11 +399,12 @@ class ApiDataMixin:
                  enabled=?,
                  timeout=?,
                  request_content_type=?,
+                 operator=?,
                  updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
              WHERE id = ?''',
           (merged['type'], merged['url'], merged['method'],
            merged['params'], merged['response'], merged['response_variant_ids'], merged['enabled'],
-           merged.get('timeout', 0), merged.get('request_content_type', 'NONE'), api_id),
+           merged.get('timeout', 0), merged.get('request_content_type', 'NONE'), merged.get('operator', ''), api_id),
         )
         if cursor.rowcount == 0:
           return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {api_id}"}

@@ -15,13 +15,14 @@ class ApiRecord(TypedDict, total=False):
   id: str  # 记录唯一标识（upsert 时由代码生成，batch 时由外部传入）
   type: str  # 数据来源类型，如 'MITMPROXY' / 'USER' / 'MCP'
   url: str  # 请求 URL
-  method: str  # HTTP 方法，如 'GET' / 'POST'
+  method: str  # HTTP 方法，仅支持 'GET' / 'POST'
   params: str  # 请求参数，JSON 字符串
   response: str  # 响应体，JSON 字符串
   response_variant_ids: List[str]  # 绑定的 response 变体 ID 列表，缺省为 []
   enabled: bool  # 是否启用（True 启用，False 禁用），缺省时默认启用
   timeout: int  # 超时时间（毫秒），0 表示不限制
-  request_content_type: str  # 请求 content-type 枚举值
+  request_content_type: str  # 请求 content-type 枚举值，可选值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'；GET 请求固定为 'NONE'
+  operator: str  # 操作来源，如 'USER' / 'MCP'，缺省为空字符串
 
 
 class ApiData(TypedDict):
@@ -33,15 +34,48 @@ class ApiData(TypedDict):
   id: str  # 记录唯一标识
   type: str  # 数据来源类型
   url: str  # 请求 URL
-  method: str  # HTTP 方法
+  method: str  # HTTP 方法，'GET' / 'POST'
   params: str  # 请求参数，JSON 字符串
   response: str  # 响应体，JSON 字符串
   response_variant_ids: List[str]  # 绑定的 response 变体 ID 列表
   enabled: bool  # 是否启用（True 启用，False 禁用）
   timeout: int  # 超时时间（毫秒），0 表示不限制
-  request_content_type: str  # 请求 content-type 枚举值
+  request_content_type: str  # 请求 content-type 枚举值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'
+  operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+
+
+class ApiSummary(TypedDict):
+  """
+  API 数据精简记录（用于列表场景）
+
+  相比 ApiData 去掉了 response、params、response_variant_ids 等可能较大的字段，
+  适合列表浏览；需要完整信息时调用 get_api_detail 获取详情。
+  """
+  id: str  # 记录唯一标识
+  type: str  # 数据来源类型
+  url: str  # 请求 URL
+  method: str  # HTTP 方法，'GET' / 'POST'
+  enabled: bool  # 是否启用（True 启用，False 禁用）
+  timeout: int  # 超时时间（毫秒），0 表示不限制
+  request_content_type: str  # 请求 content-type 枚举值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'
+  operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
+  created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+  updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+
+
+class PaginatedApiList(TypedDict):
+  """
+  分页 API 列表响应
+
+  用于 list_mock_apis 工具的返回值，包含分页元信息和精简记录列表。
+  """
+  total: int  # 符合筛选条件的记录总数
+  page_num: int  # 当前页码（从 1 开始）
+  page_size: int  # 每页条数
+  has_more: bool  # 是否还有更多数据
+  list: List[ApiSummary]  # 当前页的精简记录列表
 
 
 class ApiQuery(TypedDict, total=False):
@@ -55,11 +89,12 @@ class ApiQuery(TypedDict, total=False):
   url_like: Optional[str]  # URL 模糊查询
   params_like: Optional[str]  # 请求参数模糊查询
   response_like: Optional[str]  # 响应体模糊查询
-  method: Optional[str]  # HTTP 方法精确查询
-  request_content_type: Optional[str]  # 请求 content-type 枚举值精确查询
+  method: Optional[str]  # HTTP 方法精确查询，'GET' / 'POST'
+  request_content_type: Optional[str]  # 请求 content-type 枚举值精确查询: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'
   enabled: Optional[bool]  # 是否启用，True 启用，False 禁用，None 不筛选
   create_start_time: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS.sss'
   create_end_time: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS.sss'
+  operator: Optional[str]  # 操作来源精确匹配，如 'USER' / 'MCP'
 
 
 class ApiResponseVariantInsertRecord(TypedDict, total=False):
@@ -74,6 +109,7 @@ class ApiResponseVariantInsertRecord(TypedDict, total=False):
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用），缺省时默认启用
   timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
+  operator: str  # 操作来源，如 'USER' / 'MCP'，缺省为空字符串
 
 
 class ApiResponseVariantRecord(TypedDict, total=False):
@@ -89,6 +125,7 @@ class ApiResponseVariantRecord(TypedDict, total=False):
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用）
   timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
+  operator: str  # 操作来源，如 'USER' / 'MCP'，缺省为空字符串
 
 
 class ApiResponseVariant(TypedDict):
@@ -103,6 +140,7 @@ class ApiResponseVariant(TypedDict):
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用）
   timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
+  operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
@@ -116,14 +154,15 @@ class ApiDataDetail(TypedDict):
   id: str  # 记录唯一标识
   type: str  # 数据来源类型
   url: str  # 请求 URL
-  method: str  # HTTP 方法
+  method: str  # HTTP 方法，'GET' / 'POST'
   params: str  # 请求参数，JSON 字符串
   response: str  # 响应体，JSON 字符串
   response_variant_ids: List[str]  # 绑定的 response 变体 ID 列表
   response_variants: List[ApiResponseVariant]  # 关联查询的变体列表
   enabled: bool  # 是否启用（True 启用，False 禁用）
   timeout: int  # 超时时间（毫秒），0 表示不限制
-  request_content_type: str  # 请求 content-type 枚举值
+  request_content_type: str  # 请求 content-type 枚举值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'
+  operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
@@ -137,6 +176,7 @@ class StaticData(TypedDict):
   id: str  # 记录唯一标识
   url: str  # 静态资源 URL
   type: str  # 数据来源类型
+  operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
   created_at: str  # 创建时间
   updated_at: str  # 更新时间
 

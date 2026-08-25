@@ -456,6 +456,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     ])
     # 抓包服务启动时禁止启动 mock 服务
     self.serverButton.setDisabled(disabled)
+    # 抓包服务启动时禁止启动 MCP 服务
+    self.mcpServerButton.setDisabled(disabled)
 
   # 点击 mock 服务按钮
   def server_button_click(self) -> None:
@@ -490,6 +492,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self.mcpServerButton.setText(button_text)
     self.mcpServerButton.setDisabled(text in ('START_WAIT', 'STOP_WAIT'))
     self.mcpServerPortSpinBox.setDisabled(disabled)
+    # MCP 服务启动时禁止启动抓包服务
+    self.catchServerButton.setDisabled(disabled)
 
   # 点击 MCP 服务按钮
   def mcp_server_button_click(self) -> None:
