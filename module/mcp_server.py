@@ -17,10 +17,13 @@ from app_types.db_types import (
   ApiResponseVariant,
   ApiResponseVariantInsertRecord,
   ApiResponseVariantRecord,
+  ApiResponseVariantSummary,
   ApiSummary,
   OperationResult,
   OperationResultWithOptionalId,
   PaginatedApiList,
+  PaginatedVariantList,
+  VariantQuery,
 )
 from app_types.mcp_server_types import McpServerRunConfig
 
@@ -30,7 +33,12 @@ from app_types.mcp_server_types import McpServerRunConfig
 # -------------------
 
 class McpServer:
-  def __init__(self, port: int = 8765, work_dir: str = '.', stop_event: Optional[EventType] = None, mcp_log: bool = True) -> None:
+  def __init__(
+      self, port: int = 8765,
+      work_dir: str = '.',
+      stop_event: Optional[EventType] = None,
+      mcp_log: bool = True,
+  ) -> None:
     self.port: int = port
     self.work_dir: str = work_dir
     self.stop_event: Optional[EventType] = stop_event
@@ -321,33 +329,81 @@ class McpServer:
     def list_response_variants(
         api_id: Annotated[str, "所属 API 记录的 ID（必填），可通过 list_mock_apis 获取"],
         enabled: Annotated[Optional[bool], "按启用状态筛选，True 仅启用、False 仅禁用、None 不筛选"] = None,
-    ) -> List[ApiResponseVariant]:
+        name_like: Annotated[Optional[str], "按变体名称模糊搜索"] = None,
+        response_like: Annotated[Optional[str], "按响应体内容模糊搜索"] = None,
+        page_num: Annotated[int, "页码（从 1 开始），默认 1"] = 1,
+        page_size: Annotated[int, "每页条数，默认 20，最大 100"] = 20,
+    ) -> PaginatedVariantList:
       """
-      列出指定 Mock API 的所有响应变体。
+      列出指定 Mock API 的响应变体（分页 + 精简字段）。
 
       用途：查询某个 mock 接口下配置了哪些不同的模拟响应（如成功响应、
-           错误响应、超时响应等），支持按启用状态筛选。
+           错误响应、超时响应等），支持按启用状态筛选、名称和响应体模糊搜索。
 
       场景：当需要查看某接口有哪些变体、或需要获取 variant_id 用于
           后续修改/删除/复制时调用。
+          数据量较大时通过 page_num 和 page_size 分页获取，has_more 为 True 表示还有更多数据。
 
       Args:
         api_id: 所属 API 记录的 ID（必填）
         enabled: 按启用状态筛选（可选）
+        name_like: 按变体名称模糊搜索（可选）
+        response_like: 按响应体内容模糊搜索（可选）
+        page_num: 页码（从 1 开始），默认 1
+        page_size: 每页条数，默认 20，最大 100
 
       Returns:
-        列表，每项包含以下字段：
-        - id (str): 变体唯一标识，可用于 update_response_variant / delete_response_variant / copy_response_variant
-        - api_data_id (str): 所属 API 记录 ID
-        - name (str): 变体名称
-        - response (str): 变体响应体，JSON 字符串
-        - enabled (bool): 是否启用
-        - timeout (int): 超时时间（毫秒），0 表示不限制
-        - created_at (str): 创建时间
-        - updated_at (str): 更新时间
+        分页响应字典，包含以下字段：
+        - total (int): 符合筛选条件的记录总数
+        - page_num (int): 当前页码
+        - page_size (int): 每页条数
+        - has_more (bool): 是否还有更多数据
+        - list (list): 当前页的精简记录列表，每项包含：
+          - id (str): 变体唯一标识，可用于 get_variant_by_id / update_response_variant / delete_response_variant / copy_response_variant
+          - api_data_id (str): 所属 API 记录 ID
+          - name (str): 变体名称
+          - enabled (bool): 是否启用
+          - timeout (int): 超时时间（毫秒），0 表示不限制
+          - operator (str): 操作来源
+          - created_at (str): 创建时间
+          - updated_at (str): 更新时间
+
+        注意：列表仅返回精简字段，不含 response（响应体可能较大）。
+        需要查看完整响应体时请调用 get_variant_by_id(variant_id)。
       """
+      query: VariantQuery = {'api_data_id': api_id}
+      if enabled is not None:
+        query['enabled'] = enabled
+      if name_like is not None:
+        query['name_like'] = name_like
+      if response_like is not None:
+        query['response_like'] = response_like
+
+      page_num = max(1, page_num)
+      page_size = max(1, min(page_size, 100))
+
       db = MockDBCache.get(self.work_dir)
-      return db.get_variants_by_api_id(api_id, enabled=enabled)
+      total = db.get_variant_count(query=query)
+      rows = db.get_variant_list_page(query=query, reverse=True, page_num=page_num, page_size=page_size)
+
+      items: List[ApiResponseVariantSummary] = [{
+        'id': row['id'],
+        'api_data_id': row['api_data_id'],
+        'name': row['name'],
+        'enabled': row['enabled'],
+        'timeout': row['timeout'],
+        'operator': row['operator'],
+        'created_at': row['created_at'],
+        'updated_at': row['updated_at'],
+      } for row in rows]
+
+      return {
+        'total': total,
+        'page_num': page_num,
+        'page_size': page_size,
+        'has_more': page_num * page_size < total,
+        'list': items,
+      }
 
     self.mcp.add_tool(list_response_variants)
 
@@ -489,6 +545,43 @@ class McpServer:
       return db.copy_variant(variant_id, target_api_id)
 
     self.mcp.add_tool(copy_response_variant)
+
+    def get_variant_by_id(
+        variant_id: Annotated[str, "变体唯一标识 ID（必填），可通过 list_response_variants 获取"],
+    ) -> Optional[ApiResponseVariant]:
+      """
+      查询指定响应变体的详细信息（含完整响应体）。
+
+      用途：根据 variant_id 获取单个变体的完整配置，包括 response（响应体）等
+           list_response_variants 列表中省略的大字段。
+
+      场景：当需要查看或修改某个变体的完整响应体时调用。
+           通常先通过 list_response_variants 获取精简列表和 variant_id，
+           再调用此接口查看完整详情。
+
+      Args:
+        variant_id: 变体唯一标识 ID（必填）
+
+      Returns:
+        变体详情字典，包含以下字段：
+        - id (str): 变体唯一标识
+        - api_data_id (str): 所属 API 记录 ID
+        - name (str): 变体名称
+        - response (str): 变体响应体，JSON 字符串
+        - enabled (bool): 是否启用
+        - timeout (int): 超时时间（毫秒），0 表示不限制
+        - operator (str): 操作来源
+        - created_at (str): 创建时间
+        - updated_at (str): 更新时间
+
+        若 variant_id 不存在则返回 None。
+      """
+      if not variant_id:
+        return None
+      db = MockDBCache.get(self.work_dir)
+      return db.get_variant_by_id(variant_id)
+
+    self.mcp.add_tool(get_variant_by_id)
 
   # 优雅关闭前的自定义清理逻辑
   async def _before_shutdown(self) -> None:

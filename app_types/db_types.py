@@ -145,6 +145,49 @@ class ApiResponseVariant(TypedDict):
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
 
+class VariantQuery(TypedDict, total=False):
+  """
+  变体查询过滤参数
+
+  用于 get_variant_list_page / get_variant_count 的入参。
+  total=False 表示所有字段可选，调用方按需传入。
+  """
+  api_data_id: str  # 所属 api_data 的 ID
+  enabled: Optional[bool]  # 是否启用，True 启用，False 禁用，None 不筛选
+  name_like: Optional[str]  # 变体名称模糊查询
+  response_like: Optional[str]  # 变体响应体模糊查询
+
+
+class ApiResponseVariantSummary(TypedDict):
+  """
+  API response 变体精简记录（用于列表场景）
+
+  相比 ApiResponseVariant 去掉了 response 等可能较大的字段，
+  适合列表浏览；需要完整信息时调用 get_variant_by_id 获取详情。
+  """
+  id: str  # 记录唯一标识
+  api_data_id: str  # 所属 api_data 的 ID
+  name: str  # 变体名称
+  enabled: bool  # 是否启用（True 启用，False 禁用）
+  timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
+  operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
+  created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+  updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+
+
+class PaginatedVariantList(TypedDict):
+  """
+  分页变体列表响应
+
+  用于 list_response_variants 工具的返回值，包含分页元信息和精简记录列表。
+  """
+  total: int  # 符合筛选条件的记录总数
+  page_num: int  # 当前页码（从 1 开始）
+  page_size: int  # 每页条数
+  has_more: bool  # 是否还有更多数据
+  list: List[ApiResponseVariantSummary]  # 当前页的精简记录列表
+
+
 class ApiDataDetail(TypedDict):
   """
   API 数据详情（含变体列表）

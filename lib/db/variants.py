@@ -17,6 +17,7 @@ from app_types.db_types import (
   ApiResponseVariantInsertRecord,
   ApiResponseVariantRecord,
   ApiResponseVariant,
+  VariantQuery,
   OperationResult,
   OperationResultWithOptionalId,
 )
@@ -259,6 +260,74 @@ class ApiResponseVariantMixin:
       })
     # 按 api_data.response_variant_ids 中的顺序排列，未在列表中的放最后
     result.sort(key=lambda v: order_map.get(v['id'], len(order_map)))
+    return result
+
+  def _build_variant_where(self, query: VariantQuery) -> tuple:
+    """构建 api_response_variants 查询的 WHERE 子句和参数，返回 (where_sql, sql_params)"""
+    where_clauses = []
+    sql_params: list = []
+    api_data_id = query.get('api_data_id')
+    enabled = query.get('enabled')
+    name_like = query.get('name_like')
+    response_like = query.get('response_like')
+    if api_data_id:
+      where_clauses.append('api_data_id = ?')
+      sql_params.append(api_data_id)
+    if enabled is True:
+      where_clauses.append('enabled = 1')
+    elif enabled is False:
+      where_clauses.append('enabled = 0')
+    if name_like:
+      where_clauses.append('name LIKE ?')
+      sql_params.append(f'%{name_like}%')
+    if response_like:
+      where_clauses.append('response LIKE ?')
+      sql_params.append(f'%{response_like}%')
+    where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+    return where_sql, sql_params
+
+  # 查询变体总数
+  @_ensure_open(default=0)
+  def get_variant_count(self, query: VariantQuery) -> int:
+    """查询变体总数，支持 api_data_id 精确匹配、enabled 筛选、name/response 模糊查询"""
+    where_sql, sql_params = self._build_variant_where(query)
+    sql = f'SELECT COUNT(*) FROM api_response_variants{where_sql}'
+    with self._lock:
+      return self._conn.execute(sql, tuple(sql_params)).fetchone()[0]
+
+  # 分页查询变体列表
+  @_ensure_open(default=[])
+  def get_variant_list_page(
+      self,
+      query: VariantQuery,
+      reverse: bool = False,
+      page_num: int = 1,
+      page_size: int = 20,
+  ) -> List[ApiResponseVariant]:
+    """分页查询变体列表，返回完整记录（含 response），按 created_at 排序"""
+    order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
+    offset = (page_num - 1) * page_size
+
+    where_sql, sql_params = self._build_variant_where(query)
+    sql = ('SELECT id, api_data_id, name, response, enabled, timeout, operator, created_at, updated_at '
+           'FROM api_response_variants{} ORDER BY created_at {} LIMIT ? OFFSET ?').format(where_sql, order)
+    sql_params.extend([page_size, offset])
+
+    with self._lock:
+      rows = self._conn.execute(sql, tuple(sql_params)).fetchall()
+    result: List[ApiResponseVariant] = []
+    for row in rows:
+      result.append({
+        'id': row[0],
+        'api_data_id': row[1],
+        'name': row[2],
+        'response': row[3],
+        'enabled': _parse_enabled(row[4]),
+        'timeout': row[5],
+        'operator': row[6],
+        'created_at': row[7],
+        'updated_at': row[8],
+      })
     return result
 
   @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "复制变体失败"})
