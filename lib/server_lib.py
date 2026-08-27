@@ -212,8 +212,17 @@ class StaticFileHandler:
             time.sleep(per_chunk_delay)
           yield data
 
-    print(f'静态资源流式节流  文件：{file_name}  大小：{content_length}B  速率：{speed}KB/s  每块延时：{per_chunk_delay:.4f}s')
+    print(f'静态资源流式节流  文件：{file_name}  大小：{self._format_size(content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
     return Response(_stream(), status=status, headers=headers)
+
+  @staticmethod
+  def _format_size(size_bytes: float) -> str:
+    """将字节数动态格式化为 B/KB/MB 单位"""
+    if size_bytes < 1024:
+      return f'{size_bytes:.0f}B'
+    if size_bytes < 1024 * 1024:
+      return f'{size_bytes / 1024:.2f}KB'
+    return f'{size_bytes / (1024 * 1024):.2f}MB'
 
   @staticmethod
   def _parse_range(range_header: Optional[str], file_total: int) -> Optional[tuple]:
