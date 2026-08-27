@@ -1,5 +1,38 @@
 # Mock API Server
 
+## 简介
+
+以本地 mock 数据为数据源，启动本地 HTTP 服务按路由规则匹配请求并返回模拟响应，服务于前端开发与接口联调。所有 mock 接口统一挂载在 `/api` 路由前缀下，前端只需将请求目标指向本地服务即可命中对应的 mock 数据。
+
+### 功能简述
+
+**1. 三种 mock 数据导入方式**
+
+- **代理抓包自动录入**：内置 mitmproxy 代理，流量经过时自动捕获 JSON 响应并写入数据库，支持配置 URL 过滤规则
+- **MCP 服务由 Agent 导入**：启动本地 MCP 服务，Agent 可通过 MCP 工具集直接创建/修改/删除 mock 接口及响应变体
+- **GUI 可视化管理**：内嵌 WebView 数据管理界面，支持 mock 接口与响应变体的分页查询、增删改、批量删除、复制、拖拽排序等完整操作
+
+**2. 工作目录隔离的 SQLite 存储**
+
+每个工作目录拥有独立的 SQLite 数据库，可按场景/项目切换不同工作目录，各目录的 mock 数据互不干扰。
+
+**3. 响应变体与轮播模拟**
+
+单条 mock 接口支持配置多个响应变体。请求时通过 Header `Mock-Server-Device-Id` 传入 UUID 触发变体模式：同一 Device ID 的请求按变体顺序依次切换返回不同响应，适合模拟轮询/状态流转场景；不传则始终返回默认响应。变体支持独立超时配置，空闲超时后自动重置为首个变体。
+
+**4. 静态资源本地化**
+
+- **URL 自动替换**：mock 服务启动后自动将响应体中匹配配置扩展名的远程静态资源 URL 替换为本地地址，由内置静态文件服务提供，无需依赖远程服务器即可完整渲染页面
+- **批量下载与压缩**：一键扫描所有 mock 数据中引用的静态资源 URL，批量下载到本地，支持图片自动压缩、下载代理配置与动态超时调整
+
+**5. 响应延时模拟**
+
+支持全局响应延时与单条接口独立延时两级配置，另支持静态资源按文件大小限速加载，用于测试 loading 态、超时处理及弱网场景。
+
+**6. MCP 工具集**
+
+本地 MCP 服务向 Agent 暴露 mock 接口与响应变体的完整 CRUD 工具，另含变体跨接口复制能力。
+
 ## 环境要求
 
 - Python 3.13.15
@@ -12,44 +45,22 @@
 pip install -r package.txt
 ```
 
-### 更新依赖
+### 初始化 package.txt
 
-**初始化 package.txt（导出当前环境已安装的全部包）：**
+导出当前环境已安装的全部包：
 
 ```bash
 pip freeze > package.txt
 ```
 
-**更新 requirements.txt（扫描代码中实际 import 的第三方包）：**
-
-```bash
-python gen_requirements.py
-```
-
-输出到指定文件：
-
-```bash
-python gen_requirements.py -o package.txt
-```
-
 ## 工具命令
-
-### 命令行启动抓包服务
-
-```bash
-mitmdump -s request_catch.py
-```
 
 ### 打包
 
-运行项目目录中的 `build.py` 脚本进行打包：
+运行项目目录中的 `build.py` 脚本进行打包，基于 PyInstaller 构建，一次产出两个 exe（带控制台黑窗和不带黑窗版本），共用同一份 `site-packages` 依赖目录：
 
 ```bash
 python build.py
 ```
 
-### 查看被 LFS 追踪的所有文件
-
-```bash
-git lfs ls-files
-```
+产物输出在 `dist/` 目录下，包含可执行 exe、`site-packages` 依赖目录以及内置的 `schema/` 和 `assets/` 资源。
