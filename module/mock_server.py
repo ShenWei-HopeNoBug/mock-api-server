@@ -232,7 +232,14 @@ class MockServer:
       if not static_route.startswith('/'):
         continue
       resources[f"{static_route}/*"] = {"origins": "*"}
-      app.route(f'{static_route}/<path:path>', methods=['GET'])(static_handler.match)
+
+      def _make_static_view(handler: StaticFileHandler):
+        def _static_view(path: str) -> FlaskRouteResult:
+          return handler.match(path, range_header=request.headers.get('Range'))
+
+        return _static_view
+
+      app.route(f'{static_route}/<path:path>', methods=['GET'])(_make_static_view(static_handler))
 
     @app.route('/ping', methods=['GET'])
     def ping() -> FlaskRouteResult:

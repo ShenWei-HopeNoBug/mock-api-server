@@ -147,7 +147,7 @@ class StaticFileHandler:
     self.cache: ThreadSafeLRUCache[bool] = cache
     self.max_delay: Union[int, float] = max_delay
 
-  def match(self, path: str) -> FlaskRouteResult:
+  def match(self, path: str, range_header: Optional[str] = None) -> FlaskRouteResult:
     """匹配并返回本地静态资源文件"""
     route_path: str = '/' + path
     # 非文件请求，跳过
@@ -160,20 +160,54 @@ class StaticFileHandler:
     if not os.path.exists(file_path):
       return 'Not Found', 404
 
-    search_key: str = create_md5(path)
-
     # 静态资源响应延时
     if self.static_load_speed > 0:
-      is_first: bool = self.cache.set_once(search_key, True)
-      if is_first:
-        file_size: float = os.path.getsize(file_path) / 1024
-        delay: float = file_size / self.static_load_speed
-        if delay > self.max_delay:
-          delay = self.max_delay
-        print(f'静态资源延时属性  文件大小：{file_size}KB  延时时间：{delay}s')
-        time.sleep(delay)
+      if range_header:
+        # 分片请求（视频等）：按本次分片大小计算延时
+        chunk_size: int = self._parse_range_size(range_header, os.path.getsize(file_path))
+        if chunk_size > 0:
+          chunk_kb: float = chunk_size / 1024
+          delay: float = chunk_kb / self.static_load_speed
+          if delay > self.max_delay:
+            delay = self.max_delay
+          print(f'静态资源延时属性（分片）  分片大小：{chunk_kb}KB  延时时间：{delay}s')
+          time.sleep(delay)
+      else:
+        # 非分片请求（图片/JS/CSS 等）：仅首次请求延时
+        search_key: str = create_md5(path)
+        is_first: bool = self.cache.set_once(search_key, True)
+        if is_first:
+          file_size: float = os.path.getsize(file_path) / 1024
+          delay: float = file_size / self.static_load_speed
+          if delay > self.max_delay:
+            delay = self.max_delay
+          print(f'静态资源延时属性  文件大小：{file_size}KB  延时时间：{delay}s')
+          time.sleep(delay)
 
     return send_from_directory(self.static_folder, file_name)
+
+  @staticmethod
+  def _parse_range_size(range_header: str, file_total: int) -> int:
+    """
+    解析 Range 头，返回本次请求的字节大小。
+
+    支持格式：bytes=start-end、bytes=start-、bytes=-suffix
+    解析失败时返回 0，表示不延时。
+    """
+    match = re.match(r'bytes=(\d*)-(\d*)', range_header.strip())
+    if not match:
+      return 0
+    start_str, end_str = match[1], match[2]
+    if start_str and end_str:
+      start, end = int(start_str), int(end_str)
+      return max(end - start + 1, 0)
+    if start_str and not end_str:
+      start = int(start_str)
+      return max(file_total - start, 0)
+    if not start_str and end_str:
+      suffix = int(end_str)
+      return min(suffix, file_total)
+    return 0
 
 
 class MockRequestParseError(Exception):
