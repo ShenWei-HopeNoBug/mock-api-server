@@ -77,7 +77,7 @@ class McpServer:
         - params (str): 请求参数，JSON 字符串
         - response (str): 默认响应体，JSON 字符串
         - response_variant_ids (list[str]): 绑定的变体 ID 列表
-        - response_variants (list[dict]): 变体详情列表，每项含 id/name/response/enabled/timeout/created_at/updated_at
+        - response_variants (list[dict]): 变体详情列表，每项含 id/name/response/enabled/timeout/operator/type/created_at/updated_at
         - enabled (bool): 是否启用
         - timeout (int): 超时时间（毫秒），0 表示不限制
         - request_content_type (str): 请求 content-type 枚举值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'
@@ -272,6 +272,36 @@ class McpServer:
 
     self.mcp.add_tool(delete_mock_api)
 
+    def copy_mock_api(
+        api_id: Annotated[str, "要复制的 API 记录 ID（必填），可通过 list_mock_apis 获取"],
+    ) -> OperationResultWithOptionalId:
+      """
+      复制一个 Mock API（不含响应变体）。
+
+      用途：基于已有 mock 接口快速创建一个相似配置的新接口，避免重复手动填写。
+           新副本的 enabled 固定为 False（默认不启用），不复制源接口的响应变体绑定，
+           需要变体时请另行调用 create_response_variant 为新接口添加。
+           副本的数据来源类型固定标记为 'MCP'。
+
+      前置条件：需要先调用 list_mock_apis 获取 api_id。
+      组合：复制成功后返回新 api_id，可调用 update_mock_api 修改配置，
+           或调用 get_api_detail 查看详情。
+
+      Args:
+        api_id: 要复制的 API 记录 ID（必填）
+
+      Returns:
+        dict:
+        - success (bool): 是否复制成功
+        - id (str | None): 新创建的 API 记录 ID；失败时为 None
+        - status_code (int): 状态码
+        - status_msg (str): 结果描述
+      """
+      db = MockDBCache.get(self.work_dir)
+      return db.copy_api(api_id, operator='MCP', api_type='MCP')
+
+    self.mcp.add_tool(copy_mock_api)
+
     def create_mock_api(
         url: Annotated[str, "请求 URL，如 'https://api.example.com/users'"],
         method: Annotated[str, "HTTP 方法，仅支持 'GET' 或 'POST'"],
@@ -364,7 +394,8 @@ class McpServer:
           - name (str): 变体名称
           - enabled (bool): 是否启用
           - timeout (int): 超时时间（毫秒），0 表示不限制
-          - operator (str): 操作来源
+          - operator (str): 最后更新者
+          - type (str): 创建来源类型，'USER' / 'MCP'
           - created_at (str): 创建时间
           - updated_at (str): 更新时间
 
@@ -393,6 +424,7 @@ class McpServer:
         'enabled': row['enabled'],
         'timeout': row['timeout'],
         'operator': row['operator'],
+        'type': row['type'],
         'created_at': row['created_at'],
         'updated_at': row['updated_at'],
       } for row in rows]
@@ -445,6 +477,7 @@ class McpServer:
         'enabled': enabled,
         'timeout': timeout,
         'operator': 'MCP',
+        'type': 'MCP',
       }
       if name is not None:
         record['name'] = name
@@ -480,6 +513,7 @@ class McpServer:
         {"success": bool} 表示修改成功或失败。
       """
       record: ApiResponseVariantRecord = {'id': variant_id, 'operator': 'MCP'}
+      # type 为创建来源类型，创建后不可变更，update 时不注入
       if name is not None:
         record['name'] = name
       if response is not None:
@@ -542,7 +576,7 @@ class McpServer:
         - status_msg (str): 结果描述
       """
       db = MockDBCache.get(self.work_dir)
-      return db.copy_variant(variant_id, target_api_id)
+      return db.copy_variant(variant_id, target_api_id, operator='MCP', variant_type='MCP')
 
     self.mcp.add_tool(copy_response_variant)
 
@@ -570,7 +604,8 @@ class McpServer:
         - response (str): 变体响应体，JSON 字符串
         - enabled (bool): 是否启用
         - timeout (int): 超时时间（毫秒），0 表示不限制
-        - operator (str): 操作来源
+        - operator (str): 最后更新者
+        - type (str): 创建来源类型，'USER' / 'MCP'
         - created_at (str): 创建时间
         - updated_at (str): 更新时间
 

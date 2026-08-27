@@ -257,20 +257,7 @@ class MitmproxyDataEditDialog(QDialog):
 
   def _handle_copy_mock_data(self, params: CopyMockDataParams) -> OperationResultWithOptionalId:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    source = mock_db.get_api_detail(params['id'])
-    if source is None:
-      return {"success": False, "id": None}
-    return mock_db.insert_api({
-      'type': 'USER',
-      'operator': 'USER',
-      'url': source['url'],
-      'method': source['method'],
-      'params': source['params'],
-      'response': source['response'],
-      'timeout': source.get('timeout', 0),
-      'request_content_type': source.get('request_content_type', 'NONE'),
-      'enabled': source.get('enabled', True),
-    })
+    return mock_db.copy_api(params['id'], operator='USER', api_type='USER')
 
   def _handle_get_mock_data_detail(self, params: GetMockDataDetailParams) -> Optional[ApiDataDetail]:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
@@ -278,10 +265,11 @@ class MitmproxyDataEditDialog(QDialog):
 
   def _handle_add_variant(self, params: AddVariantParams) -> OperationResultWithOptionalId:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    return mock_db.insert_variant({'operator': 'USER', **params})
+    return mock_db.insert_variant({'operator': 'USER', 'type': 'USER', **params})
 
   def _handle_update_variant(self, params: UpdateVariantParams) -> OperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
+    # 只注入 operator（最后更新者），不注入 type（创建后不可变更，后端 update_variant 会忽略 type）
     return mock_db.update_variant({'operator': 'USER', **params})
 
   def _handle_delete_variant(self, params: DeleteVariantParams) -> OperationResult:
@@ -297,7 +285,7 @@ class MitmproxyDataEditDialog(QDialog):
 
   def _handle_copy_variant(self, params: CopyVariantParams) -> OperationResultWithOptionalId:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
-    return mock_db.copy_variant(params['id'], params['api_data_id'])
+    return mock_db.copy_variant(params['id'], params['api_data_id'], operator='USER', variant_type='USER')
 
   # 请求名称 → handler 映射（/mock_data 命名空间，动作作为路径末级）
   _REQUEST_HANDLERS = {
