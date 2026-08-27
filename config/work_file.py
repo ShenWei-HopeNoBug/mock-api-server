@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from config.default import (
   DEFAULT_DOWNLOAD_CONNECT_TIMEOUT,
-  DEFAULT_HTTP_PARAMS_MATCH_MODE,
   DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT,
 )
 
@@ -9,10 +8,8 @@ from config.default import (
 # APP系统文件工作目录
 SYSTEM_DIR = r'./system'
 
-# 全局配置文件路径
-GLOBALS_CONFIG_PATH = r'{}/globals.json'.format(SYSTEM_DIR)
 # 历史记录问价路径
-HISTORY_CONFIG_PATH = r'{}/history.json'.format(SYSTEM_DIR)
+HISTORY_CONFIG_PATH = f'{SYSTEM_DIR}/history.json'
 
 # -------------------------------------------------------------
 # APP默认工作目录
@@ -21,22 +18,19 @@ DEFAULT_WORK_DIR = './server'
 # 存放配置文件的目录
 CONFIG_DIR = r'/config'
 # 抓包配置文件路径
-MITMPROXY_CONFIG_PATH = r'{}/mitmproxy_config.json'.format(CONFIG_DIR)
+MITMPROXY_CONFIG_PATH = f'{CONFIG_DIR}/mitmproxy_config.json'
 # 下载配置文件路径
-DOWNLOAD_CONFIG_PATH = r'{}/download_config.json'.format(CONFIG_DIR)
+DOWNLOAD_CONFIG_PATH = f'{CONFIG_DIR}/download_config.json'
 # mock服务配置文件路径
-MOCK_SERVER_CONFIG_PATH = r'{}/mock_server_config.json'.format(CONFIG_DIR)
+MOCK_SERVER_CONFIG_PATH = f'{CONFIG_DIR}/mock_server_config.json'
 
 # 存放数据文件的目录
 DATA_DIR = r'/data'
-# 抓包数据文件路径
-MITMPROXY_DATA_PATH = r'{}/output.json'.format(DATA_DIR)
-# 用户自定义接口数据文件路径
-USER_API_DATA_PATH = r'{}/user_api.json'.format(DATA_DIR)
-# 静态资源数据文件路径
-STATIC_DATA_PATH = r'{}/static.json'.format(DATA_DIR)
-# 服务创建接口缓存文件地址
-API_CACHE_DATA_PATH = r'{}/api_cache.json'.format(DATA_DIR)
+
+# SQLite 数据库文件名
+DB_FILE_NAME = 'mock.db'
+# SQLite 数据库文件路径
+DB_DATA_PATH = f'{DATA_DIR}/{DB_FILE_NAME}'
 
 # 静态资源目录
 STATIC_DIR = r'/static'
@@ -47,17 +41,12 @@ DOWNLOAD_DIR = r'/download'
 # 导出目录
 OUTPUT_DIR = r'/output'
 
+# 备份目录
+BACKUP_DIR = r'/backup'
+
 # -------------------------------------------------------------
 # 系统文件字典
 SYSTEM_FILE_DICT = {
-  "GLOBALS_CONFIG": {
-    "path": GLOBALS_CONFIG_PATH,
-    "default": {
-      "client_exit": False,  # 是否已经退出程序
-      "mitmproxy_stop_signal": False,  # 抓包停止信号
-      "download_exit": False,  # 是否已经退出下载
-    }
-  },
   "HISTORY_CONFIG": {
     "path": HISTORY_CONFIG_PATH,
     "default": {
@@ -87,6 +76,10 @@ WORK_DIR_DICT = {
   # 导出目录
   "OUTPUT_DIR": {
     "path": OUTPUT_DIR
+  },
+  # 备份目录
+  "BACKUP_DIR": {
+    "path": BACKUP_DIR
   }
 }
 
@@ -123,30 +116,12 @@ WORK_FILE_DICT = {
   # mock 服务的配置
   # include_files: 启动服务后要动态替换的静态资源链接扩展名列表
   # static_match_route: 动态匹配静态资源请求的路由
-  # http_params_match_mode: 请求传参匹配模式
   # ---------------------------------------------------
   "MOCK_SERVER_CONFIG": {
     "path": MOCK_SERVER_CONFIG_PATH,
     "default": {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
       "static_match_route": [],
-      "http_params_match_mode": DEFAULT_HTTP_PARAMS_MATCH_MODE,
     }
-  },
-  "MITMPROXY_DATA": {
-    "path": MITMPROXY_DATA_PATH,
-    "default": [],
-  },
-  "USER_API_DATA": {
-    "path": USER_API_DATA_PATH,
-    "default": [],
-  },
-  "STATIC_DATA": {
-    "path": STATIC_DATA_PATH,
-    "default": [],
-  },
-  "API_CACHE_DATA": {
-    "path": API_CACHE_DATA_PATH,
-    "default": {},
   }
 }

@@ -3,51 +3,51 @@ import os
 import re
 import copy
 import hashlib
+import time
+import itertools
+import threading
+
+import requests
 from urllib.parse import urlparse
 import json
 import psutil
 from PIL import Image
 import socket
+
+from mitmproxy.coretypes.multidict import MultiDictView
+
 from lib.decorate import error_catch
+from app_types.app_gui_types import RequestContentType
 import datetime
 import uuid
+from typing import Union, Optional, Any, Dict, List, TypeVar
+
+# 数值类型 TypeVar，传入 int 返回 int，传入 float 返回 float
+_NumT = TypeVar('_NumT', int, float)
+
+# 用于 generate_uuid 的线程安全递增序号和最新时间戳
+_uuid_lock = threading.Lock()
+_uuid_seq = itertools.count(1)
+_last_ts = 0
 
 
-# 修复字典数据参数
-def fix_dict_field(dict_data: dict, fields: list) -> dict:
-  if type(dict_data) != dict:
-    return {}
-
-  record: dict = {}
-  for field in fields:
-    key = field.get('key')
-    if not key:
-      continue
-
-    default_callback = field.get('default_callback')
-    default_value = default_callback() if callable(default_callback) else None
-    value = dict_data.get(key, default_value)
-    # 键名为 id 的情况下要做进一步校验
-    if key == 'id' and (type(value) != str or not len(value)):
-      value = default_value
-
-    record[key] = value
-
-  return record
-
-
-# 生成数据的 uuid
+# 生成有时间序的唯一 id
 def generate_uuid() -> str:
-  name = '{}-{}'.format(uuid.uuid4(), uuid.uuid1())
-  return str(uuid.uuid5(uuid.NAMESPACE_DNS, name))
+  global _last_ts
+  with _uuid_lock:
+    # 保证每次生成的时间戳严格递增，避免同一纳秒内生成或系统时间回退导致顺序错乱
+    _last_ts = max(_last_ts + 1, time.time_ns())
+    seq = next(_uuid_seq)
+  # 时间戳(20位) + 序号(10位) + 随机串，字典序即生成顺序
+  return '{:020d}-{:010d}-{}'.format(_last_ts, seq, uuid.uuid4().hex[:8])
 
 
 # 限制数值范围
 def limit_num_range(
-    num: int or float,
-    min_limit: int or float,
-    max_limit: int or float
-) -> int or float:
+    num: _NumT,
+    min_limit: _NumT,
+    max_limit: _NumT
+) -> _NumT:
   if num > max_limit:
     return max_limit
   elif num < min_limit:
@@ -57,7 +57,7 @@ def limit_num_range(
 
 
 # 获取本机 ip 地址
-def get_ip_address():
+def get_ip_address() -> str:
   # 获取主机名
   hostname = socket.gethostname()
   # 获取IP地址
@@ -66,40 +66,63 @@ def get_ip_address():
 
 
 # 获取字符串的 md5
-def create_md5(string: str = ''):
+def create_md5(string: Union[str, bytes] = '') -> str:
+  if isinstance(string, bytes):
+    return hashlib.md5(string).hexdigest()
   return hashlib.md5(str(string).encode('utf-8')).hexdigest()
 
 
 # 生成时间戳
-def create_timestamp(time_format: str = '%Y%m%d%H%M%S'):
+def create_timestamp(time_format: str = '%Y%m%d%H%M%S') -> str:
   return datetime.datetime.now().strftime(time_format)
 
 
 # 获取链接的域名
-def get_url_domain(url: str = ''):
+def get_url_domain(url: str = '') -> str:
   domain = urlparse(url).netloc
   return domain
 
 
 # 去掉链接里面的域名
-def remove_url_domain(url: str = ''):
+def remove_url_domain(url: str = '') -> str:
   parse_data = urlparse(url)
   return parse_data.path
 
 
 # 去掉链接里面的 query 参数
-def remove_url_query(url=''):
+def remove_url_query(url: str = '') -> str:
   return re.sub(r'\?.*$', '', url)
 
 
+# 根据 content-type header 和 HTTP 方法返回对应的 RequestContentType 枚举值
+def get_request_content_type(content_type_header: str, method: str) -> RequestContentType:
+  """
+  根据 content-type header 和 HTTP 方法返回对应枚举值
+
+  非 POST 方法或 POST 未匹配到以下三种类型时返回 NONE。
+  """
+  if method != 'POST':
+    return RequestContentType.NONE
+
+  raw = (content_type_header or '').lower()
+  if 'application/x-www-form-urlencoded' in raw:
+    return RequestContentType.APPLICATION_X_WWW_FORM_URLENCODED
+  if 'application/json' in raw:
+    return RequestContentType.APPLICATION_JSON
+  if 'multipart/form-data' in raw:
+    return RequestContentType.MULTIPART_FORM_DATA
+
+  return RequestContentType.NONE
+
+
 # 检查并创建文件夹
-def check_and_create_dir(path):
+def check_and_create_dir(path: str) -> None:
   if not os.path.exists(path):
     os.makedirs(path)
 
 
 @error_catch(error_msg='是否为文件请求判断失败', error_return=False)
-def is_file_request(url=''):
+def is_file_request(url: str = '') -> bool:
   # 去掉 query 参数的请求
   pure_url = url.split(r'?')[0]
   # 去掉协议头
@@ -116,21 +139,21 @@ def is_file_request(url=''):
 class JsonFormat:
   # 将数据格式化为标准的 json string
   @staticmethod
-  def dumps(data: dict or list) -> str:
+  def dumps(data: Union[Dict[str, Any], List[Any]]) -> str:
     return json.dumps(data, ensure_ascii=False)
 
   # 格式化 json string 数据(业务映射)
   @staticmethod
-  def format_json_string(json_string: str):
+  def format_json_string(json_string: str) -> str:
     return JsonFormat.dumps(json.loads(json_string))
 
   # 格式化 dict 数据(业务映射)
   @staticmethod
-  def format_dict(dict_data: dict) -> dict:
+  def format_dict(dict_data: Dict[str, Any]) -> Dict[str, Any]:
     return json.loads(JsonFormat.dumps(dict_data))
 
   @staticmethod
-  def sort_dumps(data: dict or list) -> str:
+  def sort_dumps(data: Union[Dict[str, Any], List[Any]]) -> str:
     return json.dumps(data, ensure_ascii=False, sort_keys=True)
 
   @staticmethod
@@ -138,13 +161,13 @@ class JsonFormat:
     return JsonFormat.sort_dumps(json.loads(json_string))
 
   @staticmethod
-  def format_and_sort_dict(dict_data: dict) -> dict:
+  def format_and_sort_dict(dict_data: Dict[str, Any]) -> Dict[str, Any]:
     return json.loads(JsonFormat.sort_dumps(dict_data))
 
 
 # 找到监听指定 ip 和 端口号网络服务的进程列表
 @error_catch(error_msg='查找服务进程失败', error_return=[])
-def find_connection_process(ip='0.0.0.0', port=5000):
+def find_connection_process(ip: str = '0.0.0.0', port: int = 5000) -> List[psutil.Process]:
   process_list = []
   connections = psutil.net_connections()
   for conn in connections:
@@ -152,23 +175,38 @@ def find_connection_process(ip='0.0.0.0', port=5000):
       continue
 
     laddr = conn.laddr
+    if not laddr or laddr == ():
+      continue
+
     # 匹配指定 ip 和 端口号的进程
     if port == laddr.port and ip == laddr.ip:
       # 本地服务进程
+      if conn.pid is None:
+        continue
       proc = psutil.Process(conn.pid)
       process_list.append(proc)
 
   return process_list
 
 
+@error_catch(error_msg='根据pid查找进程异常', error_return=None)
+def find_process(pid: int) -> Optional[psutil.Process]:
+  try:
+    return psutil.Process(pid)
+  except psutil.NoSuchProcess:
+    return None
+
+
 # 检测本地指定 ip 和 端口号网络服务是否已经被占用
-def check_local_connection(ip='0.0.0.0', port=5000):
+def check_local_connection(ip: str = '0.0.0.0', port: int = 5000) -> bool:
   connections = psutil.net_connections()
   for conn in connections:
     if not conn.status == 'LISTEN':
       continue
 
     laddr = conn.laddr
+    if not laddr or laddr == ():
+      continue
     # 匹配指定 ip 和 端口号的进程
     if port == laddr.port and ip == laddr.ip:
       return True
@@ -178,7 +216,7 @@ def check_local_connection(ip='0.0.0.0', port=5000):
 
 # 压缩图片
 @error_catch(error_msg='压缩图片时出错', error_return=False)
-def compress_image(input_path, output_path, quality=80):
+def compress_image(input_path: str, output_path: str, quality: int = 80) -> bool:
   img_excepts = ['.png', '.jpg', '.jpeg']
   img_pattern = r'({})$'.format('|'.join(img_excepts))
   img_compare = re.compile(img_pattern, flags=re.IGNORECASE)
@@ -204,11 +242,11 @@ def compress_image(input_path, output_path, quality=80):
 
 # 配置文件管理器
 class ConfigFileManager:
-  def __init__(self, path: str, config: dict = None):
-    self.path = path
-    self.config = copy.deepcopy(config or {})
+  def __init__(self, path: str, config: Optional[Dict[str, Any]] = None) -> None:
+    self.path: str = path
+    self.config: Dict[str, Any] = copy.deepcopy(config or {})
 
-  def init(self, replace: bool = False):
+  def init(self, replace: bool = False) -> None:
     work_dir = os.path.dirname(self.path)
     # 检查并创建系统文件夹
     check_and_create_dir(work_dir)
@@ -221,7 +259,7 @@ class ConfigFileManager:
       fl.write(JsonFormat.dumps(copy.deepcopy(self.config)))
 
   @error_catch(error_msg='查找变量失败！', error_return=None)
-  def get(self, key: str) -> any:
+  def get(self, key: str) -> Any:
     if not key:
       return None
 
@@ -232,7 +270,7 @@ class ConfigFileManager:
     return dict_data.get(key, None)
 
   @error_catch(error_msg='更新变量失败！')
-  def set(self, key: str, value: any):
+  def set(self, key: str, value: Any) -> None:
     if not key:
       return
 
@@ -248,17 +286,17 @@ class ConfigFileManager:
   def get_list(self, key: str) -> list:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return []
 
     return list_data
 
   # 为 list 类型的数据 append 新数据，返回操作是否成功状态
   @error_catch(error_msg='列表数据 append 失败', error_return=False)
-  def append_list_value(self, key: str, value: any, check_repeat=True) -> bool:
+  def append_list_value(self, key: str, value: Any, check_repeat: bool = True) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return False
 
     # 检查数据是否重复
@@ -272,10 +310,10 @@ class ConfigFileManager:
 
   # 为 list 类型的数据更新指定 index 数据，返回操作是否成功状态
   @error_catch(error_msg='列表数据 update 失败', error_return=False)
-  def update_list_value(self, key: str, value: any, index: int = -1, check_repeat=True) -> bool:
+  def update_list_value(self, key: str, value: Any, index: int = -1, check_repeat: bool = True) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return False
 
     # 索引范围校验
@@ -296,7 +334,7 @@ class ConfigFileManager:
   def delete_list_value(self, key: str, index: int = -1) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return False
 
     # 索引范围校验
@@ -312,7 +350,7 @@ class ConfigFileManager:
   def clear_list_value(self, key: str) -> bool:
     list_data = self.get(key=key)
     # 数据类型校验
-    if not type(list_data) is list:
+    if not isinstance(list_data, list):
       return False
 
     self.set(key=key, value=[])
@@ -321,17 +359,17 @@ class ConfigFileManager:
 
 # 校验链接是否满足匹配条件
 @error_catch(error_msg='校验链接是否满足匹配条件失败', error_return=False)
-def is_url_match(url: str, includes: list or str) -> bool:
+def is_url_match(url: str, includes: Union[List[str], str]) -> bool:
   # 入参校验
   if not len(url) or not len(includes):
     return False
 
   # 校验规则为字符串
-  if type(includes) == str:
+  if isinstance(includes, str):
     include_reg = re.compile(includes)
     return bool(include_reg.search(url))
   # 校验规则为字符串列表
-  elif type(includes) == list:
+  elif isinstance(includes, list):
     pattern = r'({})'.format('|'.join(includes))
     include_reg = re.compile(pattern)
     return bool(include_reg.search(url))
@@ -340,15 +378,15 @@ def is_url_match(url: str, includes: list or str) -> bool:
 
 
 @error_catch(error_msg='去除 bytes 内容空字符失败', error_return=bytes())
-def remove_byte_empty_content(b):
-  if type(b) != bytes:
+def remove_byte_empty_content(b: bytes) -> bytes:
+  if not isinstance(b, bytes):
     return b
 
   return b.replace(b'\n', b'').replace(b'\r', b'').replace(b'\t', b'')
 
 
 @error_catch(error_msg='获取 multipart_dict 失败', error_return={})
-def get_multipart_dict(multipart_form) -> dict:
+def get_multipart_dict(multipart_form: MultiDictView[bytes, bytes]) -> Dict[str, str]:
   multipart_dict = {}
   for key, value in multipart_form.items():
     key_decode = key.decode('utf-8')
@@ -360,3 +398,59 @@ def get_multipart_dict(multipart_form) -> dict:
     multipart_dict[key_decode] = value_decode
 
   return multipart_dict
+
+
+@error_catch(error_msg='检查本地指定端口服务是否运行失败！', error_return=False)
+def is_local_server_running(
+    port: int = 5000,
+    retry: int = 0,
+    retry_delay: int = 1,
+    retry_condition: str = 'NOT_RUNNING',
+    caller: str = '',
+) -> bool:
+  valid_conditions = ('RUNNING', 'NOT_RUNNING')
+  if retry_condition not in valid_conditions:
+    print(f"retry_condition 参数非法：{retry_condition}，将使用默认值 NOT_RUNNING")
+    retry_condition = 'NOT_RUNNING'
+
+  tag = f"[{caller}] " if caller else ''
+
+  def _is_running(count: int = 1) -> bool:
+    try:
+      response = requests.get(f"http://127.0.0.1:{port}/ping", timeout=3)
+      is_running = response.status_code == 200
+      status = "运行中" if is_running else "未运行"
+      print(f"{tag}第 {count} 次检测：本地{port}端口服务{status}！")
+      return is_running
+    except Exception as e:
+      print(f"{tag}第 {count} 次检测：本地{port}端口服务未运行！", e)
+      return False
+
+  check_count = 1
+  result: bool = _is_running(check_count)
+
+  # 确定是否需要重试
+  def need_retry() -> bool:
+    return (
+        (retry_condition == 'RUNNING' and result) or
+        (retry_condition == 'NOT_RUNNING' and not result)
+    )
+
+  # 进行重试
+  while check_count <= retry and need_retry():
+    time.sleep(retry_delay)
+    result = _is_running(check_count + 1)
+    check_count += 1
+
+  return result
+
+
+@error_catch(error_msg='关闭本地服务异常！')
+def shutdown_local_server(ip: str = '0.0.0.0', port: int = 5000) -> None:
+  process_list = find_connection_process(ip=ip, port=port)
+  if len(process_list) == 0:
+    print(f"未找到本地服务进程！port={port}")
+
+  for proc in process_list:
+    print(f"正在关闭本地服务进程! port={port}", proc)
+    proc.terminate()

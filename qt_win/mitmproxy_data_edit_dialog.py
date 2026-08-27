@@ -1,35 +1,71 @@
 # -*- coding: utf-8 -*-
 import json
 import os
+from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtCore import Qt, QUrl, QEvent
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
-from lib.webview_lib import get_webview_dialog_config
-from lib.app_lib import (
-  get_user_api_data_list,
-  get_mitmproxy_api_data_list,
-  fix_user_api_data,
-  update_user_api_data,
-  add_user_api_data,
-  delete_user_api_data,
+from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
+from lib.app_lib import is_app_server_running
+from lib.db import MockDB, MockDBCache
+from app_types.app_gui_types import (
+  AppServerRunningData,
+  GetMockDataPageParams,
+  MockDataPageResult,
+  DeleteMockDataParams,
+  BatchDeleteMockDataParams,
+  AddMockDataParams,
+  CopyMockDataParams,
+  GetMockDataDetailParams,
+  AddVariantParams,
+  UpdateVariantParams,
+  DeleteVariantParams,
+  ReorderVariantParams,
+  CopyVariantParams,
+)
+from app_types.db_types import (
+  ApiRecord,
+  ApiQuery,
+  ApiDataDetail,
+  OperationResult,
+  OperationResultWithOptionalId,
+  BatchOperationResult,
+)
+from lib.logger_lib import APP_LOGGER
+from config.enum.BIZ_CODE import (
+  BIZ_SUCCESS,
+  BIZ_UNKNOWN_ERROR,
+  BIZ_PARAM_MISSING,
+  BIZ_FILE_READ_ERROR,
+  BIZ_FILE_WRITE_ERROR,
 )
 
 
 class MitmproxyDataEditDialog(QDialog):
-  def __init__(self, work_dir='.'):
-    super().__init__()
-    self.work_dir = work_dir
-    self.webview: QWebEngineView or None = None
-    self.web_channel: QWebChannel or None = None
-    self.interact_obj: TInteractObj or None = None
+  def __init__(
+      self,
+      parent: Optional[QWidget] = None,
+      work_dir: str = '.',
+      app_sever_running_data: Optional[AppServerRunningData] = None,
+  ) -> None:
+    super().__init__(parent)
+    # 工作目录
+    self.work_dir: str = work_dir
+    self.webview: Optional[QWebEngineView] = None
+    self.web_channel: Optional[QWebChannel] = None
+    self.interact_obj: Optional[TInteractObj] = None
+    self.loading_widget: Optional[WebLoadingWidget] = None
+    self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
+    self._devtools_view: Optional[QWebEngineView] = None
 
     self.init()
 
-  def init(self):
+  @error_catch(error_msg='抓包数据管理弹窗初始化异常')
+  def init(self) -> None:
     self.setWindowTitle('抓包数据管理')
     self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
     webview_dialog_config: dict = get_webview_dialog_config()
@@ -47,6 +83,11 @@ class MitmproxyDataEditDialog(QDialog):
 
     # 创建 QWebEngineView 实例
     webview = QWebEngineView()
+
+    # 禁用右键菜单
+    webview.setContextMenuPolicy(Qt.CustomContextMenu)
+    webview.customContextMenuRequested.connect(lambda _: None)
+
     current_page = webview.page()
     interact_obj = TInteractObj()
     interact_obj.js2qt_signal.connect(receive)
@@ -60,18 +101,53 @@ class MitmproxyDataEditDialog(QDialog):
 
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    web_path = os.path.abspath('./web/apps/dataManager/index.html')
-    current_page.load(QUrl.fromLocalFile(web_path))
+
+    # 离线页面路径
+    web_route = '#/outputManager'
+    web_base_path = '/web-v3/apps/dataManager/index.html'
+
+    # 检查 APP_SERVER 是否正常启动
+    if is_app_server_running(self.app_sever_running_data):
+      app_server_port = self.app_sever_running_data.get('port', 5050)
+      local_server_url = f"http://127.0.0.1:{app_server_port}/static{web_base_path}{web_route}"
+      APP_LOGGER.info(f"[mitmproxy_data_edit_dialog]以本地服务方式加载编辑页面: {local_server_url}")
+      current_page.load(QUrl(local_server_url))
+    else:
+      web_path = os.path.abspath(f"./appServer/static{web_base_path}")
+      APP_LOGGER.info(f"[mitmproxy_data_edit_dialog]以离线文件方式加载编辑页面: {web_path}{web_route}")
+      local_url = QUrl.fromLocalFile(web_path)
+      local_url.setFragment(web_route.lstrip('#'))
+      current_page.load(local_url)
+
+    # 加载中占位组件
+    loading_widget = WebLoadingWidget()
+    self.loading_widget = loading_widget
+
+    # QStackedWidget: 0=loading, 1=webview，页面加载完成后切换
+    stack = QStackedWidget()
+    stack.addWidget(loading_widget)
+    stack.addWidget(self.webview)
+    stack.setCurrentIndex(0)
+
+    def _on_load_finished(ok: bool) -> None:
+      if loading_widget is not None:
+        loading_widget.stop()
+      stack.setCurrentIndex(1)
+
+    webview.loadFinished.connect(_on_load_finished)
+
+    # F12 打开内嵌 DevTools
+    self._devtools_view = setup_devtools(webview, self)
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
-    layout.addWidget(self.webview)
+    layout.addWidget(stack)
     self.setLayout(layout)
 
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
-  def receive(self, message: str):
+  def receive(self, message: str) -> None:
     event_dict: dict = json.loads(message)
 
     msg_type = event_dict.get('type')
@@ -79,61 +155,169 @@ class MitmproxyDataEditDialog(QDialog):
       self._request(event_dict)
 
   @create_thread
-  def send_qt2js_dict_msg(self, data: dict):
+  def send_qt2js_dict_msg(self, data: dict) -> None:
     self.interact_obj.send_qt2js_dict_msg(data)
 
   # 处理 web 发出的请求相关事件
-  def _request(self, event: dict):
+  def _request(self, event: dict) -> None:
     msg_type = event.get('type')
     name = event.get('name')
     action_id = event.get('action_id')
-    extra = event.get('extra', {})
     params = event.get('params', {})
     if msg_type != 'request':
       return
 
-    def send_response(data: any = None):
-      self.send_qt2js_dict_msg({
-        "type": msg_type,
-        "name": name,
-        "data": data,
-        "action_id": action_id or '',
-        "extra": extra,
-      })
+    def send_response(data: any = None, status_code: int = BIZ_SUCCESS, status_msg: str = ''):
+      self.send_qt2js_dict_msg(
+        TInteractObj.build_qt_response(name, action_id, data, status_code, status_msg)
+      )
 
-    # 请求所有 mock 数据
-    if name == 'get_mock_data':
-      mock_data_type = params.get('type', '')
-      # 预览数据列表
-      preview_list = []
-      # 判断要返回的数据源
-      if mock_data_type == 'USER':
-        preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
-      elif mock_data_type == 'MITMPROXY':
-        preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
-      else:
-        preview_list.extend(get_user_api_data_list(work_dir=self.work_dir, reverse=True))
-        preview_list.extend(get_mitmproxy_api_data_list(work_dir=self.work_dir, reverse=True))
+    handler = self._REQUEST_HANDLERS.get(name)
+    if handler is None:
+      return
 
-      send_response({"list": preview_list})
-    # 尝试修复 mock 的异常数据
-    elif name == 'fix_mock_data':
-      success = fix_user_api_data(work_dir=self.work_dir)
-      send_response(success)
-    # 编辑 mock 接口数据
-    elif name == 'edit_mock_data':
-      success = update_user_api_data(work_dir=self.work_dir, update_data=params)
-      send_response(success)
-    # 新增 mock 接口数据
-    elif name == 'add_mock_data':
-      success = add_user_api_data(work_dir=self.work_dir, add_data=params)
-      send_response(success)
-    # 删除 mock 接口数据
-    elif name == 'delete_mock_data':
-      delete_id = params.get('id')
-      success = delete_user_api_data(work_dir=self.work_dir, delete_id=delete_id)
-      send_response(success)
-    # 复制 mock 接口数据
-    elif name == 'copy_mock_data':
-      success = add_user_api_data(work_dir=self.work_dir, add_data=params)
-      send_response(success)
+    try:
+      result = handler(self, params)
+      send_response(result)
+    except KeyError as e:
+      send_response(None, status_code=BIZ_PARAM_MISSING, status_msg=f'缺少必填参数: {e}')
+    except FileNotFoundError as e:
+      send_response(None, status_code=BIZ_FILE_READ_ERROR, status_msg=str(e))
+    except PermissionError as e:
+      send_response(None, status_code=BIZ_FILE_WRITE_ERROR, status_msg=str(e))
+    except Exception as e:
+      send_response(None, status_code=BIZ_UNKNOWN_ERROR, status_msg=str(e))
+
+  # --- 请求 handler：只关注业务逻辑，返回数据 ---
+
+  def _handle_get_mock_data_page(self, params: GetMockDataPageParams) -> MockDataPageResult:
+    mock_data_type = params.get('type')
+    page_num = params.get('page_num', 1)
+    page_size = params.get('page_size', 20)
+    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY', 'MCP') else None
+    enabled = params.get('enabled')
+    query: ApiQuery = {
+      'api_type': api_type,
+      'url_like': params.get('url') or None,
+      'params_like': params.get('params') or None,
+      'response_like': params.get('response') or None,
+      'method': params.get('method') or None,
+      'request_content_type': params.get('request_content_type') or None,
+      'enabled': enabled if isinstance(enabled, bool) else None,
+      'create_start_time': params.get('create_start_time') or None,
+      'create_end_time': params.get('create_end_time') or None,
+      'operator': params.get('operator') or None,
+    }
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+
+    total = mock_db.get_api_count(query)
+    page_list = mock_db.get_api_list_page(
+      query,
+      reverse=True,
+      page_num=page_num,
+      page_size=page_size,
+    )
+    return {
+      "list": page_list,
+      "total": total,
+      "page_num": page_num,
+      "page_size": page_size,
+    }
+
+  def _handle_edit_mock_data(self, params: ApiRecord) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.update_api({'operator': 'USER', **params})
+
+  def _handle_add_mock_data(self, params: AddMockDataParams) -> OperationResultWithOptionalId:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.insert_api({'type': 'USER', 'operator': 'USER', **params})
+
+  def _handle_delete_mock_data(self, params: DeleteMockDataParams) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.delete_api(params.get('id', ''))
+
+  def _handle_batch_delete_mock_data(self, params: BatchDeleteMockDataParams) -> BatchOperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    mock_data_type = params.get('type')
+    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY', 'MCP') else None
+    enabled = params.get('enabled')
+    query: ApiQuery = {
+      'api_type': api_type,
+      'url_like': params.get('url') or None,
+      'params_like': params.get('params') or None,
+      'response_like': params.get('response') or None,
+      'method': params.get('method') or None,
+      'request_content_type': params.get('request_content_type') or None,
+      'enabled': enabled if isinstance(enabled, bool) else None,
+      'create_start_time': params.get('create_start_time') or None,
+      'create_end_time': params.get('create_end_time') or None,
+      'operator': params.get('operator') or None,
+    }
+    return mock_db.batch_delete_api(query)
+
+  def _handle_copy_mock_data(self, params: CopyMockDataParams) -> OperationResultWithOptionalId:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    source = mock_db.get_api_detail(params['id'])
+    if source is None:
+      return {"success": False, "id": None}
+    return mock_db.insert_api({
+      'type': 'USER',
+      'operator': 'USER',
+      'url': source['url'],
+      'method': source['method'],
+      'params': source['params'],
+      'response': source['response'],
+      'timeout': source.get('timeout', 0),
+      'request_content_type': source.get('request_content_type', 'NONE'),
+      'enabled': source.get('enabled', True),
+    })
+
+  def _handle_get_mock_data_detail(self, params: GetMockDataDetailParams) -> Optional[ApiDataDetail]:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.get_api_detail(params['id'])
+
+  def _handle_add_variant(self, params: AddVariantParams) -> OperationResultWithOptionalId:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.insert_variant({'operator': 'USER', **params})
+
+  def _handle_update_variant(self, params: UpdateVariantParams) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.update_variant({'operator': 'USER', **params})
+
+  def _handle_delete_variant(self, params: DeleteVariantParams) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.delete_variant(params.get('id', ''))
+
+  def _handle_reorder_variants(self, params: ReorderVariantParams) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.reorder_response_variant_ids(
+      api_data_id=params['api_data_id'],
+      variant_ids=params['variant_ids']
+    )
+
+  def _handle_copy_variant(self, params: CopyVariantParams) -> OperationResultWithOptionalId:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.copy_variant(params['id'], params['api_data_id'])
+
+  # 请求名称 → handler 映射（/mock_data 命名空间，动作作为路径末级）
+  _REQUEST_HANDLERS = {
+    '/mock_data/list': _handle_get_mock_data_page,
+    '/mock_data/detail': _handle_get_mock_data_detail,
+    '/mock_data/create': _handle_add_mock_data,
+    '/mock_data/update': _handle_edit_mock_data,
+    '/mock_data/delete': _handle_delete_mock_data,
+    '/mock_data/batch_delete': _handle_batch_delete_mock_data,
+    '/mock_data/copy': _handle_copy_mock_data,
+    '/variant/create': _handle_add_variant,
+    '/variant/update': _handle_update_variant,
+    '/variant/delete': _handle_delete_variant,
+    '/variant/reorder': _handle_reorder_variants,
+    '/variant/copy': _handle_copy_variant,
+  }
+
+  def closeEvent(self, event: QEvent) -> None:
+    if self.loading_widget is not None:
+      self.loading_widget.stop()
+    if self._devtools_view is not None:
+      self._devtools_view.close()
+    event.accept()

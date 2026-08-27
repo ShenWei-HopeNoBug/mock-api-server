@@ -1,0 +1,503 @@
+# -*- coding: utf-8 -*-
+import sqlite3
+import threading
+from typing import Callable, ContextManager, List, Optional
+
+from lib.utils_lib import generate_uuid, JsonFormat
+from lib.logger_lib import APP_LOGGER
+from config.enum import DATABASE
+from config.enum.DATABASE import VALID_HTTP_METHODS, VALID_REQUEST_CONTENT_TYPES
+from config.enum.BIZ_CODE import (
+  BIZ_SUCCESS,
+  BIZ_PARAM_MISSING,
+  BIZ_PARAM_INVALID,
+  BIZ_DATA_NOT_FOUND,
+  BIZ_DATA_EMPTY,
+  BIZ_DB_ERROR,
+  BIZ_CONSTRAINT_VIOLATION,
+  BIZ_UNKNOWN_ERROR,
+)
+from app_types.db_types import (
+  ApiRecord,
+  ApiQuery,
+  ApiData,
+  ApiDataDetail,
+  OperationResult,
+  OperationResultWithOptionalId,
+  BatchOperationResult,
+)
+from .utils import (
+  _ensure_open,
+  _normalize_response_variant_ids,
+  _parse_response_variant_ids,
+  _normalize_enabled,
+  _parse_enabled,
+)
+
+
+class ApiDataMixin:
+  """
+  api_data 表的数据访问 Mixin
+
+  提供 api_data 表的 CRUD 操作，依赖宿主类提供 _conn / _lock / _transaction 等基础设施。
+  需与 BaseSQLiteDB 组合使用。
+  """
+
+  # 基础设施属性声明（由宿主类 BaseSQLiteDB 提供，此处仅用于 IDE 类型提示）
+  _conn: sqlite3.Connection
+  _lock: threading.Lock
+  _closed: bool
+  _transaction: Callable[[], ContextManager[sqlite3.Connection]]
+  _wal_checkpoint_passive: Callable[[], None]
+
+  def _fetch_variants(self, api_id: str) -> list:
+    """Hook：获取指定 api 的变体列表，默认返回空列表，宿主类可覆写以注入真实实现
+
+    get_api_detail 需要关联查询 response 变体列表，但变体数据的 CRUD 属于
+    ApiResponseVariantMixin 的职责。为避免 Mixin 之间隐式耦合，这里通过
+    私有 hook 解耦：
+      - 默认实现返回空列表（安全降级，单独使用 ApiDataMixin 不会崩溃）
+      - MockDB 作为组合根覆写此 hook，委托给 ApiResponseVariantMixin.get_variants_by_api_id
+    """
+    return []
+
+  def _migrate_api(self, from_version: int, to_version: int) -> None:
+    """api_data 表的 schema 版本迁移，逐版本升级"""
+    if from_version < 2 <= to_version:
+      # v1 → v2: api_data 新增 timeout 字段
+      self._conn.execute('ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0')
+      # v1 → v2: api_data 新增 request_content_type 字段
+      self._conn.execute("ALTER TABLE api_data ADD COLUMN request_content_type TEXT NOT NULL DEFAULT 'NONE'")
+      APP_LOGGER.info('ApiDataMixin schema 迁移: v1 → v2, api_data 新增 timeout 和 request_content_type 字段')
+    if from_version < 3 <= to_version:
+      # v2 → v3: api_data 新增 response_variant_ids 与 enabled 字段
+      self._conn.execute("ALTER TABLE api_data ADD COLUMN response_variant_ids TEXT NOT NULL DEFAULT '[]'")
+      self._conn.execute('ALTER TABLE api_data ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1')
+      APP_LOGGER.info('ApiDataMixin schema 迁移: v2 → v3, api_data 新增 response_variant_ids 和 enabled 字段')
+    if from_version < 4 <= to_version:
+      # v3 → v4: api_data 新增 operator 字段
+      self._conn.execute("ALTER TABLE api_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
+      APP_LOGGER.info('ApiDataMixin schema 迁移: v3 → v4, api_data 新增 operator 字段')
+
+  # 新增插入（纯 INSERT，不去重），返回是否成功
+  @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "插入失败"})
+  def insert_api(self, record: ApiRecord) -> OperationResultWithOptionalId:
+    """插入一条 API 数据，成功返回 {"success": True, "id": "uuid", "status_code": 0, "status_msg": "成功"}"""
+    api_id = generate_uuid()
+    data = {**DATABASE.API_INSERT_DEFAULTS, **record}
+    data['params'] = JsonFormat.format_json_string(data['params'])
+    data['response_variant_ids'] = _normalize_response_variant_ids(data.get('response_variant_ids'))
+    data['enabled'] = _normalize_enabled(data.get('enabled'))
+
+    # 参数校验
+    if not data.get('url'):
+      return {"success": False, "id": None, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: url"}
+    if data['method'] not in VALID_HTTP_METHODS:
+      return {"success": False, "id": None, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 HTTP 方法: {data['method']}，仅支持 {VALID_HTTP_METHODS}"}
+    if data['request_content_type'] not in VALID_REQUEST_CONTENT_TYPES:
+      return {"success": False, "id": None, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 request_content_type: {data['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}"}
+    # GET 请求固定 request_content_type 为 NONE
+    if data['method'] == 'GET':
+      data['request_content_type'] = 'NONE'
+
+    try:
+      with self._transaction() as conn:
+        conn.execute(
+          'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          (api_id, data['type'], data['url'], data['method'], data['params'], data['response'],
+           data['response_variant_ids'], data['enabled'], data.get('timeout', 0),
+           data.get('request_content_type', 'NONE'), data.get('operator', '')),
+        )
+      return {"success": True, "id": api_id, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+    except Exception as e:
+      return {"success": False, "id": None, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+
+  # 批量写入 API 数据到 DB
+  @_ensure_open(
+    default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "批量插入失败", "affected_count": 0})
+  def batch_insert_api(self, records: List[ApiRecord]) -> BatchOperationResult:
+    """
+    批量插入 API 数据，写入后触发 PASSIVE checkpoint
+
+    不判断 id 是否重复，全部走 INSERT。重复数据的判断由应用层自行处理。
+    id 统一用 generate_uuid 生成，字段缺失时用 API_INSERT_DEFAULTS 兜底，params 做 JSON 格式化。
+    返回成功状态和影响的记录数。
+    """
+    if not records:
+      return {"success": False, "status_code": BIZ_DATA_EMPTY, "status_msg": "数据为空", "affected_count": 0}
+
+    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    insert_data = []
+    for r in records:
+      api_id = generate_uuid()
+      data = {**DATABASE.API_INSERT_DEFAULTS, **r}
+      data['id'] = api_id
+      data['params'] = JsonFormat.format_json_string(data['params'])
+      data['response_variant_ids'] = _normalize_response_variant_ids(data.get('response_variant_ids'))
+      data['enabled'] = _normalize_enabled(data.get('enabled'))
+      # 校验 method 和 request_content_type
+      if data['method'] not in VALID_HTTP_METHODS:
+        return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 HTTP 方法: {data['method']}，仅支持 {VALID_HTTP_METHODS}", "affected_count": 0}
+      if data['request_content_type'] not in VALID_REQUEST_CONTENT_TYPES:
+        return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 request_content_type: {data['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}", "affected_count": 0}
+      # GET 请求固定 request_content_type 为 NONE
+      if data['method'] == 'GET':
+        data['request_content_type'] = 'NONE'
+      insert_data.append(
+        (api_id, data['type'], data['url'], data['method'], data['params'], data['response'],
+         data['response_variant_ids'], data['enabled'], data.get('timeout', 0),
+         data.get('request_content_type', 'NONE'), data.get('operator', '')))
+
+    try:
+      with self._transaction() as conn:
+        conn.executemany(insert_sql, insert_data)
+      APP_LOGGER.info(f'MockDB batch_insert_api 写入 {len(records)} 条')
+      return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功", "affected_count": len(insert_data)}
+    except Exception as e:
+      return {"success": False,
+              "status_code": BIZ_DB_ERROR,
+              "status_msg": f"批量插入失败: {str(e)}",
+              "affected_count": 0}
+    finally:
+      try:
+        self._wal_checkpoint_passive()
+      except Exception as e:
+        APP_LOGGER.error(f'MockDB batch_insert_api checkpoint 失败: {e}')
+
+  # 查询 api 数据列表
+  @_ensure_open(default=[])
+  def get_api_list(
+      self,
+      query: Optional[ApiQuery] = None,
+      reverse: bool = False,
+  ) -> List[ApiData]:
+    """查询 API 数据列表，支持 ApiQuery 全部筛选条件，按时间正序/倒序排列"""
+    if query is None:
+      query = ApiQuery()
+
+    order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
+    where_sql, sql_params = self._build_api_where(query)
+    order_sql = 'ORDER BY created_at {}'.format(order)
+    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, created_at, updated_at FROM api_data{} {}'.format(
+      where_sql, order_sql)
+
+    with self._lock:
+      cursor = self._conn.execute(sql, tuple(sql_params))
+      rows = cursor.fetchall()
+    result = []
+    for row in rows:
+      result.append({
+        'id': row[0],
+        'type': row[1],
+        'url': row[2],
+        'method': row[3],
+        'params': row[4],
+        'response': row[5],
+        'response_variant_ids': _parse_response_variant_ids(row[6]),
+        'enabled': _parse_enabled(row[7]),
+        'timeout': row[8],
+        'request_content_type': row[9],
+        'operator': row[10],
+        'created_at': row[11],
+        'updated_at': row[12],
+      })
+    return result
+
+  def _build_api_where(self, query: ApiQuery) -> tuple:
+    """构建 api_data 查询的 WHERE 子句和参数，返回 (where_sql, sql_params)"""
+    where_clauses = []
+    sql_params: list = []
+    api_type = query.get('api_type')
+    url_like = query.get('url_like')
+    params_like = query.get('params_like')
+    response_like = query.get('response_like')
+    method = query.get('method')
+    request_content_type = query.get('request_content_type')
+    enabled = query.get('enabled')
+    create_start_time = query.get('create_start_time')
+    create_end_time = query.get('create_end_time')
+    operator = query.get('operator')
+    if api_type is not None:
+      where_clauses.append('type = ?')
+      sql_params.append(api_type)
+    if url_like:
+      where_clauses.append('url LIKE ?')
+      sql_params.append(f'%{url_like}%')
+    if params_like:
+      where_clauses.append('params LIKE ?')
+      sql_params.append(f'%{params_like}%')
+    if response_like:
+      where_clauses.append('response LIKE ?')
+      sql_params.append(f'%{response_like}%')
+    if method:
+      where_clauses.append('method = ?')
+      sql_params.append(method)
+    if request_content_type:
+      where_clauses.append('request_content_type = ?')
+      sql_params.append(request_content_type)
+    if enabled is True:
+      where_clauses.append('enabled = 1')
+    elif enabled is False:
+      where_clauses.append('enabled = 0')
+    if create_start_time and create_end_time:
+      where_clauses.append('datetime(created_at) >= datetime(?)')
+      sql_params.append(create_start_time)
+      where_clauses.append('datetime(created_at) <= datetime(?)')
+      sql_params.append(create_end_time)
+    if operator:
+      where_clauses.append('operator = ?')
+      sql_params.append(operator)
+    where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+    return where_sql, sql_params
+
+  # 分页查询 api 数据列表
+  @_ensure_open(default=[])
+  def get_api_list_page(
+      self,
+      query: ApiQuery,
+      reverse: bool = False,
+      page_num: int = 1,
+      page_size: int = 20,
+  ) -> List[ApiData]:
+    """分页查询 API 数据列表，支持 url/params/response 模糊查询、method 精确查询、created_at 时间区间查询"""
+    order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
+    offset = (page_num - 1) * page_size
+
+    where_sql, sql_params = self._build_api_where(query)
+    order_sql = 'ORDER BY created_at {}'.format(order)
+    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
+      where_sql, order_sql)
+    sql_params.extend([page_size, offset])
+
+    with self._lock:
+      cursor = self._conn.execute(sql, tuple(sql_params))
+      rows = cursor.fetchall()
+    result = []
+    for row in rows:
+      result.append({
+        'id': row[0],
+        'type': row[1],
+        'url': row[2],
+        'method': row[3],
+        'params': row[4],
+        'response': row[5],
+        'response_variant_ids': _parse_response_variant_ids(row[6]),
+        'enabled': _parse_enabled(row[7]),
+        'timeout': row[8],
+        'request_content_type': row[9],
+        'operator': row[10],
+        'created_at': row[11],
+        'updated_at': row[12],
+      })
+    return result
+
+  # 查询 api 数据总数
+  @_ensure_open(default=0)
+  def get_api_count(self, query: ApiQuery) -> int:
+    """查询 API 数据总数，支持 url/params/response 模糊查询、method 精确查询、created_at 时间区间查询"""
+    where_sql, sql_params = self._build_api_where(query)
+    sql = f'SELECT COUNT(*) FROM api_data{where_sql}'
+    with self._lock:
+      return self._conn.execute(sql, tuple(sql_params)).fetchone()[0]
+
+  # 按 id 查询单条 api 数据详情（含变体列表）
+  @_ensure_open(default=None)
+  def get_api_detail(self, api_id: str) -> Optional[ApiDataDetail]:
+    """获取单条 API 数据详情，关联查询其 response 变体列表，不存在时返回 None"""
+    if not api_id:
+      return None
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, created_at, updated_at FROM api_data WHERE id=?',
+        (api_id,),
+      ).fetchone()
+    if row is None:
+      return None
+
+    # 通过 hook 获取变体列表，具体实现由宿主类（MockDB）注入
+    response_variants = self._fetch_variants(api_id)
+
+    result: ApiDataDetail = {
+      'id': row[0],
+      'type': row[1],
+      'url': row[2],
+      'method': row[3],
+      'params': row[4],
+      'response': row[5],
+      'response_variant_ids': _parse_response_variant_ids(row[6]),
+      'response_variants': response_variants,
+      'enabled': _parse_enabled(row[7]),
+      'timeout': row[8],
+      'request_content_type': row[9],
+      'operator': row[10],
+      'created_at': row[11],
+      'updated_at': row[12],
+    }
+
+    return result
+
+  # 按 id 更新 api 数据（字段级合并）
+  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "更新失败"})
+  def update_api(self, record: ApiRecord) -> OperationResult:
+    """
+    按 id 更新 API 数据，字段级合并
+
+    前端只传修改的字段时旧值保留，记录不存在时返回 {"success": False, "status_code": -30001, "status_msg": "记录不存在"}。
+    成功返回 {"success": True, "status_code": 0, "status_msg": "成功"}。
+    """
+    api_id = record.get('id')
+    if not api_id:
+      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: id"}
+
+    # 1. 事务外查询旧记录，不存在则直接返回，避免空事务
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator FROM api_data WHERE id=?',
+        (api_id,),
+      ).fetchone()
+    if row is None:
+      return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {api_id}"}
+
+    try:
+      with self._transaction() as conn:
+        # 2. 字段级合并：record 中非空字段覆盖旧值，id 仅作 WHERE 条件不参与合并
+        old = {
+          'type': row[0],
+          'url': row[1],
+          'method': row[2],
+          'params': row[3],
+          'response': row[4],
+          'response_variant_ids': row[5],
+          'enabled': row[6],
+          'timeout': row[7],
+          'request_content_type': row[8],
+          'operator': row[9],
+        }
+        merged = {**old, **{k: v for k, v in record.items() if k != 'id' and v is not None}}
+        merged['params'] = JsonFormat.format_json_string(merged['params'])
+        merged['response_variant_ids'] = _normalize_response_variant_ids(merged.get('response_variant_ids'))
+        merged['enabled'] = _normalize_enabled(merged.get('enabled'))
+
+        # 校验合并后的 method 和 request_content_type
+        if merged['method'] not in VALID_HTTP_METHODS:
+          return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 HTTP 方法: {merged['method']}，仅支持 {VALID_HTTP_METHODS}"}
+        if merged['request_content_type'] not in VALID_REQUEST_CONTENT_TYPES:
+          return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 request_content_type: {merged['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}"}
+        # GET 请求固定 request_content_type 为 NONE
+        if merged['method'] == 'GET':
+          merged['request_content_type'] = 'NONE'
+
+        # 3. 写入合并后的完整记录
+        cursor = conn.execute(
+          '''UPDATE api_data
+             SET type=?,
+                 url=?,
+                 method=?,
+                 params=?,
+                 response=?,
+                 response_variant_ids=?,
+                 enabled=?,
+                 timeout=?,
+                 request_content_type=?,
+                 operator=?,
+                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+             WHERE id = ?''',
+          (merged['type'], merged['url'], merged['method'],
+           merged['params'], merged['response'], merged['response_variant_ids'], merged['enabled'],
+           merged.get('timeout', 0), merged.get('request_content_type', 'NONE'), merged.get('operator', ''), api_id),
+        )
+        if cursor.rowcount == 0:
+          return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {api_id}"}
+        return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+    except Exception as e:
+      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+
+  # 重新排序 api_data 绑定的 response_variant_ids
+  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "排序失败"})
+  def reorder_response_variant_ids(self, api_data_id: str, variant_ids: List[str]) -> OperationResult:
+    """
+    重新排序 api_data 的 response_variant_ids，返回是否修改成功
+
+    校验传入的 variant_ids 与当前绑定的 id 列表元素完全一致（仅顺序不同），
+    不一致直接返回 {"success": False, "status_code": -30004, "status_msg": "变体 ID 列表与当前绑定不一致"}。
+    成功更新后返回 {"success": True, "status_code": 0, "status_msg": "成功"}。
+    """
+    if not api_data_id:
+      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: api_data_id"}
+
+    # 事务外查询当前绑定的 variant_ids
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT response_variant_ids FROM api_data WHERE id=?',
+        (api_data_id,),
+      ).fetchone()
+    if row is None:
+      return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {api_data_id}"}
+
+    current_ids = _parse_response_variant_ids(row[0])
+
+    # 校验：传入的 id 列表与当前绑定的 id 列表元素完全一致（仅顺序不同）
+    if len(variant_ids) != len(current_ids) or set(variant_ids) != set(current_ids):
+      return {"success": False, "status_code": BIZ_CONSTRAINT_VIOLATION, "status_msg": "变体 ID 列表与当前绑定不一致"}
+
+    try:
+      with self._transaction() as conn:
+        cursor = conn.execute(
+          '''UPDATE api_data
+             SET response_variant_ids=?,
+                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+             WHERE id = ?
+          ''',
+          (_normalize_response_variant_ids(variant_ids), api_data_id),
+        )
+        return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+    except Exception as e:
+      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+
+  # 按 id 删除 api 数据
+  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "删除失败"})
+  def delete_api(self, api_id: str) -> OperationResult:
+    """按 id 删除 API 数据，同时级联删除其 response 变体，记录不存在时返回 {"success": False, "status_code": -30001, "status_msg": "记录不存在"}"""
+    if not api_id:
+      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: id"}
+    try:
+      with self._transaction() as conn:
+        conn.execute('DELETE FROM api_response_variants WHERE api_data_id=?', (api_id,))
+        cursor = conn.execute('DELETE FROM api_data WHERE id=?', (api_id,))
+        if cursor.rowcount == 0:
+          return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {api_id}"}
+        return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+    except Exception as e:
+      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+
+  # 批量删除 api 数据（按 ApiQuery 筛选条件，与 get_api_list_page 一致）
+  @_ensure_open(
+    default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "批量删除失败", "affected_count": 0})
+  def batch_delete_api(self, query: ApiQuery) -> BatchOperationResult:
+    """
+    批量删除 API 数据，筛选条件与 get_api_list_page 完全一致
+
+    支持 api_type 精确匹配、url/params/response 模糊查询、method 精确查询、created_at 时间区间查询。
+    没有任何筛选条件时拒绝执行（防止全表删除），返回失败状态。
+    删除成功（含 0 条匹配）返回成功状态和影响的记录数。
+    """
+    where_sql, sql_params = self._build_api_where(query)
+    if not where_sql:
+      APP_LOGGER.warning('MockDB batch_delete_api 拒绝执行：未提供有效筛选条件')
+      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "未提供有效筛选条件，拒绝执行",
+              "affected_count": 0}
+
+    try:
+      with self._transaction() as conn:
+        # 先查出要删除的 api_data id，再级联删除其变体
+        rows = conn.execute(f'SELECT id FROM api_data{where_sql}', tuple(sql_params)).fetchall()
+        api_ids = [row[0] for row in rows]
+        if api_ids:
+          placeholders = ','.join('?' * len(api_ids))
+          conn.execute(f'DELETE FROM api_response_variants WHERE api_data_id IN ({placeholders})', api_ids)
+        cursor = conn.execute(f'DELETE FROM api_data{where_sql}', tuple(sql_params))
+      APP_LOGGER.info(f'MockDB batch_delete_api 删除 {cursor.rowcount} 条')
+      return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功", "affected_count": cursor.rowcount}
+    except Exception as e:
+      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"批量删除失败: {str(e)}",
+              "affected_count": 0}

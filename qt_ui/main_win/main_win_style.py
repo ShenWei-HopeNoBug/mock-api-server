@@ -42,7 +42,8 @@ window = '''
 
   #catchServerButton,
   #staticDownloadButton,
-  #serverButton
+  #serverButton,
+  #mcpServerButton
   {
     background-color:rgb(250, 250, 250);
     border-radius:6px;
@@ -52,7 +53,8 @@ window = '''
 
   #catchServerButton:hover,
   #staticDownloadButton:hover,
-  #serverButton:hover
+  #serverButton:hover,
+  #mcpServerButton:hover
   {
     color:white;
     background-color:rgb(97, 97, 97);
@@ -61,7 +63,8 @@ window = '''
 
   #catchServerButton:disabled,
   #staticDownloadButton:disabled,
-  #serverButton:disabled
+  #serverButton:disabled,
+  #mcpServerButton:disabled
   {
     border:none;
   }

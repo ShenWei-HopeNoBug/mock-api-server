@@ -2,23 +2,32 @@
 import os
 import json
 import copy
+from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import Qt, QUrl, pyqtSignal
+from PyQt5.QtCore import Qt, QUrl, QEvent, pyqtSignal
 from PyQt5.QtWebChannel import QWebChannel
 from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
-from lib.webview_lib import get_webview_dialog_config
+from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
 from lib.utils_lib import (ConfigFileManager)
+from lib.app_lib import is_app_server_running
+from app_types.app_gui_types import AppServerRunningData
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
+from lib.logger_lib import APP_LOGGER
 
 
 class DownloadProxyConfigDialog(QDialog):
   close_signal: pyqtSignal = pyqtSignal()
 
-  def __init__(self, work_dir=DEFAULT_WORK_DIR):
-    super().__init__()
+  def __init__(
+      self,
+      parent: Optional[QWidget] = None,
+      work_dir: str = DEFAULT_WORK_DIR,
+      app_sever_running_data: Optional[AppServerRunningData] = None,
+  ) -> None:
+    super().__init__(parent)
     # 当前配置文件地址
     download_config_path = os.path.join(r'{}{}'.format(work_dir, DOWNLOAD_CONFIG_PATH))
     download_config = WORK_FILE_DICT.get('DOWNLOAD_CONFIG', {})
@@ -29,15 +38,18 @@ class DownloadProxyConfigDialog(QDialog):
     )
     download_config_manager.init(replace=False)
 
-    self.work_dir = work_dir
-    self.webview: QWebEngineView or None = None
-    self.web_channel: QWebChannel or None = None
-    self.interact_obj: TInteractObj or None = None
+    self.work_dir: str = work_dir
+    self.webview: Optional[QWebEngineView] = None
+    self.web_channel: Optional[QWebChannel] = None
+    self.interact_obj: Optional[TInteractObj] = None
+    self.loading_widget: Optional[WebLoadingWidget] = None
     self.download_config_manager: ConfigFileManager = download_config_manager
+    self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
+    self._devtools_view: Optional[QWebEngineView] = None
 
     self.init()
 
-  def init(self):
+  def init(self) -> None:
     self.setWindowTitle('下载代理配置')
     self.setWindowFlag(Qt.WindowMinMaxButtonsHint, True)
     webview_dialog_config: dict = get_webview_dialog_config()
@@ -55,6 +67,11 @@ class DownloadProxyConfigDialog(QDialog):
 
     # 创建 QWebEngineView 实例
     webview = QWebEngineView()
+
+    # 禁用右键菜单
+    webview.setContextMenuPolicy(Qt.CustomContextMenu)
+    webview.customContextMenuRequested.connect(lambda _: None)
+
     current_page = webview.page()
     interact_obj = TInteractObj()
     interact_obj.js2qt_signal.connect(receive)
@@ -74,13 +91,42 @@ class DownloadProxyConfigDialog(QDialog):
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
     webview.loadFinished.connect(page_loaded)
-    web_path = os.path.abspath('./web/apps/configEdit/index.html')
-    current_page.load(QUrl.fromLocalFile(web_path))
+
+    # 加载中占位组件
+    loading_widget = WebLoadingWidget()
+    self.loading_widget = loading_widget
+
+    # QStackedWidget: 0=loading, 1=webview，页面加载完成后切换
+    stack = QStackedWidget()
+    stack.addWidget(loading_widget)
+    stack.addWidget(self.webview)
+    stack.setCurrentIndex(0)
+
+    def _on_load_finished(ok: bool) -> None:
+      if loading_widget is not None:
+        loading_widget.stop()
+      stack.setCurrentIndex(1)
+
+    webview.loadFinished.connect(_on_load_finished)
+
+    # F12 打开内嵌 DevTools
+    self._devtools_view = setup_devtools(webview, self)
+
+    # 检查 APP_SERVER 是否正常启动
+    if is_app_server_running(self.app_sever_running_data):
+      app_server_port = self.app_sever_running_data.get('port', 5050)
+      local_server_url = f"http://127.0.0.1:{app_server_port}/static/web/apps/configEdit/index.html"
+      APP_LOGGER.info(f"[download_proxy_config_dialog]以本地服务方式加载编辑页面: {local_server_url}")
+      current_page.load(QUrl(local_server_url))
+    else:
+      web_path = os.path.abspath('./appServer/static/web/apps/configEdit/index.html')
+      APP_LOGGER.info(f"[download_proxy_config_dialog]以离线文件方式加载编辑页面: {web_path}")
+      current_page.load(QUrl.fromLocalFile(web_path))
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
-    layout.addWidget(self.webview)
+    layout.addWidget(stack)
     self.setLayout(layout)
 
     def close_dialog():
@@ -88,19 +134,26 @@ class DownloadProxyConfigDialog(QDialog):
 
     self.close_signal.connect(close_dialog)
 
+  def closeEvent(self, event: QEvent) -> None:
+    if self.loading_widget is not None:
+      self.loading_widget.stop()
+    if self._devtools_view is not None:
+      self._devtools_view.close()
+    event.accept()
+
   @create_thread
-  def send_qt2js_dict_msg(self, data: dict):
+  def send_qt2js_dict_msg(self, data: dict) -> None:
     self.interact_obj.send_qt2js_dict_msg(data)
 
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
-  def receive(self, message: str):
+  def receive(self, message: str) -> None:
     event_dict: dict = json.loads(message)
     msg_type = event_dict.get('type')
     if msg_type == 'request':
       self._request(event_dict)
 
-  def _request(self, event: dict):
+  def _request(self, event: dict) -> None:
     msg_type = event.get('type')
     name = event.get('name')
     action_id = event.get('action_id')

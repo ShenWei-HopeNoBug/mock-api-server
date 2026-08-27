@@ -24,9 +24,4 @@ window = '''
   {
     border:none;
   }
-  
-  #paramsMatchGroupBox
-  {
-    border:0;
-  }
 '''

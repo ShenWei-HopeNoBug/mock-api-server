@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from typing import List
+
 from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import Qt, pyqtSignal
 from qt_ui.output_static_win.win_ui import Ui_Dialog
@@ -18,28 +20,28 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
   # 提示弹窗信号
   message_dialog_signal = pyqtSignal(str, str, str)
 
-  def __init__(self, work_dir=DEFAULT_WORK_DIR):
+  def __init__(self, work_dir: str = DEFAULT_WORK_DIR) -> None:
     super().__init__()
-    self.work_dir = os.path.abspath(work_dir)
-    self.output_dir = os.path.abspath(r'{}{}'.format(self.work_dir, OUTPUT_DIR))
-    self.selected_row = -1
+    self.work_dir: str = os.path.abspath(work_dir)
+    self.output_dir: str = os.path.abspath(r'{}{}'.format(self.work_dir, OUTPUT_DIR))
+    self.selected_row: int = -1
     # -----------------
     # 导出状态
     # READY：待运行
     # DOING：运行中
     # DISABLED：禁用状态
     # -----------------
-    self.output_status = 'DISABLED'
+    self.output_status: str = 'DISABLED'
     self.init_ui()
     self.init()
 
-  def init(self):
+  def init(self) -> None:
     self.browseLineEdit.setText(self.output_dir)
     self.browseLineEdit.setCursorPosition(0)
     self.browseLineEdit.setToolTip(self.output_dir)
     self.add_events()
 
-  def init_ui(self):
+  def init_ui(self) -> None:
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
     self.setWindowOpacity(0.95)
@@ -48,7 +50,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
     self.setWindowTitle('导出静态资源')
 
-  def add_events(self):
+  def add_events(self) -> None:
     # 点击导出按钮
     def output_button_click():
       reply = QMessageBox.question(
@@ -90,7 +92,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.set_select_row(-1)
 
   # 展示提示弹窗
-  def show_message_dialog(self, dialog_type='critical', title='', message: str = ''):
+  def show_message_dialog(self, dialog_type: str = 'critical', title: str = '', message: str = '') -> None:
     if not message:
       return
 
@@ -100,12 +102,12 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       QMessageBox.information(self, title or '异常', message)
 
   # 设置选中索引
-  def set_select_row(self, value: int):
+  def set_select_row(self, value: int) -> None:
     self.selected_row = value
     self.deletePushButton.setDisabled(value == -1)
 
   # 获取下载日志路径列表
-  def get_download_log_path_list(self):
+  def get_download_log_path_list(self) -> List[str]:
     log_path_list = []
     for index in range(self.downloadLogListWidget.count()):
       item = self.downloadLogListWidget.item(index)
@@ -116,7 +118,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     return log_path_list
 
   # 导出状态变化
-  def output_status_change(self, text: str):
+  def output_status_change(self, text: str) -> None:
     button_text: str = ''
     disabled: bool = False
     output_btn_disabled: bool = False
@@ -140,7 +142,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.outputPushButton.setText(button_text)
 
   # 清空列表
-  def clear_list_widget(self):
+  def clear_list_widget(self) -> None:
     self.downloadLogListWidget.clear()
     self.downloadLogListWidget.clearSelection()
     self.set_select_row(-1)
@@ -148,7 +150,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.clearPushButton.setDisabled(True)
 
   # 选择导出目录
-  def select_output_dir(self):
+  def select_output_dir(self) -> None:
     directory = QFileDialog.getExistingDirectory(
       self,
       caption='选择导出目录',
@@ -162,11 +164,11 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       self.output_dir = directory
 
   # 选中选项
-  def select(self):
+  def select(self) -> None:
     index = self.downloadLogListWidget.selectedIndexes()[0].row()
     self.set_select_row(index)
 
-  def add(self):
+  def add(self) -> None:
     directory = os.path.abspath(r'{}{}'.format(self.work_dir, DOWNLOAD_DIR))
     result = QFileDialog.getOpenFileNames(
       self,
@@ -190,7 +192,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     self.output_status_signal.emit('READY')
     self.clearPushButton.setDisabled(False)
 
-  def delete(self):
+  def delete(self) -> None:
     # 没有选中项，跳过
     if self.selected_row == -1:
       return
@@ -205,7 +207,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
 
   # 导出静态资源
   @create_thread
-  def output(self):
+  def output(self) -> None:
     # 非待导出状态，跳过
     if not self.output_status == 'READY':
       return

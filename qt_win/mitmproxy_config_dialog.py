@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from typing import Optional
+
 from PyQt5.QtWidgets import QWidget, QDialog, QVBoxLayout
 from PyQt5.QtCore import Qt, QRect
 
@@ -14,7 +16,7 @@ from qt_ui.mitmproxy_config_win import mitmproxy_config_win_style
 
 # 抓包配置弹窗
 class MitmproxyConfigDialog(QDialog, Ui_Dialog):
-  def __init__(self, work_dir=DEFAULT_WORK_DIR):
+  def __init__(self, work_dir: str = DEFAULT_WORK_DIR) -> None:
     super().__init__()
     # 当前配置文件地址
     mitmproxy_config_path = os.path.join(r'{}{}'.format(work_dir, MITMPROXY_CONFIG_PATH))
@@ -27,16 +29,16 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
     mitmproxy_config_manager.init(replace=False)
 
     # 抓包配置文件读写管理器
-    self.mitmproxy_config_manager = mitmproxy_config_manager
+    self.mitmproxy_config_manager: ConfigFileManager = mitmproxy_config_manager
     # http_path 编辑模组
-    self.http_path_edit_weight = None
+    self.http_path_edit_weight: Optional[ListEditModule] = None
     # static_path 编辑模组
-    self.static_path_edit_weight = None
+    self.static_path_edit_weight: Optional[ListEditModule] = None
 
     self.init_ui()
     self.add_events()
 
-  def init_ui(self):
+  def init_ui(self) -> None:
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
     self.setWindowOpacity(0.95)
@@ -75,10 +77,10 @@ class MitmproxyConfigDialog(QDialog, Ui_Dialog):
     self.http_path_edit_weight = http_path_edit_weight
     self.static_path_edit_weight = static_path_edit_weight
 
-  def add_events(self):
+  def add_events(self) -> None:
     self.confirmPushButton.clicked.connect(self.confirm)
 
-  def confirm(self):
+  def confirm(self) -> None:
     self.mitmproxy_config_manager.set(
       key='include_path',
       value=self.http_path_edit_weight.get_list(),

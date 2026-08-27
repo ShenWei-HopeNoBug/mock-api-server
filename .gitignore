@@ -7,12 +7,14 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+logs
 node_modules
 dist
 dist-ssr
 *.local
 
 # Editor directories and files
+__pycache__
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
@@ -26,7 +28,6 @@ dist-ssr
 
 # User directories and files
 /system
-/test
 /static
 /server
 /output.*
@@ -35,3 +36,5 @@ dist-ssr
 /web
 main.spec
 /test.py
+appServer/*
+/_build_config.py

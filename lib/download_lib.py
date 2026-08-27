@@ -5,7 +5,9 @@ import shutil
 import re
 import time
 import math
+import threading
 import requests
+from typing import Any, Callable, Dict, List, Optional
 from requests.exceptions import ConnectionError
 from config.work_file import (
   DOWNLOAD_CONFIG_PATH,
@@ -26,17 +28,16 @@ from lib.utils_lib import (
   is_url_match,
 )
 from lib.app_lib import get_mock_api_data_list
-from lib import server_lib
-from lib.system_lib import GLOBALS_CONFIG_MANAGER
+from lib.db import MockDBCache
 
 
 @error_catch(error_msg='获取导出下载地址列表失败', error_return=[])
-def get_output_data_list(log_path: str, work_dir: str = '.'):
+def get_output_data_list(log_path: str, work_dir: str = '.') -> List[Dict[str, str]]:
   # 检查下载日志路径
   if not os.path.exists(log_path):
     return []
 
-  static_dir = r'{}{}'.format(work_dir, STATIC_DIR)
+  static_dir = f'{work_dir}{STATIC_DIR}'
   # 检查静态资源目录
   if not os.path.exists(static_dir):
     return []
@@ -48,7 +49,7 @@ def get_output_data_list(log_path: str, work_dir: str = '.'):
   for log in logs:
     success = log.get('success', False)
     file_name = log.get('file_name', '')
-    static_path = os.path.abspath(r'{}/{}'.format(static_dir, file_name))
+    static_path = os.path.abspath(f'{static_dir}/{file_name}')
 
     # 下载成功且静态资源目录有这个文件，添加到导出列表中
     if success and os.path.exists(static_path):
@@ -61,7 +62,7 @@ def get_output_data_list(log_path: str, work_dir: str = '.'):
 
 
 @error_catch(error_msg='导出静态资源失败', error_return=[])
-def output_static_files(output_dir='./output', output_list=None):
+def output_static_files(output_dir: str = './output', output_list: Optional[List[Dict[str, str]]] = None) -> None:
   if output_list is None:
     output_list = []
 
@@ -69,10 +70,7 @@ def output_static_files(output_dir='./output', output_list=None):
     return
 
   # 拼接导出文件夹路径
-  save_dir = os.path.abspath(r'{}/output-static-{}'.format(
-    output_dir,
-    create_timestamp(),
-  ))
+  save_dir = os.path.abspath(f'{output_dir}/output-static-{create_timestamp()}')
 
   # 检查并创建导出路径
   check_and_create_dir(save_dir)
@@ -92,16 +90,10 @@ def output_static_files(output_dir='./output', output_list=None):
     shutil.copy(path, save_dir)
 
 
-# 是否退出下载
-def is_exit_download() -> bool:
-  client_exit = GLOBALS_CONFIG_MANAGER.get(key='client_exit')
-  download_exit = GLOBALS_CONFIG_MANAGER.get(key='download_exit')
-  return client_exit or download_exit
-
 
 @error_catch(error_msg='获取下载配置失败', error_return={})
-def get_download_config(work_dir='.') -> dict:
-  download_config_path = r'{}{}'.format(work_dir, DOWNLOAD_CONFIG_PATH)
+def get_download_config(work_dir: str = '.') -> dict:
+  download_config_path = f'{work_dir}{DOWNLOAD_CONFIG_PATH}'
   if not os.path.exists(download_config_path):
     return {}
 
@@ -113,8 +105,8 @@ def get_download_config(work_dir='.') -> dict:
 
 
 # 获取静态资源匹配正则对象
-def get_static_match_regexp(include_files: list):
-  if type(include_files) != list:
+def get_static_match_regexp(include_files: List[str]) -> re.Pattern:
+  if not isinstance(include_files, list):
     include_files = []
   pattern = r'(https?://[-/a-zA-Z0-9_.!]*(?:{}))'.format('|'.join(include_files))
   return re.compile(pattern, flags=re.IGNORECASE)
@@ -122,7 +114,7 @@ def get_static_match_regexp(include_files: list):
 
 # 获取下载静态资源列表（包含所有的静态资源，没进行本地已下载校验）
 @error_catch(error_msg='获取下载静态资源列表失败', error_return=[])
-def get_download_assets_list(work_dir='.') -> list:
+def get_download_assets_list(work_dir: str = '.') -> List[str]:
   # 读取下载配置
   download_config = get_download_config(work_dir=work_dir)
   include_files = download_config.get('include_files', [])
@@ -135,7 +127,8 @@ def get_download_assets_list(work_dir='.') -> list:
   # mock 数据列表（包括抓包数据和自定义数据）
   mock_api_data_list = get_mock_api_data_list(work_dir=work_dir)
   # 抓取的静态资源数据
-  static_data_list = server_lib.get_static_data_list(work_dir=work_dir)
+  mock_db = MockDBCache.get(work_dir)
+  static_data_list = mock_db.get_static_list()
 
   # 静态资源链接列表
   assets_list = []
@@ -160,7 +153,11 @@ def get_download_assets_list(work_dir='.') -> list:
 
 # 获取待下载静态资源列表（经过本地已下载校验后剔除了已下载的静态资源）
 @error_catch(error_msg='获取待下载静态资源列表失败', error_return=[])
-def get_download_ready_assets(work_dir='.', static_url_path=STATIC_DIR) -> list:
+def get_download_ready_assets(
+    work_dir: str = '.',
+    static_url_path: str = STATIC_DIR,
+    stop_event: Optional[threading.Event] = None,
+) -> List[str]:
   # 获取下载静态资源列表
   assets_list = get_download_assets_list(work_dir=work_dir)
 
@@ -173,13 +170,13 @@ def get_download_ready_assets(work_dir='.', static_url_path=STATIC_DIR) -> list:
   # 检查需要下载的静态资源文件
   for asset in assets_list:
     # 检查是否退出下载
-    if is_exit_download():
+    if stop_event is not None and stop_event.is_set():
       return []
 
     file_name = asset.split('/')[-1]
 
     # 拼接图片存放地址和名字
-    assets_path = '{}/{}'.format(assets_dir, file_name)
+    assets_path = f'{assets_dir}/{file_name}'
     # 只添加本地没下载过的静态资源
     if not os.path.exists(assets_path):
       download_assets.append(asset)
@@ -189,8 +186,12 @@ def get_download_ready_assets(work_dir='.', static_url_path=STATIC_DIR) -> list:
 
 # 写入下载日志
 @error_catch(error_msg='写入下载日志失败')
-def white_download_log(work_dir='.', download_log=None, log_name='log'):
-  if type(download_log) != list:
+def white_download_log(
+    work_dir: str = '.',
+    download_log: Optional[List[Dict[str, Any]]] = None,
+    log_name: str = 'log'
+) -> None:
+  if not isinstance(download_log, list):
     download_log = []
 
   # 没有内容不写入
@@ -198,11 +199,7 @@ def white_download_log(work_dir='.', download_log=None, log_name='log'):
     return
 
   # 下载日志路径
-  download_log_path = '{}{}/{}.json'.format(
-    work_dir,
-    DOWNLOAD_DIR,
-    log_name,
-  )
+  download_log_path = f'{work_dir}{DOWNLOAD_DIR}/{log_name}.json'
 
   with open(download_log_path, 'w', encoding='utf-8') as fl:
     fl.write(JsonFormat.dumps(download_log))
@@ -220,7 +217,7 @@ class DownloadDetailManager:
     # 下载详情
     self.detail: dict = {}
 
-  def update_detail(self, url: str = '', connect_error: bool = False):
+  def update_detail(self, url: str = '', connect_error: bool = False) -> None:
     domain = get_url_domain(url)
     if not domain:
       return
@@ -245,7 +242,7 @@ class DownloadDetailManager:
     domain_detail['timeout'] = self.__compute_timeout(connect_error_count=connect_error_count)
     self.detail[search_key] = domain_detail
 
-  def get_timeout(self, url: str = ''):
+  def get_timeout(self, url: str = '') -> int:
     @error_catch(error_msg='获取连接超时时间失败', error_return=self.timeout)
     def callback():
       domain = get_url_domain(url)
@@ -263,7 +260,7 @@ class DownloadDetailManager:
 
     return callback()
 
-  def __compute_timeout(self, connect_error_count: int = 0):
+  def __compute_timeout(self, connect_error_count: int = 0) -> int:
     # 超出连接失败最大次数，直接把超时时间设置为超小值，方便过无法下载的资源
     if connect_error_count >= DOWNLOAD.CONNECT_ERROR_MAX_LIMIT:
       return 1
@@ -292,8 +289,11 @@ class DownloadDetailManager:
 
 # 获取下载代理配置
 @error_catch(error_msg='获取下载代理配置失败', error_return={})
-def get_download_proxies(url: str, download_proxy_list: list) -> dict:
-  if not url or type(download_proxy_list) != list:
+def get_download_proxies(
+    url: str,
+    download_proxy_list: List[Dict[str, Any]]
+) -> Dict[str, str]:
+  if not url or not isinstance(download_proxy_list, list):
     return {}
 
   proxies = {}
@@ -315,13 +315,15 @@ def download_server_static(
     work_dir: str = '.',
     static_url_path: str = STATIC_DIR,
     compress: bool = True,
-    callback=None,
-):
+    callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> None:
   print('>' * 10, '开始检查和下载静态资源...')
   # 待下载静态资源列表
   download_assets = get_download_ready_assets(
     work_dir=work_dir,
     static_url_path=static_url_path,
+    stop_event=stop_event,
   )
 
   # 静态资源列表为空
@@ -362,13 +364,13 @@ def download_server_static(
 
   for i, asset in enumerate(download_assets):
     # 检查是否退出下载
-    if is_exit_download():
+    if stop_event is not None and stop_event.is_set():
       return
 
     file_name = asset.split('/')[-1]
 
     # 保存图片的地址
-    assets_path = os.path.abspath('{}/{}'.format(assets_dir, file_name))
+    assets_path = os.path.abspath(f'{assets_dir}/{file_name}')
 
     # 校验下载的文件是否已经存在
     if os.path.exists(assets_path):
@@ -384,18 +386,14 @@ def download_server_static(
 
     connect_timeout = download_detail_manager.get_timeout(url=asset) if auto_adjust_timeout else base_timeout
     proxies = get_download_proxies(url=asset, download_proxy_list=download_proxy_list)
-    print('\n******** 正在下载：{}/{} ********\nCONNECT_TIMEOUT：{}s\nURL：{}\nPROXIES：{}'.format(
-      i + 1,
-      assets_length,
-      connect_timeout,
-      asset,
-      proxies,
-    ))
+    print(
+      f'\n******** 正在下载：{i + 1}/{assets_length} ********\nCONNECT_TIMEOUT：{connect_timeout}s\nURL：{asset}\nPROXIES：{proxies}'
+    )
     # 下载静态资源
     try:
       response = requests.get(asset, timeout=(connect_timeout, DOWNLOAD.READ_TIMEOUT), proxies=proxies)
       if response.status_code != 200:
-        print('下载失败：{}'.format(asset))
+        print(f'下载失败：{asset}')
         # 保存下载日志
         download_log.append({
           "url": asset,
@@ -403,7 +401,7 @@ def download_server_static(
           "file_name": file_name,
           "proxies": proxies,
           "success": False,
-          "message": "下载失败! STATUS_CODE:{}".format(response.status_code),
+          "message": f"下载失败! STATUS_CODE:{response.status_code}",
         })
         white_log()
         continue
@@ -448,7 +446,7 @@ def download_server_static(
         "file_name": file_name,
         "proxies": proxies,
         "success": True,
-        "message": "下载连接异常! ConnectionError:{}".format(e),
+        "message": f"下载连接异常! ConnectionError:{e}",
       })
     except Exception as e:
       print('下载静态资源出错！', e)
@@ -459,7 +457,7 @@ def download_server_static(
         "file_name": file_name,
         "proxies": proxies,
         "success": True,
-        "message": "下载报错! ERROR:{}".format(e),
+        "message": f"下载报错! ERROR:{e}",
       })
     finally:
       print('*' * 29)
