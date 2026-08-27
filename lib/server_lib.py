@@ -7,7 +7,8 @@ import threading
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
 
-from flask import Request, send_from_directory, jsonify
+import mimetypes
+from flask import Request, send_from_directory, jsonify, Response
 
 from config.route import STATIC_DELAY_ROUTE
 from lib.db import MockDBCache
@@ -147,6 +148,9 @@ class StaticFileHandler:
     self.cache: ThreadSafeLRUCache[bool] = cache
     self.max_delay: Union[int, float] = max_delay
 
+  # 流式节流每块大小（字节）
+  _CHUNK_SIZE: int = 64 * 1024
+
   def match(self, path: str, range_header: Optional[str] = None) -> FlaskRouteResult:
     """匹配并返回本地静态资源文件"""
     route_path: str = '/' + path
@@ -160,54 +164,89 @@ class StaticFileHandler:
     if not os.path.exists(file_path):
       return 'Not Found', 404
 
-    # 静态资源响应延时
-    if self.static_load_speed > 0:
-      if range_header:
-        # 分片请求（视频等）：按本次分片大小计算延时
-        chunk_size: int = self._parse_range_size(range_header, os.path.getsize(file_path))
-        if chunk_size > 0:
-          chunk_kb: float = chunk_size / 1024
-          delay: float = chunk_kb / self.static_load_speed
-          if delay > self.max_delay:
-            delay = self.max_delay
-          print(f'静态资源延时属性（分片）  分片大小：{chunk_kb}KB  延时时间：{delay}s')
-          time.sleep(delay)
-      else:
-        # 非分片请求（图片/JS/CSS 等）：仅首次请求延时
-        search_key: str = create_md5(path)
-        is_first: bool = self.cache.set_once(search_key, True)
-        if is_first:
-          file_size: float = os.path.getsize(file_path) / 1024
-          delay: float = file_size / self.static_load_speed
-          if delay > self.max_delay:
-            delay = self.max_delay
-          print(f'静态资源延时属性  文件大小：{file_size}KB  延时时间：{delay}s')
-          time.sleep(delay)
+    # 无限速：直接走 send_from_directory（自带 Range 支持）
+    if self.static_load_speed <= 0:
+      return send_from_directory(self.static_folder, file_name)
 
-    return send_from_directory(self.static_folder, file_name)
+    # 有限速：流式响应 + 逐块节流
+    file_total: int = os.path.getsize(file_path)
+    content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+
+    # 解析 Range 头
+    range_info: Optional[tuple] = self._parse_range(range_header, file_total)
+    if range_info is not None:
+      start, end = range_info
+      content_length: int = end - start + 1
+      status: int = 206
+      headers: Dict[str, str] = {
+        'Content-Range': f'bytes {start}-{end}/{file_total}',
+        'Accept-Ranges': 'bytes',
+      }
+    else:
+      start, end = 0, file_total - 1
+      content_length: int = file_total
+      status: int = 200
+      headers: Dict[str, str] = {'Accept-Ranges': 'bytes'}
+
+    headers['Content-Length'] = str(content_length)
+    headers['Content-Type'] = content_type
+
+    chunk_size: int = self._CHUNK_SIZE
+    speed: int = self.static_load_speed  # KB/s
+    # 每块延时 = chunk_kb / speed，上限 max_delay
+    chunk_kb: float = chunk_size / 1024
+    per_chunk_delay: float = min(chunk_kb / speed, self.max_delay)
+
+    def _stream():
+      remaining: int = content_length
+      offset: int = start
+      with open(file_path, 'rb') as f:
+        f.seek(offset)
+        while remaining > 0:
+          read_size: int = min(chunk_size, remaining)
+          data: bytes = f.read(read_size)
+          if not data:
+            break
+          remaining -= len(data)
+          if per_chunk_delay > 0:
+            time.sleep(per_chunk_delay)
+          yield data
+
+    print(f'静态资源流式节流  文件：{file_name}  大小：{content_length}B  速率：{speed}KB/s  每块延时：{per_chunk_delay:.4f}s')
+    return Response(_stream(), status=status, headers=headers)
 
   @staticmethod
-  def _parse_range_size(range_header: str, file_total: int) -> int:
+  def _parse_range(range_header: Optional[str], file_total: int) -> Optional[tuple]:
     """
-    解析 Range 头，返回本次请求的字节大小。
+    解析 Range 头，返回 (start, end) 闭区间字节偏移。
 
     支持格式：bytes=start-end、bytes=start-、bytes=-suffix
-    解析失败时返回 0，表示不延时。
+    无 Range 头或解析失败时返回 None，表示完整文件。
     """
+    if not range_header:
+      return None
     match = re.match(r'bytes=(\d*)-(\d*)', range_header.strip())
     if not match:
-      return 0
+      return None
     start_str, end_str = match[1], match[2]
     if start_str and end_str:
       start, end = int(start_str), int(end_str)
-      return max(end - start + 1, 0)
+      end = min(end, file_total - 1)
+      if start > end:
+        return None
+      return (start, end)
     if start_str and not end_str:
       start = int(start_str)
-      return max(file_total - start, 0)
+      if start >= file_total:
+        return None
+      return (start, file_total - 1)
     if not start_str and end_str:
       suffix = int(end_str)
-      return min(suffix, file_total)
-    return 0
+      if suffix <= 0:
+        return None
+      start = max(file_total - suffix, 0)
+      return (start, file_total - 1)
+    return None
 
 
 class MockRequestParseError(Exception):
