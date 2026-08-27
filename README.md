@@ -57,8 +57,10 @@ pip freeze > package.txt
 
 ### 打包
 
-运行项目目录中的 `build.py` 脚本进行打包：
+运行项目目录中的 `build.py` 脚本进行打包，基于 PyInstaller 构建，一次产出两个 exe（带控制台黑窗和不带黑窗版本），共用同一份 `site-packages` 依赖目录：
 
 ```bash
 python build.py
 ```
+
+产物输出在 `dist/` 目录下，包含可执行 exe、`site-packages` 依赖目录以及内置的 `schema/` 和 `assets/` 资源。
