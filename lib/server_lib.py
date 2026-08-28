@@ -149,6 +149,10 @@ class StaticFileHandler:
     self.max_delay: Union[int, float] = max_delay
 
   # 流式节流每块大小（字节）
+  # 64KB 为流式传输节流的常见经验值，兼顾调度开销与节流精度：
+  # - 块过小（4~8KB）会导致频繁 yield/sleep，调度开销大；块过大（1MB+）节流粒度粗糙，延迟跳跃明显
+  # - 与内核默认 SO_SNDBUF（64~128KB）量级契合，减少系统调用次数
+  # - 配合 KB/s 限速，64KB 在常见限速范围（100KB/s~1MB/s）下延迟粒度合理（0.064s~0.64s）
   _CHUNK_SIZE: int = 64 * 1024
 
   def match(self, path: str, range_header: Optional[str] = None) -> FlaskRouteResult:
@@ -212,7 +216,8 @@ class StaticFileHandler:
             time.sleep(per_chunk_delay)
           yield data
 
-    print(f'静态资源流式节流  文件：{file_name}  大小：{self._format_size(content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
+    print(
+      f'静态资源流式节流  文件：{file_name}  大小：{self._format_size(content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
     return Response(_stream(), status=status, headers=headers)
 
   @staticmethod
