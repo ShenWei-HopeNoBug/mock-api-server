@@ -173,7 +173,7 @@ class StaticFileHandler:
     content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
 
     # 解析 Range 头
-    range_info: Optional[tuple] = self._parse_range(range_header, file_total)
+    range_info: Optional[Tuple[int, int]] = self._parse_range(range_header, file_total)
     if range_info is not None:
       start, end = range_info
       content_length: int = end - start + 1
