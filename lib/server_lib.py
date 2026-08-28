@@ -5,7 +5,7 @@ import re
 import time
 import threading
 from collections import OrderedDict
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
 import mimetypes
 from flask import Request, send_from_directory, jsonify, Response
@@ -225,7 +225,7 @@ class StaticFileHandler:
     return f'{size_bytes / (1024 * 1024):.2f}MB'
 
   @staticmethod
-  def _parse_range(range_header: Optional[str], file_total: int) -> Optional[tuple]:
+  def _parse_range(range_header: Optional[str], file_total: int) -> Optional[Tuple[int, int]]:
     """
     解析 Range 头，返回 (start, end) 闭区间字节偏移。
 
