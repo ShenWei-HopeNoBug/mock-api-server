@@ -254,7 +254,7 @@ class StaticFileHandler:
     """
     if not range_header:
       return None
-    match = re.match(r'bytes=(\d*)-(\d*)', range_header.strip())
+    match = re.match(r'bytes=(\d*)-(\d*)$', range_header.strip())
     if not match:
       return None
     start_str, end_str = match[1], match[2]
