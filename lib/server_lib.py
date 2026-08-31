@@ -254,15 +254,30 @@ class StaticFileHandler:
     """
     解析 Range 头，返回 (start, end) 闭区间字节偏移。
 
-    支持格式：bytes=start-end、bytes=start-、bytes=-suffix
-    无 Range 头或解析失败时返回 None，表示完整文件。
+    支持格式：
+      - bytes=start-end  → 返回 [start, min(end, file_total-1)]
+      - bytes=start-     → 从 start 到文件末尾
+      - bytes=-suffix    → 取文件最后 suffix 个字节
+
+    返回 None 的情况（表示完整文件，由调用方走 200 路径）：
+      - 无 Range 头
+      - file_total <= 0（空文件，避免 end = -1 产生非法 Content-Range）
+      - 格式不匹配
+      - start >= file_total（起始越界）
+      - start > end（经 min 截断后区间为空）
+      - suffix <= 0
+      - bytes=-（start 和 end 均为空，非有效 Range）
     """
-    if not range_header:
+    # 前置拦截：无 Range 头或空文件，直接走完整文件路径
+    if not range_header or file_total <= 0:
       return None
     match = re.match(r'bytes=(\d*)-(\d*)$', range_header.strip())
     if not match:
       return None
     start_str, end_str = match[1], match[2]
+
+    # 情况 1：bytes=start-end，指定区间
+    # end 超出文件大小时截断为 file_total-1；截断后 start > end 说明区间为空
     if start_str and end_str:
       start, end = int(start_str), int(end_str)
       if start >= file_total:
@@ -271,17 +286,24 @@ class StaticFileHandler:
       if start > end:
         return None
       return (start, end)
+
+    # 情况 2：bytes=start-，从 start 到文件末尾
     if start_str and not end_str:
       start = int(start_str)
       if start >= file_total:
         return None
       return (start, file_total - 1)
+
+    # 情况 3：bytes=-suffix，取文件最后 suffix 个字节
+    # suffix 超过文件大小时从 0 开始；suffix <= 0 无意义
     if not start_str and end_str:
       suffix = int(end_str)
       if suffix <= 0:
         return None
       start = max(file_total - suffix, 0)
       return (start, file_total - 1)
+
+    # 情况 4：bytes=-（start 和 end 均为空），非有效 Range
     return None
 
 
