@@ -12,6 +12,7 @@ from flask import Request, send_from_directory, jsonify, Response
 
 from config.route import STATIC_DELAY_ROUTE
 from lib.db import MockDBCache
+from lib.logger_lib import APP_LOGGER
 from lib.download_lib import get_static_match_regexp
 from lib.utils_lib import (
   create_md5,
@@ -212,7 +213,13 @@ class StaticFileHandler:
     def _stream():
       remaining: int = content_length
       offset: int = start
-      with open(file_path, 'rb') as f:
+      try:
+        f = open(file_path, 'rb')
+      except OSError as e:
+        APP_LOGGER.error(f'静态资源流式读取失败，文件：{file_path}，异常：{e}')
+        yield b''
+        return
+      with f:
         f.seek(offset)
         while remaining > 0:
           read_size: int = min(chunk_size, remaining)
