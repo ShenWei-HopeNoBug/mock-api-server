@@ -168,9 +168,9 @@ class StaticFileHandler:
     if not file_name:
       return 'Not Found', 404
 
-    file_path: str = os.path.abspath(os.path.join(self.static_folder, file_name))
-    # containment 校验：确保最终路径仍在 static_folder 目录下
-    static_dir: str = os.path.abspath(self.static_folder)
+    file_path: str = os.path.realpath(os.path.join(self.static_folder, file_name))
+    # containment 校验：确保最终路径仍在 static_folder 目录下（realpath 解析符号链接）
+    static_dir: str = os.path.realpath(self.static_folder)
     if not file_path.startswith(static_dir + os.sep):
       return 'Forbidden', 403
 
