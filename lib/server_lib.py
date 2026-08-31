@@ -179,8 +179,8 @@ class StaticFileHandler:
       return send_from_directory(self.static_folder, file_name)
 
     # 有限速：流式响应 + 逐块节流
-    # 先打开文件再获取大小，避免 getsize 与 open 之间文件被删除导致
-    # Content-Length 头已发送但 body 为空、客户端挂起
+    # 先打开文件获取大小并解析 Range，随后关闭；实际读取在生成器内重新打开，
+    # 避免 Flask 生成器惰性执行时 with 块已退出、句柄已失效的问题
     try:
       f = open(file_path, 'rb')
     except (FileNotFoundError, OSError):
@@ -211,30 +211,29 @@ class StaticFileHandler:
       headers['Content-Length'] = str(content_length)
       headers['Content-Type'] = content_type
 
-      chunk_size: int = self._CHUNK_SIZE
-      speed: int = self.static_load_speed  # KB/s
-      # 每块延时 = chunk_kb / speed，上限 max_delay
-      chunk_kb: float = chunk_size / 1024
-      per_chunk_delay: float = min(chunk_kb / speed, self.max_delay)
-
-      # 将文件内容读入内存后立即关闭句柄，由生成器按块 yield
-      # 文件句柄在 with 块结束时关闭，避免生成器延迟执行时句柄已失效
-      f.seek(start)
-      file_data: bytes = f.read(content_length)
+    chunk_size: int = self._CHUNK_SIZE
+    speed: int = self.static_load_speed  # KB/s
+    # 每块延时 = chunk_kb / speed，上限 max_delay
+    chunk_kb: float = chunk_size / 1024
+    per_chunk_delay: float = min(chunk_kb / speed, self.max_delay)
 
     def _stream():
-      remaining: int = content_length
-      offset: int = 0
-      while remaining > 0:
-        read_size: int = min(chunk_size, remaining)
-        data: bytes = file_data[offset:offset + read_size]
-        if not data:
-          break
-        offset += len(data)
-        remaining -= len(data)
-        if per_chunk_delay > 0:
-          time.sleep(per_chunk_delay)
-        yield data
+      # 生成器内打开句柄，确保惰性执行时句柄有效；逐块读取避免全量加载
+      try:
+        sf = open(file_path, 'rb')
+        sf.seek(start)
+        remaining: int = content_length
+        while remaining > 0:
+          read_size: int = min(chunk_size, remaining)
+          data: bytes = sf.read(read_size)
+          if not data:
+            break
+          remaining -= len(data)
+          if per_chunk_delay > 0:
+            time.sleep(per_chunk_delay)
+          yield data
+      finally:
+        sf.close()
 
     print(
       f'静态资源流式节流  文件：{file_name}  大小：{self._format_size(content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
