@@ -162,18 +162,26 @@ class StaticFileHandler:
     if not is_file_request(route_path):
       return 'Not Found', 404
 
-    file_name: str = route_path.split('/')[-1]
-    file_path: str = os.path.abspath(f'{self.work_dir}{self.static_url_path}/{file_name}')
-
-    if not os.path.exists(file_path):
+    # os.path.basename 跨平台识别 / 和 \，自动剥离所有目录层级，从源头杜绝 .. 穿越
+    file_name: str = os.path.basename(route_path)
+    if not file_name:
       return 'Not Found', 404
+
+    file_path: str = os.path.abspath(os.path.join(self.static_folder, file_name))
+    # containment 校验：确保最终路径仍在 static_folder 目录下
+    static_dir: str = os.path.abspath(self.static_folder)
+    if not file_path.startswith(static_dir + os.sep):
+      return 'Forbidden', 403
 
     # 无限速：直接走 send_from_directory（自带 Range 支持）
     if self.static_load_speed <= 0:
       return send_from_directory(self.static_folder, file_name)
 
     # 有限速：流式响应 + 逐块节流
-    file_total: int = os.path.getsize(file_path)
+    try:
+      file_total: int = os.path.getsize(file_path)
+    except (FileNotFoundError, OSError):
+      return 'Not Found', 404
     content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
 
     # 解析 Range 头
