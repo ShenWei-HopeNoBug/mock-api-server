@@ -38,8 +38,10 @@ from app_types.mock_server_types import (
   RequestContentTypeStr,
   RequestKey,
   RequestKeyFunc,
+  ResolveFileResult,
   ResponseKey,
   ResponseKeyFunc,
+  ResponseMeta,
   Route,
   VariantMeta,
   VariantState,
@@ -159,26 +161,61 @@ class StaticFileHandler:
   def match(self, path: str, range_header: Optional[str] = None) -> FlaskRouteResult:
     """匹配并返回本地静态资源文件"""
     route_path: str = '/' + path
-    # 非文件请求，跳过
-    if not is_file_request(route_path):
-      return 'Not Found', 404
+    resolved: ResolveFileResult = self._resolve_file(route_path)
 
-    # os.path.basename 跨平台识别 / 和 \，自动剥离所有目录层级，从源头杜绝 .. 穿越
-    file_name: str = os.path.basename(route_path)
-    if not file_name:
-      return 'Not Found', 404
+    if not resolved['valid']:
+      return resolved['result']
 
-    file_path: str = os.path.realpath(os.path.join(self.static_folder, file_name))
-    # containment 校验：确保最终路径仍在 static_folder 目录下（realpath 解析符号链接）
-    static_dir: str = os.path.realpath(self.static_folder)
-    if not file_path.startswith(static_dir + os.sep):
-      return 'Forbidden', 403
+    file_path: str = resolved['file_path']
+    file_name: str = resolved['file_name']
 
     # 无限速：直接走 send_from_directory（自带 Range 支持）
     if self.static_load_speed <= 0:
       return send_from_directory(self.static_folder, file_name)
 
     # 有限速：流式响应 + 逐块节流
+    return self._serve_throttled(file_path, file_name, range_header)
+
+  def _resolve_file(self, route_path: str) -> ResolveFileResult:
+    """路径解析 + 安全校验"""
+    # 非文件请求，跳过
+    if not is_file_request(route_path):
+      return {'file_path': '', 'file_name': '', 'valid': False, 'result': ('Not Found', 404)}
+
+    # os.path.basename 跨平台识别 / 和 \，自动剥离所有目录层级，从源头杜绝 .. 穿越
+    file_name: str = os.path.basename(route_path)
+    if not file_name:
+      return {'file_path': '', 'file_name': '', 'valid': False, 'result': ('Not Found', 404)}
+
+    file_path: str = os.path.realpath(os.path.join(self.static_folder, file_name))
+    # containment 校验：确保最终路径仍在 static_folder 目录下（realpath 解析符号链接）
+    static_dir: str = os.path.realpath(self.static_folder)
+    if not file_path.startswith(static_dir + os.sep):
+      return {'file_path': '', 'file_name': '', 'valid': False, 'result': ('Forbidden', 403)}
+
+    return {'file_path': file_path, 'file_name': file_name, 'valid': True, 'result': None}
+
+  def _build_partial_meta(self, start: int, end: int, file_total: int) -> ResponseMeta:
+    """有 Range：构建 206 Partial Content meta"""
+    content_length: int = end - start + 1
+    headers: Dict[str, str] = {
+      'Content-Range': f'bytes {start}-{end}/{file_total}',
+      'Accept-Ranges': 'bytes',
+    }
+    return ResponseMeta(status=206, headers=headers, start=start, end=end, content_length=content_length)
+
+  def _build_full_meta(self, file_total: int) -> ResponseMeta:
+    """无 Range：构建 200 OK meta"""
+    headers: Dict[str, str] = {'Accept-Ranges': 'bytes'}
+    return ResponseMeta(status=200, headers=headers, start=0, end=file_total - 1, content_length=file_total)
+
+  def _serve_throttled(
+      self,
+      file_path: str,
+      file_name: str,
+      range_header: Optional[str],
+  ) -> FlaskRouteResult:
+    """有限速：流式响应 + 逐块节流"""
     # 先打开文件获取大小并解析 Range，随后关闭；实际读取在生成器内重新打开，
     # 避免 Flask 生成器惰性执行时 with 块已退出、句柄已失效的问题
     try:
@@ -192,24 +229,15 @@ class StaticFileHandler:
 
       content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
 
-      # 解析 Range 头
+      # 解析 Range 头，分发到对应 meta 构建方法
       range_info: Optional[Tuple[int, int]] = self._parse_range(range_header, file_total)
       if range_info is not None:
-        start, end = range_info
-        content_length: int = end - start + 1
-        status: int = 206
-        headers: Dict[str, str] = {
-          'Content-Range': f'bytes {start}-{end}/{file_total}',
-          'Accept-Ranges': 'bytes',
-        }
+        meta: ResponseMeta = self._build_partial_meta(range_info[0], range_info[1], file_total)
       else:
-        start, end = 0, file_total - 1
-        content_length: int = file_total
-        status: int = 200
-        headers: Dict[str, str] = {'Accept-Ranges': 'bytes'}
+        meta = self._build_full_meta(file_total)
 
-      headers['Content-Length'] = str(content_length)
-      headers['Content-Type'] = content_type
+      meta.headers['Content-Length'] = str(meta.content_length)
+      meta.headers['Content-Type'] = content_type
 
     chunk_size: int = self._CHUNK_SIZE
     speed: int = self.static_load_speed  # KB/s
@@ -221,8 +249,8 @@ class StaticFileHandler:
       # 生成器内打开句柄，确保惰性执行时句柄有效；逐块读取避免全量加载
       try:
         sf = open(file_path, 'rb')
-        sf.seek(start)
-        remaining: int = content_length
+        sf.seek(meta.start)
+        remaining: int = meta.content_length
         while remaining > 0:
           read_size: int = min(chunk_size, remaining)
           data: bytes = sf.read(read_size)
@@ -236,8 +264,8 @@ class StaticFileHandler:
         sf.close()
 
     print(
-      f'静态资源流式节流  文件：{file_name}  大小：{self._format_size(content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
-    return Response(_stream(), status=status, headers=headers)
+      f'静态资源流式节流  文件：{file_name}  大小：{self._format_size(meta.content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
+    return Response(_stream(), status=meta.status, headers=meta.headers)
 
   @staticmethod
   def _format_size(size_bytes: float) -> str:
