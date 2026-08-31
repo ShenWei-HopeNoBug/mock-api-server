@@ -260,6 +260,8 @@ class StaticFileHandler:
     start_str, end_str = match[1], match[2]
     if start_str and end_str:
       start, end = int(start_str), int(end_str)
+      if start >= file_total:
+        return None
       end = min(end, file_total - 1)
       if start > end:
         return None
