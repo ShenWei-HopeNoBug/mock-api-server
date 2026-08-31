@@ -179,57 +179,62 @@ class StaticFileHandler:
       return send_from_directory(self.static_folder, file_name)
 
     # 有限速：流式响应 + 逐块节流
+    # 先打开文件再获取大小，避免 getsize 与 open 之间文件被删除导致
+    # Content-Length 头已发送但 body 为空、客户端挂起
     try:
-      file_total: int = os.path.getsize(file_path)
+      f = open(file_path, 'rb')
     except (FileNotFoundError, OSError):
       return 'Not Found', 404
-    content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
 
-    # 解析 Range 头
-    range_info: Optional[Tuple[int, int]] = self._parse_range(range_header, file_total)
-    if range_info is not None:
-      start, end = range_info
-      content_length: int = end - start + 1
-      status: int = 206
-      headers: Dict[str, str] = {
-        'Content-Range': f'bytes {start}-{end}/{file_total}',
-        'Accept-Ranges': 'bytes',
-      }
-    else:
-      start, end = 0, file_total - 1
-      content_length: int = file_total
-      status: int = 200
-      headers: Dict[str, str] = {'Accept-Ranges': 'bytes'}
+    with f:
+      f.seek(0, 2)
+      file_total: int = f.tell()
 
-    headers['Content-Length'] = str(content_length)
-    headers['Content-Type'] = content_type
+      content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
 
-    chunk_size: int = self._CHUNK_SIZE
-    speed: int = self.static_load_speed  # KB/s
-    # 每块延时 = chunk_kb / speed，上限 max_delay
-    chunk_kb: float = chunk_size / 1024
-    per_chunk_delay: float = min(chunk_kb / speed, self.max_delay)
+      # 解析 Range 头
+      range_info: Optional[Tuple[int, int]] = self._parse_range(range_header, file_total)
+      if range_info is not None:
+        start, end = range_info
+        content_length: int = end - start + 1
+        status: int = 206
+        headers: Dict[str, str] = {
+          'Content-Range': f'bytes {start}-{end}/{file_total}',
+          'Accept-Ranges': 'bytes',
+        }
+      else:
+        start, end = 0, file_total - 1
+        content_length: int = file_total
+        status: int = 200
+        headers: Dict[str, str] = {'Accept-Ranges': 'bytes'}
+
+      headers['Content-Length'] = str(content_length)
+      headers['Content-Type'] = content_type
+
+      chunk_size: int = self._CHUNK_SIZE
+      speed: int = self.static_load_speed  # KB/s
+      # 每块延时 = chunk_kb / speed，上限 max_delay
+      chunk_kb: float = chunk_size / 1024
+      per_chunk_delay: float = min(chunk_kb / speed, self.max_delay)
+
+      # 将文件内容读入内存后立即关闭句柄，由生成器按块 yield
+      # 文件句柄在 with 块结束时关闭，避免生成器延迟执行时句柄已失效
+      f.seek(start)
+      file_data: bytes = f.read(content_length)
 
     def _stream():
       remaining: int = content_length
-      offset: int = start
-      try:
-        f = open(file_path, 'rb')
-      except OSError as e:
-        APP_LOGGER.error(f'静态资源流式读取失败，文件：{file_path}，异常：{e}')
-        yield b''
-        return
-      with f:
-        f.seek(offset)
-        while remaining > 0:
-          read_size: int = min(chunk_size, remaining)
-          data: bytes = f.read(read_size)
-          if not data:
-            break
-          remaining -= len(data)
-          if per_chunk_delay > 0:
-            time.sleep(per_chunk_delay)
-          yield data
+      offset: int = 0
+      while remaining > 0:
+        read_size: int = min(chunk_size, remaining)
+        data: bytes = file_data[offset:offset + read_size]
+        if not data:
+          break
+        offset += len(data)
+        remaining -= len(data)
+        if per_chunk_delay > 0:
+          time.sleep(per_chunk_delay)
+        yield data
 
     print(
       f'静态资源流式节流  文件：{file_name}  大小：{self._format_size(content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
