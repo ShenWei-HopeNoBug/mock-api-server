@@ -334,7 +334,8 @@ class StaticFileHandler:
   @staticmethod
   def _compute_etag(file_size: int, mtime: float) -> str:
     """基于文件大小 + mtime 生成弱 ETag，避免读取文件内容算 hash 的 I/O 开销"""
-    return f'W/"{file_size}-{int(mtime)}"'
+    # 保留毫秒精度，避免同秒内文件修改（大小不变）产生相同 ETag
+    return f'W/"{file_size}-{int(mtime * 1000)}"'
 
   def _check_if_range(self, stat: os.stat_result, request_headers: RequestHeaders) -> bool:
     """
