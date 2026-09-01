@@ -350,7 +350,9 @@ class StaticFileHandler:
     if not if_range:
       return True
 
-    # 尝试作为 ETag 比较（RFC 7233 §3.2 要求强比较，不做弱 ETag 匹配）
+    # 尝试作为 ETag 比较（RFC 7233 §3.2 要求强比较，弱 ETag 不可用于 If-Range）
+    if if_range.startswith('W/'):
+      return False
     etag: str = self._compute_etag(stat.st_size, stat.st_mtime)
     if if_range == etag:
       return True
@@ -416,7 +418,8 @@ class StaticFileHandler:
       for client_etag in if_none_match.split(','):
         client_etag = client_etag.strip()
         # 弱 ETag 比较：W/"..." 与 W/"..." 或 "..." 均视为匹配
-        if client_etag == etag or client_etag == etag.replace('W/', ''):
+        strong_etag: str = etag[2:] if etag.startswith('W/') else etag
+        if client_etag == etag or client_etag == strong_etag:
           return True
       # If-None-Match 存在但未命中，按 RFC 忽略 If-Modified-Since，直接返回未命中
       return False
