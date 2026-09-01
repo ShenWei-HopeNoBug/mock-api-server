@@ -13,7 +13,7 @@ class ApiRecord(TypedDict, total=False):
   total=False 表示所有字段可选，调用方按需传入。
   """
   id: str  # 记录唯一标识（upsert 时由代码生成，batch 时由外部传入）
-  type: str  # 数据来源类型，如 'MITMPROXY' / 'USER' / 'MCP'
+  type: str  # 数据来源类型，如 'MITMPROXY' / 'USER' / 'MCP'，仅创建时生效，update 时忽略（保持创建时的值）
   url: str  # 请求 URL
   method: str  # HTTP 方法，仅支持 'GET' / 'POST'
   params: str  # 请求参数，JSON 字符串
@@ -22,7 +22,7 @@ class ApiRecord(TypedDict, total=False):
   enabled: bool  # 是否启用（True 启用，False 禁用），缺省时默认启用
   timeout: int  # 超时时间（毫秒），0 表示不限制
   request_content_type: str  # 请求 content-type 枚举值，可选值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'；GET 请求固定为 'NONE'
-  operator: str  # 操作来源，如 'USER' / 'MCP'，缺省为空字符串
+  operator: str  # 最后更新者，如 'USER' / 'MCP'，每次 update 会变更为当前操作者，缺省为空字符串
 
 
 class ApiData(TypedDict):
@@ -109,7 +109,8 @@ class ApiResponseVariantInsertRecord(TypedDict, total=False):
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用），缺省时默认启用
   timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
-  operator: str  # 操作来源，如 'USER' / 'MCP'，缺省为空字符串
+  operator: str  # 最后更新者，如 'USER' / 'MCP'，每次 update 会变更为当前操作者，缺省为空字符串
+  type: str  # 创建来源类型，'USER' / 'MCP'，仅创建时生效，缺省为 'USER'
 
 
 class ApiResponseVariantRecord(TypedDict, total=False):
@@ -125,7 +126,8 @@ class ApiResponseVariantRecord(TypedDict, total=False):
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用）
   timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
-  operator: str  # 操作来源，如 'USER' / 'MCP'，缺省为空字符串
+  operator: str  # 最后更新者，如 'USER' / 'MCP'，每次 update 会变更为当前操作者，缺省为空字符串
+  type: str  # 创建来源类型，仅创建时生效，update 时忽略（保持创建时的值）
 
 
 class ApiResponseVariant(TypedDict):
@@ -140,7 +142,8 @@ class ApiResponseVariant(TypedDict):
   response: str  # 变体响应体，JSON 字符串
   enabled: bool  # 是否启用（True 启用，False 禁用）
   timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
-  operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
+  operator: str  # 最后更新者，如 'USER' / 'MCP'，每次 update 会变更为当前操作者，空字符串表示历史数据
+  type: str  # 创建来源类型，'USER' / 'MCP'，创建后不可变更
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
@@ -170,7 +173,8 @@ class ApiResponseVariantSummary(TypedDict):
   name: str  # 变体名称
   enabled: bool  # 是否启用（True 启用，False 禁用）
   timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
-  operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
+  operator: str  # 最后更新者，如 'USER' / 'MCP'，空字符串表示历史数据
+  type: str  # 创建来源类型，'USER' / 'MCP'，创建后不可变更
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 

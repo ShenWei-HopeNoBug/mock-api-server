@@ -72,6 +72,10 @@ class ApiResponseVariantMixin:
       # v3 → v4: api_response_variants 新增 operator 字段
       self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
       APP_LOGGER.info('ApiResponseVariantMixin schema 迁移: v3 → v4, api_response_variants 新增 operator 字段')
+    if from_version < 5 <= to_version:
+      # v4 → v5: api_response_variants 新增 type 字段（创建来源类型，创建后不可变更）
+      self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN type TEXT NOT NULL DEFAULT 'USER'")
+      APP_LOGGER.info('ApiResponseVariantMixin schema 迁移: v4 → v5, api_response_variants 新增 type 字段')
 
   @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "插入变体失败"})
   def insert_variant(self, record: ApiResponseVariantInsertRecord) -> OperationResultWithOptionalId:
@@ -94,8 +98,8 @@ class ApiResponseVariantMixin:
         if row is None:
           return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"关联的 API 数据不存在: {api_data_id}"}
         conn.execute(
-          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout, operator) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          (variant_id, api_data_id, data.get('name', ''), data['response'], data['enabled'], data['timeout'], data.get('operator', '')),
+          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout, operator, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          (variant_id, api_data_id, data.get('name', ''), data['response'], data['enabled'], data['timeout'], data.get('operator', ''), data.get('type', 'USER')),
         )
         # 把新变体 ID 追加到 api_data.response_variant_ids 列表
         variant_ids = _parse_response_variant_ids(row[0])
@@ -122,7 +126,7 @@ class ApiResponseVariantMixin:
 
     with self._lock:
       row = self._conn.execute(
-        'SELECT name, response, enabled, timeout, operator FROM api_response_variants WHERE id=?',
+        'SELECT name, response, enabled, timeout, operator, type FROM api_response_variants WHERE id=?',
         (variant_id,),
       ).fetchone()
     if row is None:
@@ -134,9 +138,10 @@ class ApiResponseVariantMixin:
       'enabled': _parse_enabled(row[2]),
       'timeout': row[3],
       'operator': row[4],
+      'type': row[5],
     }
-    # api_data_id 不参与合并，防止破坏绑定关系
-    merged = {**old, **{k: v for k, v in record.items() if k not in ('id', 'api_data_id') and v is not None}}
+    # api_data_id 和 type 不参与合并：api_data_id 防止破坏绑定关系，type 创建后不可变更
+    merged = {**old, **{k: v for k, v in record.items() if k not in ('id', 'api_data_id', 'type') and v is not None}}
     merged['response'] = JsonFormat.format_json_string(merged['response'])
     merged['enabled'] = _normalize_enabled(merged.get('enabled'))
     merged['timeout'] = int(merged.get('timeout', 0))
@@ -200,7 +205,7 @@ class ApiResponseVariantMixin:
       return None
     with self._lock:
       row = self._conn.execute(
-        'SELECT id, api_data_id, name, response, enabled, timeout, operator, created_at, updated_at FROM api_response_variants WHERE id=?',
+        'SELECT id, api_data_id, name, response, enabled, timeout, operator, type, created_at, updated_at FROM api_response_variants WHERE id=?',
         (variant_id,),
       ).fetchone()
     if row is None:
@@ -214,8 +219,9 @@ class ApiResponseVariantMixin:
       'enabled': _parse_enabled(row[4]),
       'timeout': row[5],
       'operator': row[6],
-      'created_at': row[7],
-      'updated_at': row[8],
+      'type': row[7],
+      'created_at': row[8],
+      'updated_at': row[9],
     }
     return result
 
@@ -231,7 +237,7 @@ class ApiResponseVariantMixin:
     """
     if not api_data_id:
       return []
-    sql = 'SELECT id, api_data_id, name, response, enabled, timeout, operator, created_at, updated_at FROM api_response_variants WHERE api_data_id=?'
+    sql = 'SELECT id, api_data_id, name, response, enabled, timeout, operator, type, created_at, updated_at FROM api_response_variants WHERE api_data_id=?'
     params: List[str] = [api_data_id]
     if enabled is True:
       sql += ' AND enabled=1'
@@ -255,8 +261,9 @@ class ApiResponseVariantMixin:
         'enabled': _parse_enabled(row[4]),
         'timeout': row[5],
         'operator': row[6],
-        'created_at': row[7],
-        'updated_at': row[8],
+        'type': row[7],
+        'created_at': row[8],
+        'updated_at': row[9],
       })
     # 按 api_data.response_variant_ids 中的顺序排列，未在列表中的放最后
     result.sort(key=lambda v: order_map.get(v['id'], len(order_map)))
@@ -309,7 +316,7 @@ class ApiResponseVariantMixin:
     offset = (page_num - 1) * page_size
 
     where_sql, sql_params = self._build_variant_where(query)
-    sql = ('SELECT id, api_data_id, name, response, enabled, timeout, operator, created_at, updated_at '
+    sql = ('SELECT id, api_data_id, name, response, enabled, timeout, operator, type, created_at, updated_at '
            'FROM api_response_variants{} ORDER BY created_at {} LIMIT ? OFFSET ?').format(where_sql, order)
     sql_params.extend([page_size, offset])
 
@@ -325,34 +332,45 @@ class ApiResponseVariantMixin:
         'enabled': _parse_enabled(row[4]),
         'timeout': row[5],
         'operator': row[6],
-        'created_at': row[7],
-        'updated_at': row[8],
+        'type': row[7],
+        'created_at': row[8],
+        'updated_at': row[9],
       })
     return result
 
   @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "复制变体失败"})
-  def copy_variant(self, variant_id: str, api_data_id: str) -> OperationResultWithOptionalId:
+  def copy_variant(
+      self,
+      variant_id: str,
+      api_data_id: str,
+      operator: str = '',
+      variant_type: str = 'USER',
+  ) -> OperationResultWithOptionalId:
     """复制一条 response 变体，并绑定到指定的 api_data 上。
 
     新变体的 enabled 固定为 False（默认不启用），不复制源变体的启用状态。
+    副本的 type 和 operator 取当前操作者值（传入参数），不继承源变体的值。
 
     variant_id: 源变体 ID
     api_data_id: 目标 api_data ID（可以与源变体所属的 api_data 不同）
-    
+    operator: 当前操作者（如 'USER' / 'MCP'），作为副本的 operator 值
+    variant_type: 当前操作者身份（如 'USER' / 'MCP'），作为副本的 type 值（创建后不可变更）
+
     返回：成功返回 {"success": True, "id": "新变体ID", "status_code": 0, "status_msg": "成功"}，失败返回 {"success": False, "id": None, "status_code": 具体错误码, "status_msg": "具体错误信息"}
     """
     if not variant_id or not api_data_id:
       return {"success": False, "id": None, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: variant_id 或 api_data_id"}
 
     with self._lock:
+      # 只取需要复制的业务字段，不取 operator/type（副本用当前操作者值）
       row = self._conn.execute(
-        'SELECT name, response, enabled, timeout, operator FROM api_response_variants WHERE id=?',
+        'SELECT name, response, timeout FROM api_response_variants WHERE id=?',
         (variant_id,),
       ).fetchone()
     if row is None:
       return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"源变体不存在: {variant_id}"}
 
-    name, response, _, timeout, operator = row
+    name, response, timeout = row
     new_variant_id = generate_uuid()
     new_name = f'{name} (副本)' if name else '副本'
 
@@ -365,8 +383,8 @@ class ApiResponseVariantMixin:
           return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"目标 API 数据不存在: {api_data_id}"}
 
         conn.execute(
-          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout, operator) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          (new_variant_id, api_data_id, new_name, response, False, timeout, operator),
+          'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout, operator, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          (new_variant_id, api_data_id, new_name, response, False, timeout, operator, variant_type),
         )
         variant_ids = _parse_response_variant_ids(target_row[0])
         variant_ids.append(new_variant_id)

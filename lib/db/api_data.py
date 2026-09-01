@@ -361,6 +361,7 @@ class ApiDataMixin:
     try:
       with self._transaction() as conn:
         # 2. 字段级合并：record 中非空字段覆盖旧值，id 仅作 WHERE 条件不参与合并
+        #    type 为创建来源类型，创建后不可变更，同样排除不参与合并
         old = {
           'type': row[0],
           'url': row[1],
@@ -373,7 +374,7 @@ class ApiDataMixin:
           'request_content_type': row[8],
           'operator': row[9],
         }
-        merged = {**old, **{k: v for k, v in record.items() if k != 'id' and v is not None}}
+        merged = {**old, **{k: v for k, v in record.items() if k not in ('id', 'type') and v is not None}}
         merged['params'] = JsonFormat.format_json_string(merged['params'])
         merged['response_variant_ids'] = _normalize_response_variant_ids(merged.get('response_variant_ids'))
         merged['enabled'] = _normalize_enabled(merged.get('enabled'))
@@ -387,11 +388,10 @@ class ApiDataMixin:
         if merged['method'] == 'GET':
           merged['request_content_type'] = 'NONE'
 
-        # 3. 写入合并后的完整记录
+        # 3. 写入合并后的完整记录（type 不参与更新，保持创建时的值）
         cursor = conn.execute(
           '''UPDATE api_data
-             SET type=?,
-                 url=?,
+             SET url=?,
                  method=?,
                  params=?,
                  response=?,
@@ -402,7 +402,7 @@ class ApiDataMixin:
                  operator=?,
                  updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
              WHERE id = ?''',
-          (merged['type'], merged['url'], merged['method'],
+          (merged['url'], merged['method'],
            merged['params'], merged['response'], merged['response_variant_ids'], merged['enabled'],
            merged.get('timeout', 0), merged.get('request_content_type', 'NONE'), merged.get('operator', ''), api_id),
         )
@@ -501,3 +501,51 @@ class ApiDataMixin:
     except Exception as e:
       return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"批量删除失败: {str(e)}",
               "affected_count": 0}
+
+  # 复制一条 API 数据（不含变体），副本 type 和 operator 取当前操作者值，enabled 固定禁用
+  @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "复制失败"})
+  def copy_api(
+      self,
+      api_id: str,
+      operator: str = '',
+      api_type: str = 'USER',
+  ) -> OperationResultWithOptionalId:
+    """复制一条 API 数据（不含变体），副本 type 和 operator 取当前操作者值，enabled 固定禁用。
+
+    - 源数据不变
+    - 副本 enabled 固定为 False（默认不启用），不复制源数据的启用状态
+    - 副本 response_variant_ids 重置为 '[]'（不复制变体绑定，变体属于源 API）
+    - 副本 type 和 operator 用传入的当前操作者值，不继承源数据
+
+    api_id: 源 API 数据 ID
+    operator: 当前操作者（如 'USER' / 'MCP'），作为副本的 operator 值
+    api_type: 当前操作者身份（如 'USER' / 'MCP'），作为副本的 type 值（创建后不可变更）
+
+    返回：成功返回 {"success": True, "id": "新API_ID", "status_code": 0, "status_msg": "成功"}，失败返回 {"success": False, "id": None, "status_code": 具体错误码, "status_msg": "具体错误信息"}
+    """
+    if not api_id:
+      return {"success": False, "id": None, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: api_id"}
+
+    with self._lock:
+      # 只取需要复制的业务字段，不取 type/operator/enabled（副本用当前操作者值，enabled 固定禁用）
+      row = self._conn.execute(
+        'SELECT url, method, params, response, timeout, request_content_type FROM api_data WHERE id=?',
+        (api_id,),
+      ).fetchone()
+    if row is None:
+      return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"源 API 数据不存在: {api_id}"}
+
+    url, method, params, response, timeout, request_content_type = row
+    new_api_id = generate_uuid()
+
+    try:
+      with self._transaction() as conn:
+        conn.execute(
+          'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          (new_api_id, api_type, url, method,
+           JsonFormat.format_json_string(params), response, '[]',
+           False, timeout, request_content_type, operator),
+        )
+      return {"success": True, "id": new_api_id, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+    except Exception as e:
+      return {"success": False, "id": None, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
