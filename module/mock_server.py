@@ -119,7 +119,7 @@ class MockServer:
 
       # 如果设置了静态资源返回延时，添加内置延时动态匹配路由
       if self.static_load_speed > 0:
-        route_list.extend(STATIC_DELAY_ROUTE)
+        route_list.append(STATIC_DELAY_ROUTE)
 
       self.static_match_route = route_list
 
@@ -203,7 +203,7 @@ class MockServer:
 
     # 配置跨域
     resources: Dict[str, Dict[str, str]] = {
-      f"{self.static_url_path}/*": {"origins": "*"},
+      f"{self.static_url_path}/*": {"origins": "*", "allow_headers": "*"},
     }
 
     cache: ThreadSafeLRUCache[bool] = ThreadSafeLRUCache(limit=SERVER.STATIC_MATCH_CACHE_LIMIT)
@@ -231,7 +231,7 @@ class MockServer:
     for idx, static_route in enumerate(self.static_match_route):
       if not static_route.startswith('/'):
         continue
-      resources[f"{static_route}/*"] = {"origins": "*"}
+      resources[f"{static_route}/*"] = {"origins": "*", "allow_headers": "*"}
 
       def _make_static_view(handler: StaticFileHandler, endpoint_name: str):
         def _static_view(path: str) -> FlaskRouteResult:
