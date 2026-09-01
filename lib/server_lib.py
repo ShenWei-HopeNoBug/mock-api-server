@@ -338,7 +338,7 @@ class StaticFileHandler:
     """
     校验 If-Range 头是否匹配当前资源。
 
-    - If-Range 为 ETag：与文件 ETag 比较（支持弱 ETag W/ 前缀）
+    - If-Range 为 ETag：与文件 ETag 精确比较（RFC 7233 §3.2 要求强比较）
     - If-Range 为 HTTP-date：与文件 mtime 比较，精确匹配则命中
 
     无 If-Range 头时返回 True（无约束，正常走 Range 路径）。
@@ -347,9 +347,9 @@ class StaticFileHandler:
     if not if_range:
       return True
 
-    # 尝试作为 ETag 比较
+    # 尝试作为 ETag 比较（RFC 7233 §3.2 要求强比较，不做弱 ETag 匹配）
     etag: str = self._compute_etag(stat.st_size, stat.st_mtime)
-    if if_range == etag or if_range == etag.replace('W/', ''):
+    if if_range == etag:
       return True
 
     # 尝试作为 HTTP-date 比较
