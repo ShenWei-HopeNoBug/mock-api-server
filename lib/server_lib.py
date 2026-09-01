@@ -230,6 +230,10 @@ class StaticFileHandler:
     if not file_path.startswith(static_dir + os.sep):
       return {'file_path': '', 'file_name': '', 'valid': False, 'result': ('Forbidden', 403)}
 
+    # 文件存在性校验：不存在时返回 404，避免后续 os.stat 抛出 FileNotFoundError
+    if not os.path.isfile(file_path):
+      return {'file_path': '', 'file_name': '', 'valid': False, 'result': ('Not Found', 404)}
+
     return {'file_path': file_path, 'file_name': file_name, 'valid': True, 'result': None}
 
   def _build_partial_meta(self, start: int, end: int, file_total: int) -> ResponseMeta:
