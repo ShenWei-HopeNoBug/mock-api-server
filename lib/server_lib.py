@@ -202,8 +202,9 @@ class StaticFileHandler:
         time.sleep(delay)
 
     result = send_from_directory(self.static_folder, file_name)
-    # send_from_directory 返回 200/206 时补充缓存头
-    if hasattr(result, 'headers') and result.status_code in (200, 206):
+    # send_from_directory 返回 200/206/304 时均需补充自定义缓存头，
+    # 确保后续条件请求的 ETag / Cache-Control 格式与 _build_304_response 一致
+    if hasattr(result, 'headers') and result.status_code in (200, 206, 304):
       self._apply_cache_headers(result, file_path)
     return result
 
