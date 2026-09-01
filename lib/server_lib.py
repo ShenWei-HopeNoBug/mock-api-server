@@ -173,11 +173,11 @@ class StaticFileHandler:
     file_name: str = resolved.get('file_name')
     range_header: Optional[str] = request_headers.get('Range')
 
-    # 无限速：一次性延时 + send_from_directory（自带 Range 支持）
-    if self.static_load_speed <= 0:
+    # 无 Range：一次性延时 + send_from_directory（自带 Range 支持）
+    if range_header is None:
       return self._serve_direct(file_path, file_name, request_headers)
 
-    # 有限速：流式响应 + 逐块节流
+    # 有 Range：流式响应 + 逐块节流
     return self._serve_throttled(file_path, file_name, range_header, request_headers)
 
   def _serve_direct(
@@ -186,7 +186,7 @@ class StaticFileHandler:
       file_name: str,
       request_headers: RequestHeaders,
   ) -> FlaskRouteResult:
-    """无限速：按文件大小计算一次性延时后直接返回文件"""
+    """无 Range：按文件大小计算一次性延时后直接返回文件"""
     # 浏览器缓存校验：条件请求命中时返回 304，跳过延时
     if self._check_cache_hit(file_path, request_headers):
       print(f'静态资源缓存命中(304)  文件：{file_name}')
@@ -248,7 +248,7 @@ class StaticFileHandler:
       range_header: Optional[str],
       request_headers: RequestHeaders,
   ) -> FlaskRouteResult:
-    """有限速：流式响应 + 逐块节流"""
+    """有 Range：流式响应 + 逐块节流（无限速时 per_chunk_delay 为 0，等价于纯流式传输）"""
     # 浏览器缓存校验：条件请求命中时返回 304，跳过延时
     if self._check_cache_hit(file_path, request_headers):
       print(f'静态资源缓存命中(304)  文件：{file_name}')
@@ -281,9 +281,12 @@ class StaticFileHandler:
 
     chunk_size: int = self._CHUNK_SIZE
     speed: int = self.static_load_speed  # KB/s
-    # 每块延时 = chunk_kb / speed，上限 max_delay
-    chunk_kb: float = chunk_size / 1024
-    per_chunk_delay: float = min(chunk_kb / speed, self.max_delay)
+    # 每块延时 = chunk_kb / speed，上限 max_delay；无限速时延时为 0
+    if speed > 0:
+      chunk_kb: float = chunk_size / 1024
+      per_chunk_delay: float = min(chunk_kb / speed, self.max_delay)
+    else:
+      per_chunk_delay: float = 0.0
 
     def _stream():
       # 生成器内打开句柄，确保惰性执行时句柄有效；逐块读取避免全量加载
