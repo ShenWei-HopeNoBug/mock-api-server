@@ -341,18 +341,23 @@ class StaticFileHandler:
     """
     判断浏览器条件请求是否命中缓存。
 
-    - If-None-Match：与文件 ETag 比较（支持弱 ETag W/ 前缀）
-    - If-Modified-Since：与文件 mtime 比较，请求时间 >= mtime 则命中
+    遵循 RFC 7232 §6 优先级：
+    1. If-None-Match 存在时，仅做 ETag 校验，忽略 If-Modified-Since
+    2. If-None-Match 不存在时，才检查 If-Modified-Since
 
-    两者有其一命中即返回 True。
+    - If-None-Match：* 匹配任意存在资源；否则与文件 ETag 逐个比较（支持弱 ETag W/ 前缀）
+    - If-Modified-Since：与文件 mtime 比较，请求时间 >= mtime 则命中
     """
     stat = os.stat(file_path)
     file_size: int = stat.st_size
     mtime: float = stat.st_mtime
 
-    # If-None-Match 校验
+    # If-None-Match 校验（存在时忽略 If-Modified-Since）
     if_none_match: Optional[str] = request_headers.get('If-None-Match')
     if if_none_match:
+      # If-None-Match: * 匹配任意存在资源
+      if if_none_match.strip() == '*':
+        return True
       etag: str = self._compute_etag(file_size, mtime)
       # 浏览器可能发送多个 ETag，逗号分隔
       for client_etag in if_none_match.split(','):
@@ -360,8 +365,10 @@ class StaticFileHandler:
         # 弱 ETag 比较：W/"..." 与 W/"..." 或 "..." 均视为匹配
         if client_etag == etag or client_etag == etag.replace('W/', ''):
           return True
+      # If-None-Match 存在但未命中，按 RFC 忽略 If-Modified-Since，直接返回未命中
+      return False
 
-    # If-Modified-Since 校验
+    # If-Modified-Since 校验（仅在 If-None-Match 不存在时执行）
     if_modified_since: Optional[str] = request_headers.get('If-Modified-Since')
     if if_modified_since:
       try:
