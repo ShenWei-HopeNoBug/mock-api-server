@@ -5,6 +5,7 @@ mock server 相关的类型定义
 from typing import Any, Dict, List, NamedTuple, Optional, Protocol, Tuple, TypedDict, Union
 
 from flask import Response
+from werkzeug.datastructures import Headers
 
 from app_types.global_types import JsonValue
 
@@ -127,3 +128,7 @@ class ResponseMeta(NamedTuple):
   start: int
   end: int
   content_length: int
+
+
+# Flask request.headers 实际类型
+RequestHeaders = Headers

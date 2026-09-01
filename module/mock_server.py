@@ -235,7 +235,7 @@ class MockServer:
 
       def _make_static_view(handler: StaticFileHandler, endpoint_name: str):
         def _static_view(path: str) -> FlaskRouteResult:
-          return handler.match(path, range_header=request.headers.get('Range'))
+          return handler.match(path=path, request_headers=request.headers)
 
         _static_view.__name__ = endpoint_name
         return _static_view

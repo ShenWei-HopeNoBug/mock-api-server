@@ -5,11 +5,13 @@ import re
 import time
 import threading
 from collections import OrderedDict
+from email.utils import formatdate, parsedate_to_datetime
 from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
 import mimetypes
 from flask import Request, send_from_directory, jsonify, Response
 
+from config.enum.SERVER import STATIC_IMAGE_CACHE_MAX_AGE
 from config.route import STATIC_DELAY_ROUTE
 from lib.db import MockDBCache
 from lib.logger_lib import APP_LOGGER
@@ -36,6 +38,7 @@ from app_types.mock_server_types import (
   ParamsJsonStringFunc,
   ParsedRequest,
   RequestContentTypeStr,
+  RequestHeaders,
   RequestKey,
   RequestKeyFunc,
   ResolveFileResult,
@@ -158,7 +161,7 @@ class StaticFileHandler:
   # - 配合 KB/s 限速，64KB 在常见限速范围（100KB/s~1MB/s）下延迟粒度合理（0.064s~0.64s）
   _CHUNK_SIZE: int = 64 * 1024
 
-  def match(self, path: str, range_header: Optional[str] = None) -> FlaskRouteResult:
+  def match(self, path: str, request_headers: RequestHeaders) -> FlaskRouteResult:
     """匹配并返回本地静态资源文件"""
     route_path: str = '/' + path
     resolved: ResolveFileResult = self._resolve_file(route_path)
@@ -168,16 +171,27 @@ class StaticFileHandler:
 
     file_path: str = resolved.get('file_path')
     file_name: str = resolved.get('file_name')
+    range_header: Optional[str] = request_headers.get('Range')
 
     # 无限速：一次性延时 + send_from_directory（自带 Range 支持）
     if self.static_load_speed <= 0:
-      return self._serve_direct(file_path, file_name)
+      return self._serve_direct(file_path, file_name, request_headers)
 
     # 有限速：流式响应 + 逐块节流
-    return self._serve_throttled(file_path, file_name, range_header)
+    return self._serve_throttled(file_path, file_name, range_header, request_headers)
 
-  def _serve_direct(self, file_path: str, file_name: str) -> FlaskRouteResult:
+  def _serve_direct(
+      self,
+      file_path: str,
+      file_name: str,
+      request_headers: RequestHeaders,
+  ) -> FlaskRouteResult:
     """无限速：按文件大小计算一次性延时后直接返回文件"""
+    # 浏览器缓存校验：条件请求命中时返回 304，跳过延时
+    if self._check_cache_hit(file_path, request_headers):
+      print(f'静态资源缓存命中(304)  文件：{file_name}')
+      return self._build_304_response(file_path)
+
     if self.static_load_speed > 0:
       file_size: int = os.path.getsize(file_path)
       file_size_kb: float = file_size / 1024
@@ -187,7 +201,11 @@ class StaticFileHandler:
           f'静态资源一次性延时  文件：{file_name}  大小：{self._format_size(file_size)}  速率：{self._format_size(self.static_load_speed * 1024)}/s  延时：{delay:.4f}s')
         time.sleep(delay)
 
-    return send_from_directory(self.static_folder, file_name)
+    result = send_from_directory(self.static_folder, file_name)
+    # send_from_directory 返回 200/206 时补充缓存头
+    if hasattr(result, 'headers') and result.status_code in (200, 206):
+      self._apply_cache_headers(result, file_path)
+    return result
 
   def _resolve_file(self, route_path: str) -> ResolveFileResult:
     """路径解析 + 安全校验"""
@@ -227,8 +245,14 @@ class StaticFileHandler:
       file_path: str,
       file_name: str,
       range_header: Optional[str],
+      request_headers: RequestHeaders,
   ) -> FlaskRouteResult:
     """有限速：流式响应 + 逐块节流"""
+    # 浏览器缓存校验：条件请求命中时返回 304，跳过延时
+    if self._check_cache_hit(file_path, request_headers):
+      print(f'静态资源缓存命中(304)  文件：{file_name}')
+      return self._build_304_response(file_path)
+
     # 先打开文件获取大小并解析 Range，随后关闭；实际读取在生成器内重新打开，
     # 避免 Flask 生成器惰性执行时 with 块已退出、句柄已失效的问题
     try:
@@ -251,6 +275,8 @@ class StaticFileHandler:
 
       meta.headers['Content-Length'] = str(meta.content_length)
       meta.headers['Content-Type'] = content_type
+      # 补充缓存头
+      self._apply_cache_headers_to_dict(meta.headers, file_path)
 
     chunk_size: int = self._CHUNK_SIZE
     speed: int = self.static_load_speed  # KB/s
@@ -288,6 +314,91 @@ class StaticFileHandler:
     if size_bytes < 1024 * 1024:
       return f'{size_bytes / 1024:.2f}KB'
     return f'{size_bytes / (1024 * 1024):.2f}MB'
+
+  @staticmethod
+  def _compute_etag(file_size: int, mtime: float) -> str:
+    """基于文件大小 + mtime 生成弱 ETag，避免读取文件内容算 hash 的 I/O 开销"""
+    return f'W/"{file_size}-{int(mtime)}"'
+
+  @staticmethod
+  def _format_http_date(timestamp: float) -> str:
+    """将时间戳转为 HTTP 标准日期格式（RFC 7231 IMF-fixdate）"""
+    return formatdate(timestamp, usegmt=True)
+
+  @staticmethod
+  def _is_image(file_path: str) -> bool:
+    """判断文件 MIME 类型是否为图片"""
+    mime_type: Optional[str] = mimetypes.guess_type(file_path)[0]
+    return mime_type is not None and mime_type.startswith('image/')
+
+  def _build_cache_control(self, file_path: str) -> str:
+    """根据文件类型生成 Cache-Control 值：图片走强缓存，其他走协商缓存"""
+    if self._is_image(file_path):
+      return f'public, max-age={STATIC_IMAGE_CACHE_MAX_AGE}'
+    return 'public, max-age=0, must-revalidate'
+
+  def _check_cache_hit(self, file_path: str, request_headers: RequestHeaders) -> bool:
+    """
+    判断浏览器条件请求是否命中缓存。
+
+    - If-None-Match：与文件 ETag 比较（支持弱 ETag W/ 前缀）
+    - If-Modified-Since：与文件 mtime 比较，请求时间 >= mtime 则命中
+
+    两者有其一命中即返回 True。
+    """
+    stat = os.stat(file_path)
+    file_size: int = stat.st_size
+    mtime: float = stat.st_mtime
+
+    # If-None-Match 校验
+    if_none_match: Optional[str] = request_headers.get('If-None-Match')
+    if if_none_match:
+      etag: str = self._compute_etag(file_size, mtime)
+      # 浏览器可能发送多个 ETag，逗号分隔
+      for client_etag in if_none_match.split(','):
+        client_etag = client_etag.strip()
+        # 弱 ETag 比较：W/"..." 与 W/"..." 或 "..." 均视为匹配
+        if client_etag == etag or client_etag == etag.replace('W/', ''):
+          return True
+
+    # If-Modified-Since 校验
+    if_modified_since: Optional[str] = request_headers.get('If-Modified-Since')
+    if if_modified_since:
+      try:
+        ims_dt = parsedate_to_datetime(if_modified_since)
+        if ims_dt is not None:
+          mtime_dt = parsedate_to_datetime(self._format_http_date(mtime))
+          if mtime_dt is not None and ims_dt >= mtime_dt:
+            return True
+      except (TypeError, ValueError):
+        pass
+
+    return False
+
+  def _apply_cache_headers(self, response: Response, file_path: str) -> None:
+    """为 send_from_directory 返回的 Response 对象补充缓存头"""
+    stat = os.stat(file_path)
+    etag: str = self._compute_etag(stat.st_size, stat.st_mtime)
+    response.headers['ETag'] = etag
+    response.headers['Last-Modified'] = self._format_http_date(stat.st_mtime)
+    response.headers['Cache-Control'] = self._build_cache_control(file_path)
+
+  def _apply_cache_headers_to_dict(self, headers: Dict[str, str], file_path: str) -> None:
+    """为 _serve_throttled 的 meta.headers dict 补充缓存头"""
+    stat = os.stat(file_path)
+    headers['ETag'] = self._compute_etag(stat.st_size, stat.st_mtime)
+    headers['Last-Modified'] = self._format_http_date(stat.st_mtime)
+    headers['Cache-Control'] = self._build_cache_control(file_path)
+
+  def _build_304_response(self, file_path: str) -> FlaskRouteResult:
+    """构建 304 Not Modified 响应（无 body、无延时、附带缓存头）"""
+    stat = os.stat(file_path)
+    headers: Dict[str, str] = {
+      'ETag': self._compute_etag(stat.st_size, stat.st_mtime),
+      'Last-Modified': self._format_http_date(stat.st_mtime),
+      'Cache-Control': self._build_cache_control(file_path),
+    }
+    return Response('', status=304, headers=headers)
 
   @staticmethod
   def _parse_range(range_header: Optional[str], file_total: int) -> Optional[Tuple[int, int]]:
