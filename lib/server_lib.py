@@ -163,11 +163,11 @@ class StaticFileHandler:
     route_path: str = '/' + path
     resolved: ResolveFileResult = self._resolve_file(route_path)
 
-    if not resolved['valid']:
-      return resolved['result']
+    if not resolved.get('valid'):
+      return resolved.get('result') or ('Not Found', 404)
 
-    file_path: str = resolved['file_path']
-    file_name: str = resolved['file_name']
+    file_path: str = resolved.get('file_path')
+    file_name: str = resolved.get('file_name')
 
     # 无限速：一次性延时 + send_from_directory（自带 Range 支持）
     if self.static_load_speed <= 0:
