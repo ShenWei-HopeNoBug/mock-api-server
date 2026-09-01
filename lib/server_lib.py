@@ -267,6 +267,11 @@ class StaticFileHandler:
 
       content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
 
+      # If-Range 校验：不匹配时忽略 Range，返回完整文件（200）
+      stat = os.stat(file_path)
+      if not self._check_if_range(stat, request_headers):
+        range_header = None
+
       # 解析 Range 头，分发到对应 meta 构建方法
       range_info: Optional[Tuple[int, int]] = self._parse_range(range_header, file_total)
       if range_info is not None:
@@ -323,6 +328,36 @@ class StaticFileHandler:
   def _compute_etag(file_size: int, mtime: float) -> str:
     """基于文件大小 + mtime 生成弱 ETag，避免读取文件内容算 hash 的 I/O 开销"""
     return f'W/"{file_size}-{int(mtime)}"'
+
+  def _check_if_range(self, stat: os.stat_result, request_headers: RequestHeaders) -> bool:
+    """
+    校验 If-Range 头是否匹配当前资源。
+
+    - If-Range 为 ETag：与文件 ETag 比较（支持弱 ETag W/ 前缀）
+    - If-Range 为 HTTP-date：与文件 mtime 比较，精确匹配则命中
+
+    无 If-Range 头时返回 True（无约束，正常走 Range 路径）。
+    """
+    if_range: Optional[str] = request_headers.get('If-Range')
+    if not if_range:
+      return True
+
+    # 尝试作为 ETag 比较
+    etag: str = self._compute_etag(stat.st_size, stat.st_mtime)
+    if if_range == etag or if_range == etag.replace('W/', ''):
+      return True
+
+    # 尝试作为 HTTP-date 比较
+    try:
+      ir_dt = parsedate_to_datetime(if_range)
+      if ir_dt is not None:
+        mtime_dt = parsedate_to_datetime(self._format_http_date(stat.st_mtime))
+        if mtime_dt is not None and ir_dt == mtime_dt:
+          return True
+    except (TypeError, ValueError):
+      pass
+
+    return False
 
   @staticmethod
   def _format_http_date(timestamp: float) -> str:
