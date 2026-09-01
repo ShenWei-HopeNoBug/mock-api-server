@@ -206,13 +206,10 @@ class MockServer:
       f"{self.static_url_path}/*": {"origins": "*", "allow_headers": "*"},
     }
 
-    cache: ThreadSafeLRUCache[bool] = ThreadSafeLRUCache(limit=SERVER.STATIC_MATCH_CACHE_LIMIT)
     static_handler: StaticFileHandler = StaticFileHandler(
       work_dir=self.work_dir,
-      static_url_path=self.static_url_path,
       static_load_speed=self.static_load_speed,
       static_folder=static_folder,
-      cache=cache,
       max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
     )
 

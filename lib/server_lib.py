@@ -141,17 +141,12 @@ class StaticFileHandler:
   def __init__(
       self,
       work_dir: str,
-      static_url_path: str,
       static_load_speed: int,
       static_folder: str,
-      cache: ThreadSafeLRUCache[bool],
       max_delay: Union[int, float],
   ) -> None:
-    self.work_dir: str = work_dir
-    self.static_url_path: str = static_url_path
     self.static_load_speed: int = static_load_speed
-    self.static_folder: str = static_folder
-    self.cache: ThreadSafeLRUCache[bool] = cache
+    self.static_folder: str = os.path.join(work_dir, static_folder)
     self.max_delay: Union[int, float] = max_delay
 
   # 流式节流每块大小（字节）
