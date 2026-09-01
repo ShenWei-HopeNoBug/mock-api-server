@@ -204,7 +204,9 @@ class StaticFileHandler:
           f'静态资源一次性延时  文件：{file_name}  大小：{self._format_size(file_size)}  速率：{self._format_size(self.static_load_speed * 1024)}/s  延时：{delay:.4f}s')
         time.sleep(delay)
 
-    result = send_from_directory(self.static_folder, file_name)
+    # conditional=False 透传给底层 send_file，禁用内置条件请求处理，
+    # 避免与自定义 _check_cache_hit 双 ETag 体系冲突
+    result = send_from_directory(self.static_folder, file_name, conditional=False)
     # send_from_directory 返回 200/206/304 时均需补充自定义缓存头，
     # 确保后续条件请求的 ETag / Cache-Control 格式与 _build_304_response 一致
     if hasattr(result, 'headers') and result.status_code in (200, 206, 304):
