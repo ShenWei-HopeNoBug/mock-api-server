@@ -2,9 +2,10 @@
 """
 mock server 相关的类型定义
 """
-from typing import Any, Dict, List, NamedTuple, Protocol, Tuple, TypedDict, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Protocol, Tuple, TypedDict, Union
 
 from flask import Response
+from werkzeug.datastructures import Headers
 
 from app_types.global_types import JsonValue
 
@@ -94,11 +95,12 @@ DeviceId = str
 # 客户端状态
 DeviceState = Dict[str, Any]
 
+
 # 单个 api_data 在单设备上的变体命中状态
 class VariantState(TypedDict):
   """记录某个设备对某个 api_data 的变体命中进度"""
-  next_index: int            # 下次应命中的变体索引
-  last_hit_time: float       # 上次命中时间戳（秒）
+  next_index: int  # 下次应命中的变体索引
+  last_hit_time: float  # 上次命中时间戳（秒）
   last_variant_timeout: int  # 上次命中变体的 idle 回退超时（毫秒）
 
 
@@ -107,3 +109,26 @@ class ClientStateResult(TypedDict):
   device_id: DeviceId
   state: DeviceState
   is_new: bool
+
+
+# StaticFileHandler._resolve_file 返回类型
+class ResolveFileResult(TypedDict):
+  """路径解析 + 安全校验结果"""
+  file_path: str
+  file_name: str
+  valid: bool
+  result: Optional[FlaskRouteResult]  # valid=False 时为 (msg, status_code)
+
+
+# StaticFileHandler 流式响应 meta
+class ResponseMeta(NamedTuple):
+  """流式响应 meta：status / headers / 字节区间 / content_length"""
+  status: int
+  headers: Dict[str, str]
+  start: int
+  end: int
+  content_length: int
+
+
+# Flask request.headers 实际类型
+RequestHeaders = Headers

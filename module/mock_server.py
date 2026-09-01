@@ -228,11 +228,21 @@ class MockServer:
       replace_assets=self.replace_assets,
     )
 
-    for static_route in self.static_match_route:
+    for idx, static_route in enumerate(self.static_match_route):
       if not static_route.startswith('/'):
         continue
       resources[f"{static_route}/*"] = {"origins": "*"}
-      app.route(f'{static_route}/<path:path>', methods=['GET'])(static_handler.match)
+
+      def _make_static_view(handler: StaticFileHandler, endpoint_name: str):
+        def _static_view(path: str) -> FlaskRouteResult:
+          return handler.match(path=path, request_headers=request.headers)
+
+        _static_view.__name__ = endpoint_name
+        return _static_view
+
+      app.route(f'{static_route}/<path:path>', methods=['GET'], endpoint=f'static_{idx}')(
+        _make_static_view(static_handler, f'static_{idx}')
+      )
 
     @app.route('/ping', methods=['GET'])
     def ping() -> FlaskRouteResult:
