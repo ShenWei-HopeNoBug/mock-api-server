@@ -169,12 +169,25 @@ class StaticFileHandler:
     file_path: str = resolved['file_path']
     file_name: str = resolved['file_name']
 
-    # 无限速：直接走 send_from_directory（自带 Range 支持）
+    # 无限速：一次性延时 + send_from_directory（自带 Range 支持）
     if self.static_load_speed <= 0:
-      return send_from_directory(self.static_folder, file_name)
+      return self._serve_direct(file_path, file_name)
 
     # 有限速：流式响应 + 逐块节流
     return self._serve_throttled(file_path, file_name, range_header)
+
+  def _serve_direct(self, file_path: str, file_name: str) -> FlaskRouteResult:
+    """无限速：按文件大小计算一次性延时后直接返回文件"""
+    if self.static_load_speed > 0:
+      file_size: int = os.path.getsize(file_path)
+      file_size_kb: float = file_size / 1024
+      delay: float = min(file_size_kb / self.static_load_speed, self.max_delay)
+      if delay > 0:
+        print(
+          f'静态资源一次性延时  文件：{file_name}  大小：{self._format_size(file_size)}  速率：{self._format_size(self.static_load_speed * 1024)}/s  延时：{delay:.4f}s')
+        time.sleep(delay)
+
+    return send_from_directory(self.static_folder, file_name)
 
   def _resolve_file(self, route_path: str) -> ResolveFileResult:
     """路径解析 + 安全校验"""
