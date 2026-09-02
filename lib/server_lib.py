@@ -246,7 +246,7 @@ class StaticFileHandler:
       file_name: str,
       request_headers: RequestHeaders,
   ) -> FlaskRouteResult:
-    """无 Range：直接返回文件（限速时仅视频返回探测头部，引导改发 Range 请求）"""
+    """直接返回文件（限速时仅视频返回探测头部；不限速含 Range 时启用条件处理）"""
     # 入口处 stat 一次，后续全部复用，避免 TOCTOU 竞态
     stat: os.stat_result = os.stat(file_path)
 
@@ -271,10 +271,11 @@ class StaticFileHandler:
       print(f'静态资源探测响应(200 empty)  文件：{file_name}  大小：{self._format_size(stat.st_size)}')
       return Response(b'', status=200, headers=headers)
 
-    # 无限速：send_from_directory 返回完整文件
-    # conditional=False 透传给底层 send_file，禁用内置条件请求处理，
-    # 避免与自定义 _check_cache_hit 双 ETag 体系冲突
-    result = send_from_directory(self.static_folder, file_name, conditional=False)
+    # 无限速场景下：
+    # - 有 Range 头时启用 conditional，交给底层处理 206/416 等分段响应
+    # - 无 Range 时保持 conditional=False，避免与自定义 _check_cache_hit 双 ETag 体系冲突
+    has_range_header: bool = request_headers.get('Range') is not None
+    result = send_from_directory(self.static_folder, file_name, conditional=has_range_header)
     # send_from_directory 返回 200/206/304 时均需补充自定义缓存头，
     # 确保后续条件请求的 ETag / Cache-Control 格式与 _build_304_response 一致
     if hasattr(result, 'headers') and result.status_code in (200, 206, 304):
