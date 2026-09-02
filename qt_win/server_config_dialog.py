@@ -136,9 +136,16 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     throttle_layout.addWidget(throttle_combo, 1)
     throttle_widget.setFixedHeight(40)
 
+    # 用外层 wrapper 给限速策略整行加上下边距
+    throttle_wrapper = QWidget(self)
+    throttle_wrapper_layout = QVBoxLayout(throttle_wrapper)
+    throttle_wrapper_layout.setContentsMargins(12, 8, 12, 8)
+    throttle_wrapper_layout.setSpacing(0)
+    throttle_wrapper_layout.addWidget(throttle_widget)
+
     layout.addWidget(file_type_edit_weight)
     layout.addWidget(static_route_edit_weight)
-    layout.addWidget(throttle_widget)
+    layout.addWidget(throttle_wrapper)
     self.file_type_edit_weight = file_type_edit_weight
     self.static_route_edit_weight = static_route_edit_weight
     self.throttle_combo = throttle_combo
