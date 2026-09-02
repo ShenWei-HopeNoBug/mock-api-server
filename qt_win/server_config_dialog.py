@@ -97,10 +97,10 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       QListView {
         background-color: rgb(250, 250, 250);
         border: 1px solid skyblue;
-        border-radius: 4px;
+        border-radius: 0px;
         padding: 2px;
         outline: none;
-        font: 8pt;
+        font-size: 8pt;
       }
       QListView::item {
         min-height: 24px;
@@ -114,6 +114,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       QListView::item:selected {
         background-color: rgb(255, 224, 178);
         color: black;
+        border-radius: 4px;
       }
     ''')
     throttle_combo.setView(list_view)

@@ -51,33 +51,4 @@ window = '''
     height:10px;
   }
 
-  QComboBox QAbstractItemView
-  {
-    background-color:rgb(250, 250, 250);
-    border:1px solid skyblue;
-    border-radius:4px;
-    padding:8px;
-    font-size:15px;
-    min-height:44px;
-    outline:none;
-  }
-
-  QComboBox QAbstractItemView::item
-  {
-    min-height:40px;
-    padding:8px 14px;
-    margin-bottom:4px;
-    border-radius:4px;
-  }
-
-  QComboBox QAbstractItemView::item:hover
-  {
-    background-color:rgb(255, 245, 225);
-  }
-
-  QComboBox QAbstractItemView::item:selected
-  {
-    background-color:rgb(255, 224, 178);
-    color:black;
-  }
-'''
+  /* 下拉列表样式由 QListView.setStyleSheet 单独控制，避免与自定义视图冲突 */'''
