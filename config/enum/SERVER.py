@@ -27,6 +27,8 @@ RESPONSE_CACHE_LIMIT = 200
 STATIC_MATCH_MAX_DELAY_SECONDS = 120
 # 静态资源强缓存时间（秒），仅对图片类资源生效
 STATIC_IMAGE_CACHE_MAX_AGE = 3600
+# 206 Partial Content 强缓存时间（秒），所有文件类型生效
+STATIC_PARTIAL_CACHE_MAX_AGE = 3600
 
 # 设备标识 Header 名称
 DEVICE_ID_HEADER = 'Mock-Server-Device-Id'

@@ -5,6 +5,7 @@ from config.work_file import (
   MOCK_SERVER_CONFIG_PATH,
   STATIC_DIR,
 )
+from config.default import DEFAULT_THROTTLE_STRATEGY
 from config.enum import SERVER
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread, error_catch
@@ -12,15 +13,17 @@ from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
 from lib.app_lib import get_mock_api_data_list
 from lib.server_lib import (
-  AssetsReplaceFunc,
   ClientStateManager,
   MockRequestHandler,
   MockRequestParseError,
-  StaticFileHandler,
   ThreadSafeLRUCache,
-  create_assets_replace_func,
   parse_flask_request,
 )
+from lib.static_file_lib import (
+  StaticFileHandler,
+  create_assets_replace_func,
+)
+from lib.throttle_lib import create_throttle
 from lib.db import MockDBCache
 from lib.utils_lib import (
   JsonFormat,
@@ -35,6 +38,7 @@ import json
 from typing import Dict, List, Optional
 from app_types.db_types import ApiData, ApiResponseVariant
 from app_types.mock_server_types import (
+  AssetsReplaceFunc,
   ClientStateResult,
   FlaskRouteResult,
   HttpMethod,
@@ -46,6 +50,7 @@ from app_types.mock_server_types import (
   RequestKey,
   ResponseKey,
   Route,
+  ThrottleStrategy,
   VariantMeta,
 )
 from flask import (Flask, request, jsonify, make_response)
@@ -70,6 +75,8 @@ class MockServer:
     self.response_delay: int = response_delay
     # 全局静态资源请求加载速率
     self.static_load_speed: int = static_load_speed
+    # 静态资源限速策略
+    self.throttle_strategy: str = DEFAULT_THROTTLE_STRATEGY
     # 客户端状态管理器
     self.client_state_manager: ClientStateManager = ClientStateManager(
       limit=SERVER.DEVICE_STATE_LIMIT
@@ -119,9 +126,13 @@ class MockServer:
 
       # 如果设置了静态资源返回延时，添加内置延时动态匹配路由
       if self.static_load_speed > 0:
-        route_list.extend(STATIC_DELAY_ROUTE)
+        route_list.append(STATIC_DELAY_ROUTE)
 
       self.static_match_route = route_list
+
+      # 静态资源限速策略
+      throttle_strategy: str = mock_server_config.get('throttle_strategy', DEFAULT_THROTTLE_STRATEGY)
+      self.throttle_strategy = throttle_strategy
 
   # 创建并保存 mock_api_map
   def create_api_map(self) -> MockApiMap:
@@ -203,17 +214,23 @@ class MockServer:
 
     # 配置跨域
     resources: Dict[str, Dict[str, str]] = {
-      f"{self.static_url_path}/*": {"origins": "*"},
+      f"{self.static_url_path}/*": {"origins": "*", "allow_headers": "*"},
     }
 
-    cache: ThreadSafeLRUCache[bool] = ThreadSafeLRUCache(limit=SERVER.STATIC_MATCH_CACHE_LIMIT)
+    # 限速策略
+    print(f'当前生效的静态资源限速策略：{self.throttle_strategy}')
+    throttle_strategy = create_throttle(
+      strategy=self.throttle_strategy,
+      speed_kbps=self.static_load_speed,
+      max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
+    )
+
     static_handler: StaticFileHandler = StaticFileHandler(
       work_dir=self.work_dir,
-      static_url_path=self.static_url_path,
       static_load_speed=self.static_load_speed,
       static_folder=static_folder,
-      cache=cache,
       max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
+      throttle_strategy=throttle_strategy,
     )
 
     response_cache: ThreadSafeLRUCache[MockApiEntry] = ThreadSafeLRUCache(limit=SERVER.RESPONSE_CACHE_LIMIT)
@@ -231,7 +248,7 @@ class MockServer:
     for idx, static_route in enumerate(self.static_match_route):
       if not static_route.startswith('/'):
         continue
-      resources[f"{static_route}/*"] = {"origins": "*"}
+      resources[f"{static_route}/*"] = {"origins": "*", "allow_headers": "*"}
 
       def _make_static_view(handler: StaticFileHandler, endpoint_name: str):
         def _static_view(path: str) -> FlaskRouteResult:
