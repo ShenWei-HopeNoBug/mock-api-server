@@ -40,12 +40,15 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
 
   def init_ui(self) -> None:
     self.setupUi(self)
-    self.setFixedSize(self.width(), self.height())
+    self.setFixedSize(520, 620)
     self.setWindowOpacity(0.95)
     self.setStyleSheet(server_config_win_style.window)
     # 隐藏帮助问号按钮
     self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
     self.setWindowTitle('服务配置')
+
+    # 确定按钮下移，避免与新增内容重叠
+    self.confirmPushButton.setGeometry(QRect(430, 560, 71, 30))
 
     include_files = self.server_config_manager.get_list(key='include_files')
     static_match_route = self.server_config_manager.get_list(key='static_match_route')
@@ -56,6 +59,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       init_list=include_files,
       label_text='静态资源包含文件类型(比如 .png)：',
     )
+    file_type_edit_weight.setFixedHeight(200)
     file_type_edit_weight.listLabel.setToolTip(
       '启动服务时会解析mock数据中已配置的文件类型静态资源链接，将其转换成本地可访问的链接地址',
     )
@@ -66,15 +70,16 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       init_list=static_match_route,
       label_text='动态匹配静态资源路由：',
     )
+    static_route_edit_weight.setFixedHeight(200)
     static_route_edit_weight.listLabel.setToolTip(
       '向mock服务请求的静态资源链接中包含配置的路由，会匹配已有的静态资源文件进行返回',
     )
 
     widget = QWidget(self)
-    widget.setGeometry(QRect(10, 0, 500, 400))
+    widget.setGeometry(QRect(10, 0, 500, 470))
     layout = QVBoxLayout(widget)
     layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(0)
+    layout.setSpacing(6)
     # 静态资源限速策略选择
     throttle_widget = QWidget(self)
     throttle_layout = QHBoxLayout(throttle_widget)
@@ -129,6 +134,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
 
     throttle_layout.addWidget(throttle_label)
     throttle_layout.addWidget(throttle_combo, 1)
+    throttle_widget.setFixedHeight(40)
 
     layout.addWidget(file_type_edit_weight)
     layout.addWidget(static_route_edit_weight)
