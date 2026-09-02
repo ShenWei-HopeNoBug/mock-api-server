@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
+from PyQt5.QtWidgets import QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QListView
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QRect
 
 import os
@@ -84,6 +85,38 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     throttle_combo = QComboBox()
     for value, label in get_strategy_options():
       throttle_combo.addItem(label, value)
+
+    # 使用 QListView 作为下拉视图，确保 ::item 样式生效
+    list_view = QListView()
+    list_view.setStyleSheet('''
+      QListView {
+        background-color: rgb(250, 250, 250);
+        border: 1px solid skyblue;
+        border-radius: 4px;
+        padding: 2px;
+        outline: none;
+        font: 8pt;
+      }
+      QListView::item {
+        min-height: 24px;
+        padding: 2px 6px;
+        margin: 1px 0px;
+        border-radius: 4px;
+      }
+      QListView::item:hover {
+        background-color: rgb(255, 245, 225);
+      }
+      QListView::item:selected {
+        background-color: rgb(255, 224, 178);
+        color: black;
+      }
+    ''')
+    throttle_combo.setView(list_view)
+
+    # 通过 QFont 设置输入框字体大小
+    throttle_font = QFont()
+    throttle_font.setPointSize(9)
+    throttle_combo.setFont(throttle_font)
 
     current_strategy = self.server_config_manager.get('throttle_strategy', 'CHUNK_SLEEP')
     idx = throttle_combo.findData(current_strategy)

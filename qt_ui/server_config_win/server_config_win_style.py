@@ -56,8 +56,28 @@ window = '''
     background-color:rgb(250, 250, 250);
     border:1px solid skyblue;
     border-radius:4px;
-    padding:4px;
-    selection-background-color:rgb(255, 224, 178);
-    selection-color:black;
+    padding:8px;
+    font-size:15px;
+    min-height:44px;
+    outline:none;
+  }
+
+  QComboBox QAbstractItemView::item
+  {
+    min-height:40px;
+    padding:8px 14px;
+    margin-bottom:4px;
+    border-radius:4px;
+  }
+
+  QComboBox QAbstractItemView::item:hover
+  {
+    background-color:rgb(255, 245, 225);
+  }
+
+  QComboBox QAbstractItemView::item:selected
+  {
+    background-color:rgb(255, 224, 178);
+    color:black;
   }
 '''
