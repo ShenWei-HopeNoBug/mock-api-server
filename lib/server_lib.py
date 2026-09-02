@@ -508,12 +508,14 @@ class StaticFileHandler:
       if if_none_match.strip() == '*':
         return True
       etag: str = self._compute_etag(file_size, mtime)
+      # 弱比较归一化：去掉可选 W/ 前缀后再比较（RFC 7232）
+      normalized_etag: str = etag[2:].strip() if etag.startswith('W/') else etag.strip()
       # 浏览器可能发送多个 ETag，逗号分隔
       for client_etag in if_none_match.split(','):
         client_etag = client_etag.strip()
-        # 弱 ETag 比较：W/"..." 与 W/"..." 或 "..." 均视为匹配
-        strong_etag: str = etag[2:] if etag.startswith('W/') else etag
-        if client_etag == etag or client_etag == strong_etag:
+        normalized_client_etag: str = client_etag[2:].strip() if client_etag.startswith('W/') else client_etag
+        # 弱 ETag 比较：W/"..." 与 "..." 视为等价
+        if normalized_client_etag == normalized_etag:
           return True
       # If-None-Match 存在但未命中，按 RFC 忽略 If-Modified-Since，直接返回未命中
       return False
