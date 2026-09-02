@@ -16,6 +16,7 @@ from config.route import STATIC_DELAY_ROUTE
 from lib.db import MockDBCache
 from lib.logger_lib import APP_LOGGER
 from lib.download_lib import get_static_match_regexp
+from lib.throttle_lib import ThrottleStrategy
 from lib.utils_lib import (
   create_md5,
   get_request_content_type,
@@ -131,56 +132,6 @@ def create_assets_replace_func(
   return replace_assets
 
 
-class ThrottledFileReader:
-  """
-  带节流的 file-like object，read() 时 per-chunk sleep 模拟弱网。
-
-  WSGI server 通过 wsgi.file_wrapper 识别其 read() 方法，
-  配合 Content-Length 头实现非 chunked 流式传输：
-  - 浏览器边收边播（弱网模拟一卡一卡效果）
-  - 非 chunked encoding，Chrome 可 disk cache 206
-  """
-
-  def __init__(
-      self,
-      file_path: str,
-      start: int,
-      length: int,
-      chunk_size: int,
-      per_chunk_delay: float,
-  ) -> None:
-    self._f = open(file_path, 'rb')
-    self._f.seek(start)
-    self._remaining: int = length
-    self._chunk_size: int = chunk_size
-    self._per_chunk_delay: float = per_chunk_delay
-
-  def read(self, size: int = -1) -> bytes:
-    if self._remaining <= 0:
-      return b''
-    read_size: int = min(size if size > 0 else self._chunk_size, self._remaining, self._chunk_size)
-    data: bytes = self._f.read(read_size)
-    if not data:
-      self._remaining = 0
-      return b''
-    self._remaining -= len(data)
-    if self._per_chunk_delay > 0:
-      time.sleep(self._per_chunk_delay)
-    return data
-
-  def close(self) -> None:
-    self._f.close()
-
-  def __iter__(self):
-    return self
-
-  def __next__(self) -> bytes:
-    data: bytes = self.read(self._chunk_size)
-    if not data:
-      raise StopIteration
-    return data
-
-
 class StaticFileHandler:
   """
   静态资源请求处理器
@@ -194,17 +145,12 @@ class StaticFileHandler:
       static_load_speed: int,
       static_folder: str,
       max_delay: Union[int, float],
+      throttle_strategy: Optional[ThrottleStrategy] = None,
   ) -> None:
     self.static_load_speed: int = static_load_speed
     self.static_folder: str = os.path.join(work_dir, static_folder)
     self.max_delay: Union[int, float] = max_delay
-
-  # 流式节流每块大小（字节）
-  # 64KB 为流式传输节流的常见经验值，兼顾调度开销与节流精度：
-  # - 块过小（4~8KB）会导致频繁 yield/sleep，调度开销大；块过大（1MB+）节流粒度粗糙，延迟跳跃明显
-  # - 与内核默认 SO_SNDBUF（64~128KB）量级契合，减少系统调用次数
-  # - 配合 KB/s 限速，64KB 在常见限速范围（100KB/s~1MB/s）下延迟粒度合理（0.064s~0.64s）
-  _CHUNK_SIZE: int = 64 * 1024
+    self._throttle: Optional[ThrottleStrategy] = throttle_strategy
 
   def match(self, path: str, request_headers: RequestHeaders) -> FlaskRouteResult:
     """
@@ -344,7 +290,7 @@ class StaticFileHandler:
     该方法只负责：
     - 打开文件并获取 file_total；
     - 通过 _build_throttled_meta_or_response 解析 Range/If-Range 并组装响应元信息；
-    - 构建 ThrottledFileReader 并返回最终 Response。
+    - 通过限速策略创建 reader 并返回最终 Response。
     """
     # 入口处 stat 一次，后续全部复用，避免 TOCTOU 竞态
     stat: os.stat_result = os.stat(file_path)
@@ -354,7 +300,7 @@ class StaticFileHandler:
       print(f'静态资源缓存命中(304)  文件：{file_name}')
       return self._build_304_response(file_path, stat)
 
-    # 先打开文件获取大小并解析 Range，随后关闭；实际读取由 ThrottledFileReader 重新打开
+    # 先打开文件获取大小并解析 Range，随后关闭；实际读取由限速策略创建的 reader 重新打开
     try:
       f = open(file_path, 'rb')
     except (FileNotFoundError, OSError):
@@ -379,24 +325,11 @@ class StaticFileHandler:
         return meta_or_response
       meta: ResponseMeta = meta_or_response
 
-    chunk_size: int = self._CHUNK_SIZE
-    speed: int = self.static_load_speed  # KB/s
-    # 每块延时 = chunk_kb / speed，上限 max_delay；无限速时延时为 0
-    if speed > 0:
-      chunk_kb: float = chunk_size / 1024
-      per_chunk_delay: float = min(chunk_kb / speed, self.max_delay)
-    else:
-      per_chunk_delay: float = 0.0
-
-    # ThrottledFileReader：file-like object，read() 时 per-chunk sleep 节流。
-    # WSGI server 通过 wsgi.file_wrapper 处理，配合 Content-Length 头实现非 chunked 流式传输：
-    # 浏览器边收边播（弱网模拟）+ Chrome 可 disk cache 206（非 chunked）。
-    reader: ThrottledFileReader = ThrottledFileReader(
-      file_path, meta.start, meta.content_length, chunk_size, per_chunk_delay
-    )
+    # 限速策略对象由外部注入，_serve_throttled 只负责协议处理 + 调用策略创建 reader
+    reader = self._throttle.create_reader(file_path, meta.start, meta.content_length)
 
     print(
-      f'静态资源节流  文件：{file_name}  大小：{self._format_size(meta.content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
+      f'静态资源节流  文件：{file_name}  大小：{self._format_size(meta.content_length)}  速率：{self._format_size(self.static_load_speed * 1024)}/s')
     return Response(reader, status=meta.status, headers=meta.headers)
 
   def _build_throttled_meta_or_response(

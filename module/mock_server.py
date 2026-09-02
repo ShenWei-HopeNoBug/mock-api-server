@@ -21,6 +21,7 @@ from lib.server_lib import (
   create_assets_replace_func,
   parse_flask_request,
 )
+from lib.throttle_lib import ThrottleStrategy, create_throttle
 from lib.db import MockDBCache
 from lib.utils_lib import (
   JsonFormat,
@@ -206,11 +207,21 @@ class MockServer:
       f"{self.static_url_path}/*": {"origins": "*", "allow_headers": "*"},
     }
 
+    # 限速策略：static_load_speed > 0 时创建限速策略对象，否则传 None
+    throttle_strategy: Optional[ThrottleStrategy] = None
+    if self.static_load_speed > 0:
+      throttle_strategy = create_throttle(
+        strategy='chunk_sleep',
+        speed_kbps=self.static_load_speed,
+        max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
+      )
+
     static_handler: StaticFileHandler = StaticFileHandler(
       work_dir=self.work_dir,
       static_load_speed=self.static_load_speed,
       static_folder=static_folder,
       max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
+      throttle_strategy=throttle_strategy,
     )
 
     response_cache: ThreadSafeLRUCache[MockApiEntry] = ThreadSafeLRUCache(limit=SERVER.RESPONSE_CACHE_LIMIT)
