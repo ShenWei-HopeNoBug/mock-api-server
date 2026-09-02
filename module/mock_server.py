@@ -210,14 +210,12 @@ class MockServer:
       f"{self.static_url_path}/*": {"origins": "*", "allow_headers": "*"},
     }
 
-    # 限速策略：static_load_speed > 0 时创建限速策略对象，否则传 None
-    throttle_strategy: Optional[ThrottleStrategy] = None
-    if self.static_load_speed > 0:
-      throttle_strategy = create_throttle(
-        strategy='chunk_sleep',
-        speed_kbps=self.static_load_speed,
-        max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
-      )
+    # 限速策略
+    throttle_strategy = create_throttle(
+      strategy='chunk_sleep',
+      speed_kbps=self.static_load_speed,
+      max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
+    )
 
     static_handler: StaticFileHandler = StaticFileHandler(
       work_dir=self.work_dir,
