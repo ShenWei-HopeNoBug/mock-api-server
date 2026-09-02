@@ -164,26 +164,31 @@ class StaticFileHandler:
       self._apply_cache_headers(result, file_path, stat)
     return result
 
+  @staticmethod
+  def _resolve_file_fail(msg: str, status_code: int) -> ResolveFileResult:
+    """构造路径解析失败结果，统一 valid=False 时的字段填充"""
+    return {'file_path': '', 'file_name': '', 'valid': False, 'result': (msg, status_code)}
+
   def _resolve_file(self, route_path: str) -> ResolveFileResult:
     """路径解析 + 安全校验"""
     # 非文件请求，跳过
     if not is_file_request(route_path):
-      return {'file_path': '', 'file_name': '', 'valid': False, 'result': ('Not Found', 404)}
+      return self._resolve_file_fail('Not Found', 404)
 
     # os.path.basename 跨平台识别 / 和 \，自动剥离所有目录层级，从源头杜绝 .. 穿越
     file_name: str = os.path.basename(route_path)
     if not file_name:
-      return {'file_path': '', 'file_name': '', 'valid': False, 'result': ('Not Found', 404)}
+      return self._resolve_file_fail('Not Found', 404)
 
     file_path: str = os.path.realpath(os.path.join(self.static_folder, file_name))
     # containment 校验：确保最终路径仍在 static_folder 目录下（realpath 解析符号链接）
     static_dir: str = os.path.realpath(self.static_folder)
     if not file_path.startswith(static_dir + os.sep):
-      return {'file_path': '', 'file_name': '', 'valid': False, 'result': ('Forbidden', 403)}
+      return self._resolve_file_fail('Forbidden', 403)
 
     # 文件存在性校验：不存在时返回 404，避免后续 os.stat 抛出 FileNotFoundError
     if not os.path.isfile(file_path):
-      return {'file_path': '', 'file_name': '', 'valid': False, 'result': ('Not Found', 404)}
+      return self._resolve_file_fail('Not Found', 404)
 
     return {'file_path': file_path, 'file_name': file_name, 'valid': True, 'result': None}
 
