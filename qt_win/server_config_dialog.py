@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox
 from PyQt5.QtCore import Qt, QRect
 
 import os
@@ -10,6 +10,7 @@ from lib.utils_lib import ConfigFileManager
 from qt_ui.server_config_win.win_ui import Ui_Dialog
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, MOCK_SERVER_CONFIG_PATH)
 from qt_ui.server_config_win.module import (FileTypeListModule, StaticRouteListModule)
+from lib.throttle_lib import get_strategy_options
 
 from qt_ui.server_config_win import server_config_win_style
 
@@ -32,6 +33,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     self.server_config_manager: ConfigFileManager = server_config_manager
     self.file_type_edit_weight: Optional[FileTypeListModule] = None
     self.static_route_edit_weight: Optional[StaticRouteListModule] = None
+    self.throttle_combo: Optional[QComboBox] = None
     self.init_ui()
     self.add_events()
 
@@ -72,10 +74,35 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     layout = QVBoxLayout(widget)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
+    # 静态资源限速策略选择
+    throttle_widget = QWidget(self)
+    throttle_layout = QHBoxLayout(throttle_widget)
+    throttle_layout.setContentsMargins(0, 0, 0, 0)
+    throttle_layout.setSpacing(8)
+
+    throttle_label = QLabel('静态资源限速策略：')
+    throttle_combo = QComboBox()
+    for value, label in get_strategy_options():
+      throttle_combo.addItem(label, value)
+
+    current_strategy = self.server_config_manager.get('throttle_strategy', 'CHUNK_SLEEP')
+    idx = throttle_combo.findData(current_strategy)
+    if idx >= 0:
+      throttle_combo.setCurrentIndex(idx)
+
+    throttle_combo.setToolTip(
+      '选择静态资源限速策略，不同策略模拟不同的弱网传输效果'
+    )
+
+    throttle_layout.addWidget(throttle_label)
+    throttle_layout.addWidget(throttle_combo, 1)
+
     layout.addWidget(file_type_edit_weight)
     layout.addWidget(static_route_edit_weight)
+    layout.addWidget(throttle_widget)
     self.file_type_edit_weight = file_type_edit_weight
     self.static_route_edit_weight = static_route_edit_weight
+    self.throttle_combo = throttle_combo
 
   def add_events(self) -> None:
     self.confirmPushButton.clicked.connect(self.confirm)
@@ -88,5 +115,9 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     self.server_config_manager.set(
       key='static_match_route',
       value=self.static_route_edit_weight.get_list(),
+    )
+    self.server_config_manager.set(
+      key='throttle_strategy',
+      value=self.throttle_combo.currentData(),
     )
     self.close()

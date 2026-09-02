@@ -405,7 +405,7 @@ class _RandomJitterReader:
     return data
 
 
-@register_strategy('chunk_sleep')
+@register_strategy('CHUNK_SLEEP')
 class ChunkSleepThrottle(ThrottleStrategy):
   """
   固定 chunk + per-chunk sleep 脉冲式限速。
@@ -430,7 +430,7 @@ class ChunkSleepThrottle(ThrottleStrategy):
     return _ChunkSleepReader(file_path, start, length, self._chunk_size, per_chunk_delay)
 
 
-@register_strategy('small_chunk')
+@register_strategy('SMALL_CHUNK')
 class SmallChunkThrottle(ThrottleStrategy):
   """
   小 chunk 高频脉冲限速。
@@ -456,7 +456,7 @@ class SmallChunkThrottle(ThrottleStrategy):
     return _ChunkSleepReader(file_path, start, length, self._chunk_size, per_chunk_delay)
 
 
-@register_strategy('token_bucket')
+@register_strategy('TOKEN_BUCKET')
 class TokenBucketThrottle(ThrottleStrategy):
   """
   令牌桶限速：允许短暂突发，长期匀速。
@@ -486,7 +486,7 @@ class TokenBucketThrottle(ThrottleStrategy):
     )
 
 
-@register_strategy('leaky_bucket')
+@register_strategy('LEAKY_BUCKET')
 class LeakyBucketThrottle(ThrottleStrategy):
   """
   漏桶限速：严格匀速输出，不允许突发。
@@ -513,7 +513,7 @@ class LeakyBucketThrottle(ThrottleStrategy):
     )
 
 
-@register_strategy('sliding_window')
+@register_strategy('SLIDING_WINDOW')
 class SlidingWindowThrottle(ThrottleStrategy):
   """
   滑动窗口限速：精确控制窗口内传输上限。
@@ -543,7 +543,7 @@ class SlidingWindowThrottle(ThrottleStrategy):
     )
 
 
-@register_strategy('progressive_delay')
+@register_strategy('PROGRESSIVE_DELAY')
 class ProgressiveDelayThrottle(ThrottleStrategy):
   """
   渐进式延迟限速：初始快速，逐渐变慢。
@@ -576,7 +576,7 @@ class ProgressiveDelayThrottle(ThrottleStrategy):
     )
 
 
-@register_strategy('random_jitter')
+@register_strategy('RANDOM_JITTER')
 class RandomJitterThrottle(ThrottleStrategy):
   """
   随机抖动限速：在基础延迟上叠加随机波动。
@@ -607,6 +607,31 @@ class RandomJitterThrottle(ThrottleStrategy):
     )
 
 
+# 策略名 → 中文名
+_STRATEGY_LABELS: Dict[str, str] = {
+  'CHUNK_SLEEP':       '固定分块休眠',
+  'SMALL_CHUNK':       '小分块高频脉冲',
+  'TOKEN_BUCKET':      '令牌桶',
+  'LEAKY_BUCKET':      '漏桶',
+  'SLIDING_WINDOW':    '滑动窗口',
+  'PROGRESSIVE_DELAY': '渐进式延迟',
+  'RANDOM_JITTER':     '随机抖动',
+}
+
+
+def get_strategy_options() -> list:
+  """
+  返回所有已注册限速策略的 (value, label) 列表。
+
+  - value: 策略名，用于配置存储和 create_throttle() 调用
+  - label: 显示文案，格式为 "英文名（中文名）"
+  """
+  return [
+    (name, f'{name}（{_STRATEGY_LABELS.get(name, name)}）')
+    for name in _STRATEGY_REGISTRY
+  ]
+
+
 def create_throttle(
     strategy: str,
     speed_kbps: int,
@@ -617,8 +642,8 @@ def create_throttle(
   工厂函数：按策略名创建限速策略实例。
 
   参数：
-    strategy: 策略名（'chunk_sleep' / 'small_chunk' / 'token_bucket' / 'leaky_bucket' /
-             'sliding_window' / 'progressive_delay' / 'random_jitter'）
+    strategy: 策略名（'CHUNK_SLEEP' / 'SMALL_CHUNK' / 'TOKEN_BUCKET' / 'LEAKY_BUCKET' /
+             'SLIDING_WINDOW' / 'PROGRESSIVE_DELAY' / 'RANDOM_JITTER'）
     speed_kbps: 限速速率（KB/s）
     max_delay: 单次延时上限（秒）
     **kwargs: 策略特定参数（如 chunk_size、burst_seconds、window_seconds、

@@ -122,6 +122,7 @@ WORK_FILE_DICT = {
     "default": {
       "include_files": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
       "static_match_route": [],
+      "throttle_strategy": "CHUNK_SLEEP",
     }
   }
 }

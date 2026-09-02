@@ -74,6 +74,8 @@ class MockServer:
     self.response_delay: int = response_delay
     # 全局静态资源请求加载速率
     self.static_load_speed: int = static_load_speed
+    # 静态资源限速策略
+    self.throttle_strategy: str = 'CHUNK_SLEEP'
     # 客户端状态管理器
     self.client_state_manager: ClientStateManager = ClientStateManager(
       limit=SERVER.DEVICE_STATE_LIMIT
@@ -126,6 +128,10 @@ class MockServer:
         route_list.append(STATIC_DELAY_ROUTE)
 
       self.static_match_route = route_list
+
+      # 静态资源限速策略
+      throttle_strategy: str = mock_server_config.get('throttle_strategy', 'CHUNK_SLEEP')
+      self.throttle_strategy = throttle_strategy
 
   # 创建并保存 mock_api_map
   def create_api_map(self) -> MockApiMap:
@@ -212,7 +218,7 @@ class MockServer:
 
     # 限速策略
     throttle_strategy = create_throttle(
-      strategy='chunk_sleep',
+      strategy=self.throttle_strategy,
       speed_kbps=self.static_load_speed,
       max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
     )
