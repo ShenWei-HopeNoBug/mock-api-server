@@ -217,6 +217,7 @@ class MockServer:
     }
 
     # 限速策略
+    print(f'当前生效的静态资源限速策略：{self.throttle_strategy}')
     throttle_strategy = create_throttle(
       strategy=self.throttle_strategy,
       speed_kbps=self.static_load_speed,
