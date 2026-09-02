@@ -16,7 +16,6 @@ from lib.throttle_lib import get_strategy_options
 from qt_ui.server_config_win import server_config_win_style
 
 
-
 class ServerConfigDialog(QDialog, Ui_Dialog):
   def __init__(self, work_dir: str = DEFAULT_WORK_DIR) -> None:
     super().__init__()
@@ -124,7 +123,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     throttle_font.setPointSize(9)
     throttle_combo.setFont(throttle_font)
 
-    current_strategy = self.server_config_manager.get('throttle_strategy', 'CHUNK_SLEEP')
+    current_strategy = self.server_config_manager.get('throttle_strategy')
     idx = throttle_combo.findData(current_strategy)
     if idx >= 0:
       throttle_combo.setCurrentIndex(idx)
