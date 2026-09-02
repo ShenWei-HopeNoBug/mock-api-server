@@ -4,7 +4,6 @@
 
 提供统一的 ThrottleStrategy 接口，支持多种限速方案替换测试：
 - chunk_sleep：固定 chunk + per-chunk sleep（脉冲式）
-- small_chunk：小 chunk 高频脉冲，降低播放器感知停顿
 - token_bucket：令牌桶，允许短暂突发但长期匀速
 - leaky_bucket：漏桶，严格匀速输出，不允许突发
 - sliding_window：滑动窗口，精确控制单位时间传输上限
@@ -430,32 +429,6 @@ class ChunkSleepThrottle(ThrottleStrategy):
     return _ChunkSleepReader(file_path, start, length, self._chunk_size, per_chunk_delay)
 
 
-@register_strategy('SMALL_CHUNK')
-class SmallChunkThrottle(ThrottleStrategy):
-  """
-  小 chunk 高频脉冲限速。
-
-  与 ChunkSleepThrottle 相同的算法，但使用更小的 chunk_size（默认 8KB），
-  脉冲频率提高 8 倍，停顿间隔缩短到播放器难以感知的程度，
-  在不改变算法的前提下显著减少播放器缓冲区低水位触发的额外请求。
-  """
-
-  def __init__(
-      self,
-      speed_kbps: int,
-      max_delay: float,
-      chunk_size: int = 8 * 1024,
-  ) -> None:
-    self._speed: int = speed_kbps
-    self._max_delay: float = max_delay
-    self._chunk_size: int = chunk_size
-
-  def create_reader(self, file_path: str, start: int, length: int) -> _ChunkSleepReader:
-    chunk_kb: float = self._chunk_size / 1024
-    per_chunk_delay: float = min(chunk_kb / self._speed, self._max_delay)
-    return _ChunkSleepReader(file_path, start, length, self._chunk_size, per_chunk_delay)
-
-
 @register_strategy('TOKEN_BUCKET')
 class TokenBucketThrottle(ThrottleStrategy):
   """
@@ -610,7 +583,6 @@ class RandomJitterThrottle(ThrottleStrategy):
 # 策略名 → 中文名
 _STRATEGY_LABELS: Dict[str, str] = {
   'CHUNK_SLEEP':       '固定分块休眠',
-  'SMALL_CHUNK':       '小分块高频脉冲',
   'TOKEN_BUCKET':      '令牌桶',
   'LEAKY_BUCKET':      '漏桶',
   'SLIDING_WINDOW':    '滑动窗口',
@@ -642,7 +614,7 @@ def create_throttle(
   工厂函数：按策略名创建限速策略实例。
 
   参数：
-    strategy: 策略名（'CHUNK_SLEEP' / 'SMALL_CHUNK' / 'TOKEN_BUCKET' / 'LEAKY_BUCKET' /
+    strategy: 策略名（'CHUNK_SLEEP' / 'TOKEN_BUCKET' / 'LEAKY_BUCKET' /
              'SLIDING_WINDOW' / 'PROGRESSIVE_DELAY' / 'RANDOM_JITTER'）
     speed_kbps: 限速速率（KB/s）
     max_delay: 单次延时上限（秒）
