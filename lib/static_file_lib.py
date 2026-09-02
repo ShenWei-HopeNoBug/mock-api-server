@@ -251,7 +251,12 @@ class StaticFileHandler:
       meta: ResponseMeta = meta_or_response
 
     # 限速策略对象由外部注入，_serve_throttled 只负责协议处理 + 调用策略创建 reader
-    reader = self._throttle.create_reader(file_path, meta.start, meta.content_length)
+    # create_reader 内部会重新 open 文件，可能因文件被删除/权限变更而抛异常，
+    # 与上方第一次 open 的错误处理保持一致，返回 404 而非 500
+    try:
+      reader = self._throttle.create_reader(file_path, meta.start, meta.content_length)
+    except (FileNotFoundError, OSError):
+      return 'Not Found', 404
 
     print(
       f'静态资源节流  文件：{file_name}  大小：{self._format_size(meta.content_length)}  速率：{self._format_size(self.static_load_speed * 1024)}/s')
