@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar,
 import mimetypes
 from flask import Request, send_from_directory, jsonify, Response
 
-from config.enum.SERVER import STATIC_IMAGE_CACHE_MAX_AGE
+from config.enum.SERVER import STATIC_IMAGE_CACHE_MAX_AGE, STATIC_PARTIAL_CACHE_MAX_AGE
 from config.route import STATIC_DELAY_ROUTE
 from lib.db import MockDBCache
 from lib.logger_lib import APP_LOGGER
@@ -131,6 +131,56 @@ def create_assets_replace_func(
   return replace_assets
 
 
+class ThrottledFileReader:
+  """
+  带节流的 file-like object，read() 时 per-chunk sleep 模拟弱网。
+
+  WSGI server 通过 wsgi.file_wrapper 识别其 read() 方法，
+  配合 Content-Length 头实现非 chunked 流式传输：
+  - 浏览器边收边播（弱网模拟一卡一卡效果）
+  - 非 chunked encoding，Chrome 可 disk cache 206
+  """
+
+  def __init__(
+      self,
+      file_path: str,
+      start: int,
+      length: int,
+      chunk_size: int,
+      per_chunk_delay: float,
+  ) -> None:
+    self._f = open(file_path, 'rb')
+    self._f.seek(start)
+    self._remaining: int = length
+    self._chunk_size: int = chunk_size
+    self._per_chunk_delay: float = per_chunk_delay
+
+  def read(self, size: int = -1) -> bytes:
+    if self._remaining <= 0:
+      return b''
+    read_size: int = min(size if size > 0 else self._chunk_size, self._remaining, self._chunk_size)
+    data: bytes = self._f.read(read_size)
+    if not data:
+      self._remaining = 0
+      return b''
+    self._remaining -= len(data)
+    if self._per_chunk_delay > 0:
+      time.sleep(self._per_chunk_delay)
+    return data
+
+  def close(self) -> None:
+    self._f.close()
+
+  def __iter__(self):
+    return self
+
+  def __next__(self) -> bytes:
+    data: bytes = self.read(self._chunk_size)
+    if not data:
+      raise StopIteration
+    return data
+
+
 class StaticFileHandler:
   """
   静态资源请求处理器
@@ -168,12 +218,16 @@ class StaticFileHandler:
     file_name: str = resolved.get('file_name')
     range_header: Optional[str] = request_headers.get('Range')
 
-    # 无 Range：一次性延时 + send_from_directory（自带 Range 支持）
+    # 无 Range：走 _serve_direct 快速返回（浏览器探测请求，需尽快拿到 Accept-Ranges 改发 Range 请求）
     if range_header is None:
       return self._serve_direct(file_path, file_name, request_headers)
 
-    # 有 Range：流式响应 + 逐块节流
-    return self._serve_throttled(file_path, file_name, range_header, request_headers)
+    # 有 Range 且有限速：走 _serve_throttled（206 + ThrottledFileReader 逐块节流，弱网模拟 + disk cache）
+    if self.static_load_speed > 0:
+      return self._serve_throttled(file_path, file_name, range_header, request_headers)
+
+    # 有 Range 且无限速：走 _serve_direct（send_from_directory 返回 206，浏览器可 disk cache）
+    return self._serve_direct(file_path, file_name, request_headers)
 
   def _serve_direct(
       self,
@@ -181,7 +235,7 @@ class StaticFileHandler:
       file_name: str,
       request_headers: RequestHeaders,
   ) -> FlaskRouteResult:
-    """无 Range：按文件大小计算一次性延时后直接返回文件"""
+    """无 Range：直接返回文件（有限速时仅返回头部，引导浏览器改发 Range 请求）"""
     # 入口处 stat 一次，后续全部复用，避免 TOCTOU 竞态
     stat: os.stat_result = os.stat(file_path)
 
@@ -190,15 +244,23 @@ class StaticFileHandler:
       print(f'静态资源缓存命中(304)  文件：{file_name}')
       return self._build_304_response(file_path, stat)
 
+    # 有限速时，200 探测请求返回空 body + Content-Length: 0：
+    # 浏览器收到 Accept-Ranges: bytes 后会立即改发 Range 请求走 _serve_throttled 节流路径，
+    # 避免对 69MB 大文件做无节流的全量传输导致播放卡死。
     if self.static_load_speed > 0:
-      file_size: int = stat.st_size
-      file_size_kb: float = file_size / 1024
-      delay: float = min(file_size_kb / self.static_load_speed, self.max_delay)
-      if delay > 0:
-        print(
-          f'静态资源一次性延时  文件：{file_name}  大小：{self._format_size(file_size)}  速率：{self._format_size(self.static_load_speed * 1024)}/s  延时：{delay:.4f}s')
-        time.sleep(delay)
+      content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+      headers: Dict[str, str] = {
+        'Accept-Ranges': 'bytes',
+        'Content-Type': content_type,
+        'Content-Length': '0',
+        'ETag': self._compute_etag(stat.st_size, stat.st_mtime),
+        'Last-Modified': self._format_http_date(stat.st_mtime),
+        'Cache-Control': self._build_cache_control(file_path),
+      }
+      print(f'静态资源探测响应(200 empty)  文件：{file_name}  大小：{self._format_size(stat.st_size)}')
+      return Response(b'', status=200, headers=headers)
 
+    # 无限速：send_from_directory 返回完整文件
     # conditional=False 透传给底层 send_file，禁用内置条件请求处理，
     # 避免与自定义 _check_cache_hit 双 ETag 体系冲突
     result = send_from_directory(self.static_folder, file_name, conditional=False)
@@ -252,7 +314,7 @@ class StaticFileHandler:
       range_header: Optional[str],
       request_headers: RequestHeaders,
   ) -> FlaskRouteResult:
-    """有 Range：流式响应 + 逐块节流（无限速时 per_chunk_delay 为 0，等价于纯流式传输）"""
+    """有 Range 且有限速：逐块读取 + per-chunk sleep 节流，通过 file-like object 流式返回（非 chunked，浏览器可边收边播 + disk cache 206）"""
     # 入口处 stat 一次，后续全部复用，避免 TOCTOU 竞态
     stat: os.stat_result = os.stat(file_path)
 
@@ -261,8 +323,7 @@ class StaticFileHandler:
       print(f'静态资源缓存命中(304)  文件：{file_name}')
       return self._build_304_response(file_path, stat)
 
-    # 先打开文件获取大小并解析 Range，随后关闭；实际读取在生成器内重新打开，
-    # 避免 Flask 生成器惰性执行时 with 块已退出、句柄已失效的问题
+    # 先打开文件获取大小并解析 Range，随后关闭；实际读取由 ThrottledFileReader 重新打开
     try:
       f = open(file_path, 'rb')
     except (FileNotFoundError, OSError):
@@ -287,8 +348,14 @@ class StaticFileHandler:
 
       meta.headers['Content-Length'] = str(meta.content_length)
       meta.headers['Content-Type'] = content_type
-      # 补充缓存头
-      self._apply_cache_headers_to_dict(meta.headers, file_path, stat)
+      # 补充缓存头：206 走强缓存 + Vary: Range（已在 _build_partial_meta 中设置），
+      # 200（Range 无效回退）走原有协商缓存策略
+      meta.headers['ETag'] = self._compute_etag(stat.st_size, stat.st_mtime)
+      meta.headers['Last-Modified'] = self._format_http_date(stat.st_mtime)
+      if meta.status == 206:
+        meta.headers['Cache-Control'] = self._build_partial_cache_control()
+      else:
+        meta.headers['Cache-Control'] = self._build_cache_control(file_path)
 
     chunk_size: int = self._CHUNK_SIZE
     speed: int = self.static_load_speed  # KB/s
@@ -299,27 +366,16 @@ class StaticFileHandler:
     else:
       per_chunk_delay: float = 0.0
 
-    def _stream():
-      # 生成器内打开句柄，确保惰性执行时句柄有效；逐块读取避免全量加载
-      try:
-        sf = open(file_path, 'rb')
-        sf.seek(meta.start)
-        remaining: int = meta.content_length
-        while remaining > 0:
-          read_size: int = min(chunk_size, remaining)
-          data: bytes = sf.read(read_size)
-          if not data:
-            break
-          remaining -= len(data)
-          if per_chunk_delay > 0:
-            time.sleep(per_chunk_delay)
-          yield data
-      finally:
-        sf.close()
+    # ThrottledFileReader：file-like object，read() 时 per-chunk sleep 节流。
+    # WSGI server 通过 wsgi.file_wrapper 处理，配合 Content-Length 头实现非 chunked 流式传输：
+    # 浏览器边收边播（弱网模拟）+ Chrome 可 disk cache 206（非 chunked）。
+    reader: ThrottledFileReader = ThrottledFileReader(
+      file_path, meta.start, meta.content_length, chunk_size, per_chunk_delay
+    )
 
     print(
-      f'静态资源流式节流  文件：{file_name}  大小：{self._format_size(meta.content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
-    return Response(_stream(), status=meta.status, headers=meta.headers)
+      f'静态资源节流  文件：{file_name}  大小：{self._format_size(meta.content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
+    return Response(reader, status=meta.status, headers=meta.headers)
 
   @staticmethod
   def _format_size(size_bytes: float) -> str:
@@ -332,9 +388,10 @@ class StaticFileHandler:
 
   @staticmethod
   def _compute_etag(file_size: int, mtime: float) -> str:
-    """基于文件大小 + mtime 生成弱 ETag，避免读取文件内容算 hash 的 I/O 开销"""
+    """基于文件大小 + mtime 生成强 ETag，避免读取文件内容算 hash 的 I/O 开销"""
+    # 强 ETag（无 W/ 前缀）：If-Range 校验要求强 ETag，弱 ETag 会导致 Range 被忽略回退 200
     # 保留毫秒精度，避免同秒内文件修改（大小不变）产生相同 ETag
-    return f'W/"{file_size}-{int(mtime * 1000)}"'
+    return f'"{file_size}-{int(mtime * 1000)}"'
 
   def _check_if_range(self, stat: os.stat_result, request_headers: RequestHeaders) -> bool:
     """
@@ -384,6 +441,11 @@ class StaticFileHandler:
     if self._is_image(file_path):
       return f'public, max-age={STATIC_IMAGE_CACHE_MAX_AGE}'
     return 'public, max-age=0, must-revalidate'
+
+  @staticmethod
+  def _build_partial_cache_control() -> str:
+    """206 Partial Content 专用 Cache-Control：所有文件类型统一强缓存"""
+    return f'public, max-age={STATIC_PARTIAL_CACHE_MAX_AGE}'
 
   def _check_cache_hit(
       self,
@@ -447,18 +509,10 @@ class StaticFileHandler:
     etag: str = self._compute_etag(stat.st_size, stat.st_mtime)
     response.headers['ETag'] = etag
     response.headers['Last-Modified'] = self._format_http_date(stat.st_mtime)
-    response.headers['Cache-Control'] = self._build_cache_control(file_path)
-
-  def _apply_cache_headers_to_dict(
-      self,
-      headers: Dict[str, str],
-      file_path: str,
-      stat: os.stat_result,
-  ) -> None:
-    """为 _serve_throttled 的 meta.headers dict 补充缓存头"""
-    headers['ETag'] = self._compute_etag(stat.st_size, stat.st_mtime)
-    headers['Last-Modified'] = self._format_http_date(stat.st_mtime)
-    headers['Cache-Control'] = self._build_cache_control(file_path)
+    if response.status_code == 206:
+      response.headers['Cache-Control'] = self._build_partial_cache_control()
+    else:
+      response.headers['Cache-Control'] = self._build_cache_control(file_path)
 
   def _build_304_response(self, file_path: str, stat: os.stat_result) -> FlaskRouteResult:
     """构建 304 Not Modified 响应（无 body、无延时、附带缓存头）"""
