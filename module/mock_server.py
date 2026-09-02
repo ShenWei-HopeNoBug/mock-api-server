@@ -12,14 +12,16 @@ from lib.logger_lib import APP_LOGGER
 from lib.work_file_lib import create_work_files
 from lib.app_lib import get_mock_api_data_list
 from lib.server_lib import (
-  AssetsReplaceFunc,
   ClientStateManager,
   MockRequestHandler,
   MockRequestParseError,
-  StaticFileHandler,
   ThreadSafeLRUCache,
-  create_assets_replace_func,
   parse_flask_request,
+)
+from lib.static_file_lib import (
+  AssetsReplaceFunc,
+  StaticFileHandler,
+  create_assets_replace_func,
 )
 from lib.throttle_lib import ThrottleStrategy, create_throttle
 from lib.db import MockDBCache
