@@ -12,9 +12,10 @@
 切换策略时无需修改 StaticFileHandler 或 _serve_throttled。
 """
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from app_types.mock_server_types import ThrottleStrategy
+from lib.logger_lib import APP_LOGGER
 
 # 限速策略名 → ThrottleStrategy 子类
 _STRATEGY_REGISTRY: Dict[str, type] = {}
@@ -22,9 +23,11 @@ _STRATEGY_REGISTRY: Dict[str, type] = {}
 
 def register_strategy(name: str):
   """策略注册装饰器"""
+
   def _wrap(cls: type) -> type:
     _STRATEGY_REGISTRY[name] = cls
     return cls
+
   return _wrap
 
 
@@ -320,7 +323,7 @@ def create_throttle(
     speed_kbps: int,
     max_delay: float,
     **kwargs: Any,
-) -> ThrottleStrategy:
+) -> Optional[ThrottleStrategy]:
   """
   工厂函数：按策略名创建限速策略实例。
 
@@ -331,11 +334,16 @@ def create_throttle(
     **kwargs: 策略特定参数（如 chunk_size、burst_seconds）
 
   返回：
-    ThrottleStrategy 实例
+    ThrottleStrategy 实例；策略名未找到或创建异常时返回 None
   """
   cls = _STRATEGY_REGISTRY.get(strategy)
   if cls is None:
-    raise ValueError(
+    APP_LOGGER.error(
       f'未知的限速策略：{strategy}，可用策略：{list(_STRATEGY_REGISTRY.keys())}'
     )
-  return cls(speed_kbps=speed_kbps, max_delay=max_delay, **kwargs)
+    return None
+  try:
+    return cls(speed_kbps=speed_kbps, max_delay=max_delay, **kwargs)
+  except Exception as e:
+    APP_LOGGER.error(f'限速策略创建异常：{strategy}，错误：{e}')
+    return None
