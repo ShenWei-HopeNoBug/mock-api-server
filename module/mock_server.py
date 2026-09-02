@@ -5,6 +5,7 @@ from config.work_file import (
   MOCK_SERVER_CONFIG_PATH,
   STATIC_DIR,
 )
+from config.default import DEFAULT_THROTTLE_STRATEGY
 from config.enum import SERVER
 from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
 from lib.decorate import create_thread, error_catch
@@ -75,7 +76,7 @@ class MockServer:
     # 全局静态资源请求加载速率
     self.static_load_speed: int = static_load_speed
     # 静态资源限速策略
-    self.throttle_strategy: str = 'CHUNK_SLEEP'
+    self.throttle_strategy: str = DEFAULT_THROTTLE_STRATEGY
     # 客户端状态管理器
     self.client_state_manager: ClientStateManager = ClientStateManager(
       limit=SERVER.DEVICE_STATE_LIMIT
@@ -130,7 +131,7 @@ class MockServer:
       self.static_match_route = route_list
 
       # 静态资源限速策略
-      throttle_strategy: str = mock_server_config.get('throttle_strategy', 'CHUNK_SLEEP')
+      throttle_strategy: str = mock_server_config.get('throttle_strategy', DEFAULT_THROTTLE_STRATEGY)
       self.throttle_strategy = throttle_strategy
 
   # 创建并保存 mock_api_map
