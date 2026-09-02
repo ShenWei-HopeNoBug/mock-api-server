@@ -3,13 +3,15 @@
 静态资源限速策略模块
 
 提供统一的 ThrottleStrategy 接口，支持多种限速方案替换测试：
-- chunk_sleep：当前方案，固定 chunk + per-chunk sleep（脉冲式）
+- chunk_sleep：固定 chunk + per-chunk sleep（脉冲式）
 - small_chunk：小 chunk 高频脉冲，降低播放器感知停顿
-- token_bucket：令牌桶，允许短暂突发但长期匀速（后续实现）
+- token_bucket：令牌桶，允许短暂突发但长期匀速
+- leaky_bucket：漏桶，严格匀速输出，不允许突发
 
 通过 create_throttle() 工厂函数按策略名创建，StaticFileHandler 只依赖接口，
 切换策略时无需修改 StaticFileHandler 或 _serve_throttled。
 """
+import time
 from typing import Any, Dict
 
 from app_types.mock_server_types import ThrottleStrategy
@@ -77,6 +79,134 @@ class _ChunkSleepReader:
     return data
 
 
+class _TokenBucketReader:
+  """
+  令牌桶 file-like object，允许短暂突发但长期匀速。
+
+  桶容量为 burst_bytes，以 rate_bytes_per_sec 速率补充令牌。
+  初始满桶，首屏可突发读取；之后按速率匀速补充。
+  令牌不足时 sleep 等待，单次等待不超过 max_delay。
+  """
+
+  def __init__(
+      self,
+      file_path: str,
+      start: int,
+      length: int,
+      chunk_size: int,
+      rate_bytes_per_sec: float,
+      burst_bytes: int,
+      max_delay: float,
+  ) -> None:
+    self._f = open(file_path, 'rb')
+    self._f.seek(start)
+    self._remaining: int = length
+    self._chunk_size: int = chunk_size
+    self._rate: float = rate_bytes_per_sec
+    self._burst: int = burst_bytes
+    self._max_delay: float = max_delay
+    self._tokens: float = float(burst_bytes)
+    self._last_refill: float = time.monotonic()
+
+  def _refill(self) -> None:
+    now = time.monotonic()
+    elapsed = now - self._last_refill
+    self._tokens = min(self._burst, self._tokens + elapsed * self._rate)
+    self._last_refill = now
+
+  def read(self, size: int = -1) -> bytes:
+    if self._remaining <= 0:
+      return b''
+    read_size: int = min(size if size > 0 else self._chunk_size, self._remaining, self._chunk_size)
+
+    self._refill()
+    if self._tokens < read_size:
+      deficit = read_size - self._tokens
+      wait = min(deficit / self._rate, self._max_delay)
+      time.sleep(wait)
+      self._refill()
+
+    data: bytes = self._f.read(read_size)
+    if not data:
+      self._remaining = 0
+      return b''
+    self._remaining -= len(data)
+    self._tokens -= len(data)
+    return data
+
+  def close(self) -> None:
+    self._f.close()
+
+  def __iter__(self):
+    return self
+
+  def __next__(self) -> bytes:
+    data: bytes = self.read(self._chunk_size)
+    if not data:
+      raise StopIteration
+    return data
+
+
+class _LeakyBucketReader:
+  """
+  漏桶 file-like object，严格匀速输出，不允许突发。
+
+  以 rate_bytes_per_sec 恒定速率输出数据。
+  每次 read() 前根据已传输字节数计算理论时间戳，不足则等待。
+  单次等待不超过 max_delay。
+  """
+
+  def __init__(
+      self,
+      file_path: str,
+      start: int,
+      length: int,
+      chunk_size: int,
+      rate_bytes_per_sec: float,
+      max_delay: float,
+  ) -> None:
+    self._f = open(file_path, 'rb')
+    self._f.seek(start)
+    self._remaining: int = length
+    self._chunk_size: int = chunk_size
+    self._rate: float = rate_bytes_per_sec
+    self._max_delay: float = max_delay
+    self._start_time: float = time.monotonic()
+    self._bytes_sent: int = 0
+
+  def read(self, size: int = -1) -> bytes:
+    if self._remaining <= 0:
+      return b''
+    read_size: int = min(size if size > 0 else self._chunk_size, self._remaining, self._chunk_size)
+
+    # 传输 read_size 字节应有的最小耗时
+    expected_elapsed = (self._bytes_sent + read_size) / self._rate
+    actual_elapsed = time.monotonic() - self._start_time
+    if actual_elapsed < expected_elapsed:
+      wait = min(expected_elapsed - actual_elapsed, self._max_delay)
+      time.sleep(wait)
+
+    data: bytes = self._f.read(read_size)
+    if not data:
+      self._remaining = 0
+      return b''
+    self._remaining -= len(data)
+    self._bytes_sent += len(data)
+    return data
+
+  def close(self) -> None:
+    self._f.close()
+
+  def __iter__(self):
+    return self
+
+  def __next__(self) -> bytes:
+    data: bytes = self.read(self._chunk_size)
+    if not data:
+      raise StopIteration
+    return data
+
+
 @register_strategy('chunk_sleep')
 class ChunkSleepThrottle(ThrottleStrategy):
   """
@@ -128,6 +258,63 @@ class SmallChunkThrottle(ThrottleStrategy):
     return _ChunkSleepReader(file_path, start, length, self._chunk_size, per_chunk_delay)
 
 
+@register_strategy('token_bucket')
+class TokenBucketThrottle(ThrottleStrategy):
+  """
+  令牌桶限速：允许短暂突发，长期匀速。
+
+  桶初始满载，首屏可快速获取一批数据（突发），
+  之后按 speed_kbps 速率匀速补充令牌。
+  burst_seconds 控制桶容量（默认 1 秒数据量）。
+  """
+
+  def __init__(
+      self,
+      speed_kbps: int,
+      max_delay: float,
+      chunk_size: int = 64 * 1024,
+      burst_seconds: float = 1.0,
+  ) -> None:
+    self._speed: int = speed_kbps
+    self._max_delay: float = max_delay
+    self._chunk_size: int = chunk_size
+    self._rate: float = speed_kbps * 1024.0
+    self._burst: int = int(self._rate * burst_seconds)
+
+  def create_reader(self, file_path: str, start: int, length: int) -> _TokenBucketReader:
+    return _TokenBucketReader(
+      file_path, start, length,
+      self._chunk_size, self._rate, self._burst, self._max_delay,
+    )
+
+
+@register_strategy('leaky_bucket')
+class LeakyBucketThrottle(ThrottleStrategy):
+  """
+  漏桶限速：严格匀速输出，不允许突发。
+
+  以 speed_kbps 恒定速率输出数据，从第一个 chunk 起即按速率等待。
+  适合需要严格恒定速率、不允许任何突发的场景。
+  """
+
+  def __init__(
+      self,
+      speed_kbps: int,
+      max_delay: float,
+      chunk_size: int = 64 * 1024,
+  ) -> None:
+    self._speed: int = speed_kbps
+    self._max_delay: float = max_delay
+    self._chunk_size: int = chunk_size
+    self._rate: float = speed_kbps * 1024.0
+
+  def create_reader(self, file_path: str, start: int, length: int) -> _LeakyBucketReader:
+    return _LeakyBucketReader(
+      file_path, start, length,
+      self._chunk_size, self._rate, self._max_delay,
+    )
+
+
 def create_throttle(
     strategy: str,
     speed_kbps: int,
@@ -138,10 +325,10 @@ def create_throttle(
   工厂函数：按策略名创建限速策略实例。
 
   参数：
-    strategy: 策略名（'chunk_sleep' / 'small_chunk' / ...）
+    strategy: 策略名（'chunk_sleep' / 'small_chunk' / 'token_bucket' / 'leaky_bucket'）
     speed_kbps: 限速速率（KB/s）
     max_delay: 单次延时上限（秒）
-    **kwargs: 策略特定参数（如 chunk_size）
+    **kwargs: 策略特定参数（如 chunk_size、burst_seconds）
 
   返回：
     ThrottleStrategy 实例
