@@ -2,7 +2,8 @@
 """
 mock server 相关的类型定义
 """
-from typing import Any, Dict, List, NamedTuple, Optional, Protocol, Tuple, TypedDict, Union
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Protocol, Tuple, TypedDict, Union
 
 from flask import Response
 from werkzeug.datastructures import Headers
@@ -132,3 +133,25 @@ class ResponseMeta(NamedTuple):
 
 # Flask request.headers 实际类型
 RequestHeaders = Headers
+
+
+# 静态资源 URL 替换函数类型
+AssetsReplaceFunc = Callable[[str], str]
+
+
+class ThrottleStrategy(ABC):
+  """限速策略统一接口"""
+
+  @abstractmethod
+  def create_reader(
+      self,
+      file_path: str,
+      start: int,
+      length: int,
+  ) -> Any:
+    """
+    返回一个 file-like object（有 read() 方法）或 iterable[bytes]。
+    WSGI server 通过 wsgi.file_wrapper 识别其 read() 方法，
+    配合 Content-Length 头实现非 chunked 流式传输。
+    """
+    ...

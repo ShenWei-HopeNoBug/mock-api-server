@@ -9,25 +9,22 @@ import os
 import re
 import mimetypes
 from email.utils import formatdate, parsedate_to_datetime
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from flask import Response, send_from_directory
 
 from config.enum.SERVER import STATIC_IMAGE_CACHE_MAX_AGE, STATIC_PARTIAL_CACHE_MAX_AGE
 from config.route import STATIC_DELAY_ROUTE
 from lib.download_lib import get_static_match_regexp
-from lib.throttle_lib import ThrottleStrategy
 from lib.utils_lib import is_file_request
 from app_types.mock_server_types import (
+  AssetsReplaceFunc,
   FlaskRouteResult,
   RequestHeaders,
   ResolveFileResult,
   ResponseMeta,
+  ThrottleStrategy,
 )
-
-
-# 静态资源 URL 替换函数类型
-AssetsReplaceFunc = Callable[[str], str]
 
 
 def create_assets_replace_func(

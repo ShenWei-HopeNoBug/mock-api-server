@@ -8,7 +8,6 @@ from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 from flask import Request, jsonify
 
 from lib.db import MockDBCache
-from lib.static_file_lib import AssetsReplaceFunc
 from lib.utils_lib import (
   create_md5,
   get_request_content_type,
@@ -19,6 +18,7 @@ from app_types.app_gui_types import RequestContentType
 from app_types.global_types import JsonValue
 from app_types.mock_server_types import (
   ApiMatchMeta,
+  AssetsReplaceFunc,
   ClientStateResult,
   DeviceId,
   DeviceState,

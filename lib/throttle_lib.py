@@ -10,8 +10,9 @@
 通过 create_throttle() 工厂函数按策略名创建，StaticFileHandler 只依赖接口，
 切换策略时无需修改 StaticFileHandler 或 _serve_throttled。
 """
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Union
+from typing import Any, Dict
+
+from app_types.mock_server_types import ThrottleStrategy
 
 # 限速策略名 → ThrottleStrategy 子类
 _STRATEGY_REGISTRY: Dict[str, type] = {}
@@ -23,24 +24,6 @@ def register_strategy(name: str):
     _STRATEGY_REGISTRY[name] = cls
     return cls
   return _wrap
-
-
-class ThrottleStrategy(ABC):
-  """限速策略统一接口"""
-
-  @abstractmethod
-  def create_reader(
-      self,
-      file_path: str,
-      start: int,
-      length: int,
-  ) -> Any:
-    """
-    返回一个 file-like object（有 read() 方法）或 iterable[bytes]。
-    WSGI server 通过 wsgi.file_wrapper 识别其 read() 方法，
-    配合 Content-Length 头实现非 chunked 流式传输。
-    """
-    ...
 
 
 class _ChunkSleepReader:

@@ -19,11 +19,10 @@ from lib.server_lib import (
   parse_flask_request,
 )
 from lib.static_file_lib import (
-  AssetsReplaceFunc,
   StaticFileHandler,
   create_assets_replace_func,
 )
-from lib.throttle_lib import ThrottleStrategy, create_throttle
+from lib.throttle_lib import create_throttle
 from lib.db import MockDBCache
 from lib.utils_lib import (
   JsonFormat,
@@ -38,6 +37,7 @@ import json
 from typing import Dict, List, Optional
 from app_types.db_types import ApiData, ApiResponseVariant
 from app_types.mock_server_types import (
+  AssetsReplaceFunc,
   ClientStateResult,
   FlaskRouteResult,
   HttpMethod,
@@ -49,6 +49,7 @@ from app_types.mock_server_types import (
   RequestKey,
   ResponseKey,
   Route,
+  ThrottleStrategy,
   VariantMeta,
 )
 from flask import (Flask, request, jsonify, make_response)
