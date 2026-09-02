@@ -346,6 +346,22 @@ class StaticFileHandler:
       else:
         meta = self._build_full_meta(file_total)
 
+      # 视频文件在限速模式下避免 200 全量传输：
+      # If-Range 不匹配或 Range 无效时，对视频返回 416 而非 200，
+      # 引导浏览器重发不带 If-Range 的 Range 请求，重新走 206 节流路径
+      if meta.status == 200 and self._is_video(file_path):
+        headers_416: Dict[str, str] = {
+          'Content-Range': f'bytes */{file_total}',
+          'Accept-Ranges': 'bytes',
+          'Content-Type': content_type,
+          'Content-Length': '0',
+          'ETag': self._compute_etag(stat.st_size, stat.st_mtime),
+          'Last-Modified': self._format_http_date(stat.st_mtime),
+          'Cache-Control': self._build_partial_cache_control(),
+        }
+        print(f'静态资源视频 416 回退  文件：{file_name}  大小：{self._format_size(file_total)}')
+        return Response(b'', status=416, headers=headers_416)
+
       meta.headers['Content-Length'] = str(meta.content_length)
       meta.headers['Content-Type'] = content_type
       # 补充缓存头：206 走强缓存 + Vary: Range（已在 _build_partial_meta 中设置），
@@ -435,6 +451,12 @@ class StaticFileHandler:
     """判断文件 MIME 类型是否为图片"""
     mime_type: Optional[str] = mimetypes.guess_type(file_path)[0]
     return mime_type is not None and mime_type.startswith('image/')
+
+  @staticmethod
+  def _is_video(file_path: str) -> bool:
+    """判断文件 MIME 类型是否为视频"""
+    mime_type: Optional[str] = mimetypes.guess_type(file_path)[0]
+    return mime_type is not None and mime_type.startswith('video/')
 
   def _build_cache_control(self, file_path: str) -> str:
     """根据文件类型生成 Cache-Control 值：图片走强缓存，其他走协商缓存"""
