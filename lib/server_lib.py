@@ -207,7 +207,14 @@ class StaticFileHandler:
   _CHUNK_SIZE: int = 64 * 1024
 
   def match(self, path: str, request_headers: RequestHeaders) -> FlaskRouteResult:
-    """匹配并返回本地静态资源文件"""
+    """
+    匹配并返回本地静态资源文件。
+
+    编排职责：
+    1. 解析并校验本地文件；
+    2. 基于资源类型/限速开关/Range 头选择 direct 或 throttled；
+    3. 将协议细节（304/206/416、缓存头拼装）下沉到子方法。
+    """
     route_path: str = '/' + path
     resolved: ResolveFileResult = self._resolve_file(route_path)
 
@@ -218,27 +225,33 @@ class StaticFileHandler:
     file_name: str = resolved.get('file_name')
     range_header: Optional[str] = request_headers.get('Range')
 
-    # 限速模式下按资源类型分流：
-    # - 图片：无 Range 也走节流实体响应（200 + body），避免空响应导致图片加载失败
-    # - 视频：保留探测响应 + Range 节流路径
-    if self.static_load_speed > 0:
-      if self._is_image(file_path):
-        return self._serve_throttled(file_path, file_name, range_header, request_headers)
-      if self._is_video(file_path):
-        if range_header is None:
-          return self._serve_direct(file_path, file_name, request_headers)
-        return self._serve_throttled(file_path, file_name, range_header, request_headers)
-
-    # 无 Range：走 _serve_direct 快速返回（浏览器探测请求，需尽快拿到 Accept-Ranges 改发 Range 请求）
-    if range_header is None:
-      return self._serve_direct(file_path, file_name, request_headers)
-
-    # 有 Range 且有限速：走 _serve_throttled（206 + ThrottledFileReader 逐块节流，弱网模拟 + disk cache）
-    if self.static_load_speed > 0:
+    # 是否走节流读取由独立决策方法统一判断，避免 match 中出现大量资源分支 if-else。
+    if self._should_use_throttled(file_path, range_header):
       return self._serve_throttled(file_path, file_name, range_header, request_headers)
 
-    # 有 Range 且无限速：走 _serve_direct（send_from_directory 返回 206，浏览器可 disk cache）
+    # 其余场景统一走 direct：
+    # - 无 Range 的常规静态资源请求
+    # - 限速视频探测请求（200 empty，引导后续 Range）
+    # - 不限速含 Range 的标准 send_from_directory 条件处理
     return self._serve_direct(file_path, file_name, request_headers)
+
+  def _should_use_throttled(self, file_path: str, range_header: Optional[str]) -> bool:
+    """
+    判断当前请求是否应走节流读取。
+
+    规则（保持现有行为）：
+    - 未开启限速：全部 direct；
+    - 图片：开启限速后无论是否带 Range 都节流（修复图片空 body 问题）；
+    - 视频：仅带 Range 时节流（无 Range 先走 probe）；
+    - 其他类型：仅带 Range 时节流。
+    """
+    if self.static_load_speed <= 0:
+      return False
+    if self._is_image(file_path):
+      return True
+    if self._is_video(file_path):
+      return range_header is not None
+    return range_header is not None
 
   def _serve_direct(
       self,
@@ -264,10 +277,8 @@ class StaticFileHandler:
         'Accept-Ranges': 'bytes',
         'Content-Type': content_type,
         'Content-Length': '0',
-        'ETag': self._compute_etag(stat.st_size, stat.st_mtime),
-        'Last-Modified': self._format_http_date(stat.st_mtime),
-        'Cache-Control': self._build_cache_control(file_path),
       }
+      self._apply_common_headers(headers, file_path, stat, status_code=200)
       print(f'静态资源探测响应(200 empty)  文件：{file_name}  大小：{self._format_size(stat.st_size)}')
       return Response(b'', status=200, headers=headers)
 
@@ -327,7 +338,14 @@ class StaticFileHandler:
       range_header: Optional[str],
       request_headers: RequestHeaders,
   ) -> FlaskRouteResult:
-    """有 Range 且有限速：逐块读取 + per-chunk sleep 节流，通过 file-like object 流式返回（非 chunked，浏览器可边收边播 + disk cache 206）"""
+    """
+    走节流读取：逐块读取 + per-chunk sleep。
+
+    该方法只负责：
+    - 打开文件并获取 file_total；
+    - 通过 _build_throttled_meta_or_response 解析 Range/If-Range 并组装响应元信息；
+    - 构建 ThrottledFileReader 并返回最终 Response。
+    """
     # 入口处 stat 一次，后续全部复用，避免 TOCTOU 竞态
     stat: os.stat_result = os.stat(file_path)
 
@@ -348,41 +366,18 @@ class StaticFileHandler:
 
       content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
 
-      # If-Range 校验：不匹配时忽略 Range，返回完整文件（200）
-      effective_range_header: Optional[str] = range_header
-      if not self._check_if_range(stat, request_headers):
-        effective_range_header = None
-
-      # 解析 Range 头，分发到对应 meta 构建方法
-      range_info: Optional[Tuple[int, int]] = self._parse_range(effective_range_header, file_total)
-
-      # 有 Range 头但无法解析/不满足时，返回 416（RFC 7233）
-      if effective_range_header is not None and range_info is None:
-        print(f'静态资源非法 Range 416  文件：{file_name}  Range：{effective_range_header}')
-        return self._build_416_response(content_type, file_total, stat)
-
-      if range_info is not None:
-        meta: ResponseMeta = self._build_partial_meta(range_info[0], range_info[1], file_total)
-      else:
-        meta = self._build_full_meta(file_total)
-
-      # 视频文件在限速模式下避免 200 全量传输：
-      # If-Range 不匹配或 Range 无效时，对视频返回 416 而非 200，
-      # 引导浏览器重发不带 If-Range 的 Range 请求，重新走 206 节流路径
-      if meta.status == 200 and self._is_video(file_path):
-        print(f'静态资源视频 416 回退  文件：{file_name}  大小：{self._format_size(file_total)}')
-        return self._build_416_response(content_type, file_total, stat)
-
-      meta.headers['Content-Length'] = str(meta.content_length)
-      meta.headers['Content-Type'] = content_type
-      # 补充缓存头：206 走强缓存 + Vary: Range（已在 _build_partial_meta 中设置），
-      # 200（Range 无效回退）走原有协商缓存策略
-      meta.headers['ETag'] = self._compute_etag(stat.st_size, stat.st_mtime)
-      meta.headers['Last-Modified'] = self._format_http_date(stat.st_mtime)
-      if meta.status == 206:
-        meta.headers['Cache-Control'] = self._build_partial_cache_control()
-      else:
-        meta.headers['Cache-Control'] = self._build_cache_control(file_path)
+      meta_or_response: Union[ResponseMeta, Response] = self._build_throttled_meta_or_response(
+        file_path=file_path,
+        file_name=file_name,
+        range_header=range_header,
+        request_headers=request_headers,
+        stat=stat,
+        file_total=file_total,
+        content_type=content_type,
+      )
+      if isinstance(meta_or_response, Response):
+        return meta_or_response
+      meta: ResponseMeta = meta_or_response
 
     chunk_size: int = self._CHUNK_SIZE
     speed: int = self.static_load_speed  # KB/s
@@ -403,6 +398,49 @@ class StaticFileHandler:
     print(
       f'静态资源节流  文件：{file_name}  大小：{self._format_size(meta.content_length)}  速率：{self._format_size(speed * 1024)}/s  每块延时：{per_chunk_delay:.4f}s')
     return Response(reader, status=meta.status, headers=meta.headers)
+
+  def _build_throttled_meta_or_response(
+      self,
+      file_path: str,
+      file_name: str,
+      range_header: Optional[str],
+      request_headers: RequestHeaders,
+      stat: os.stat_result,
+      file_total: int,
+      content_type: str,
+  ) -> Union[ResponseMeta, Response]:
+    """
+    构建节流响应的元信息（ResponseMeta）或直接返回终态响应（如 416）。
+
+    该方法集中处理 Range/If-Range 语义，避免 _serve_throttled 里散落协议分支。
+    """
+    # If-Range 校验：不匹配时忽略 Range，转为完整文件候选（200）
+    effective_range_header: Optional[str] = range_header
+    if not self._check_if_range(stat, request_headers):
+      effective_range_header = None
+
+    range_info: Optional[Tuple[int, int]] = self._parse_range(effective_range_header, file_total)
+
+    # 有 Range 头但无法解析/不满足时，返回 416（RFC 7233）
+    if effective_range_header is not None and range_info is None:
+      print(f'静态资源非法 Range 416  文件：{file_name}  Range：{effective_range_header}')
+      return self._build_416_response(content_type, file_total, stat)
+
+    if range_info is not None:
+      meta: ResponseMeta = self._build_partial_meta(range_info[0], range_info[1], file_total)
+    else:
+      meta = self._build_full_meta(file_total)
+
+    # 视频在限速模式下必须避免 200 全量传输：
+    # 若最终退化为 200，则返回 416 引导浏览器重发不带 If-Range 的 Range 请求。
+    if meta.status == 200 and self._is_video(file_path):
+      print(f'静态资源视频 416 回退  文件：{file_name}  大小：{self._format_size(file_total)}')
+      return self._build_416_response(content_type, file_total, stat)
+
+    meta.headers['Content-Length'] = str(meta.content_length)
+    meta.headers['Content-Type'] = content_type
+    self._apply_common_headers(meta.headers, file_path, stat, status_code=meta.status)
+    return meta
 
   @staticmethod
   def _format_size(size_bytes: float) -> str:
@@ -541,21 +579,32 @@ class StaticFileHandler:
       stat: os.stat_result,
   ) -> None:
     """为 send_from_directory 返回的 Response 对象补充缓存头"""
-    etag: str = self._compute_etag(stat.st_size, stat.st_mtime)
-    response.headers['ETag'] = etag
-    response.headers['Last-Modified'] = self._format_http_date(stat.st_mtime)
-    if response.status_code == 206:
-      response.headers['Cache-Control'] = self._build_partial_cache_control()
+    self._apply_common_headers(response.headers, file_path, stat, status_code=response.status_code)
+
+  def _apply_common_headers(
+      self,
+      headers: Dict[str, str],
+      file_path: str,
+      stat: os.stat_result,
+      status_code: int,
+  ) -> None:
+    """
+    统一补充校验器与缓存控制头。
+
+    - ETag / Last-Modified：用于协商缓存、If-Range/If-None-Match 校验；
+    - Cache-Control：206/416 走 partial 强缓存，其余沿用类型化缓存策略。
+    """
+    headers['ETag'] = self._compute_etag(stat.st_size, stat.st_mtime)
+    headers['Last-Modified'] = self._format_http_date(stat.st_mtime)
+    if status_code in (206, 416):
+      headers['Cache-Control'] = self._build_partial_cache_control()
     else:
-      response.headers['Cache-Control'] = self._build_cache_control(file_path)
+      headers['Cache-Control'] = self._build_cache_control(file_path)
 
   def _build_304_response(self, file_path: str, stat: os.stat_result) -> FlaskRouteResult:
     """构建 304 Not Modified 响应（无 body、无延时、附带缓存头）"""
-    headers: Dict[str, str] = {
-      'ETag': self._compute_etag(stat.st_size, stat.st_mtime),
-      'Last-Modified': self._format_http_date(stat.st_mtime),
-      'Cache-Control': self._build_cache_control(file_path),
-    }
+    headers: Dict[str, str] = {}
+    self._apply_common_headers(headers, file_path, stat, status_code=304)
     return Response('', status=304, headers=headers)
 
   def _build_416_response(self, content_type: str, file_total: int, stat: os.stat_result) -> Response:
@@ -565,10 +614,8 @@ class StaticFileHandler:
       'Accept-Ranges': 'bytes',
       'Content-Type': content_type,
       'Content-Length': '0',
-      'ETag': self._compute_etag(stat.st_size, stat.st_mtime),
-      'Last-Modified': self._format_http_date(stat.st_mtime),
-      'Cache-Control': self._build_partial_cache_control(),
     }
+    self._apply_common_headers(headers_416, file_path='', stat=stat, status_code=416)
     return Response(b'', status=416, headers=headers_416)
 
   @staticmethod
