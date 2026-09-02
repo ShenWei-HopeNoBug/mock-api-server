@@ -218,6 +218,17 @@ class StaticFileHandler:
     file_name: str = resolved.get('file_name')
     range_header: Optional[str] = request_headers.get('Range')
 
+    # 限速模式下按资源类型分流：
+    # - 图片：无 Range 也走节流实体响应（200 + body），避免空响应导致图片加载失败
+    # - 视频：保留探测响应 + Range 节流路径
+    if self.static_load_speed > 0:
+      if self._is_image(file_path):
+        return self._serve_throttled(file_path, file_name, range_header, request_headers)
+      if self._is_video(file_path):
+        if range_header is None:
+          return self._serve_direct(file_path, file_name, request_headers)
+        return self._serve_throttled(file_path, file_name, range_header, request_headers)
+
     # 无 Range：走 _serve_direct 快速返回（浏览器探测请求，需尽快拿到 Accept-Ranges 改发 Range 请求）
     if range_header is None:
       return self._serve_direct(file_path, file_name, request_headers)
@@ -235,7 +246,7 @@ class StaticFileHandler:
       file_name: str,
       request_headers: RequestHeaders,
   ) -> FlaskRouteResult:
-    """无 Range：直接返回文件（有限速时仅返回头部，引导浏览器改发 Range 请求）"""
+    """无 Range：直接返回文件（限速时仅视频返回探测头部，引导改发 Range 请求）"""
     # 入口处 stat 一次，后续全部复用，避免 TOCTOU 竞态
     stat: os.stat_result = os.stat(file_path)
 
@@ -244,10 +255,10 @@ class StaticFileHandler:
       print(f'静态资源缓存命中(304)  文件：{file_name}')
       return self._build_304_response(file_path, stat)
 
-    # 有限速时，200 探测请求返回空 body + Content-Length: 0：
+    # 有限速且为视频时，200 探测请求返回空 body + Content-Length: 0：
     # 浏览器收到 Accept-Ranges: bytes 后会立即改发 Range 请求走 _serve_throttled 节流路径，
     # 避免对 69MB 大文件做无节流的全量传输导致播放卡死。
-    if self.static_load_speed > 0:
+    if self.static_load_speed > 0 and self._is_video(file_path):
       content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
       headers: Dict[str, str] = {
         'Accept-Ranges': 'bytes',
@@ -299,6 +310,7 @@ class StaticFileHandler:
     headers: Dict[str, str] = {
       'Content-Range': f'bytes {start}-{end}/{file_total}',
       'Accept-Ranges': 'bytes',
+      'Vary': 'Range',
     }
     return ResponseMeta(status=206, headers=headers, start=start, end=end, content_length=content_length)
 
@@ -336,11 +348,18 @@ class StaticFileHandler:
       content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
 
       # If-Range 校验：不匹配时忽略 Range，返回完整文件（200）
+      effective_range_header: Optional[str] = range_header
       if not self._check_if_range(stat, request_headers):
-        range_header = None
+        effective_range_header = None
 
       # 解析 Range 头，分发到对应 meta 构建方法
-      range_info: Optional[Tuple[int, int]] = self._parse_range(range_header, file_total)
+      range_info: Optional[Tuple[int, int]] = self._parse_range(effective_range_header, file_total)
+
+      # 有 Range 头但无法解析/不满足时，返回 416（RFC 7233）
+      if effective_range_header is not None and range_info is None:
+        print(f'静态资源非法 Range 416  文件：{file_name}  Range：{effective_range_header}')
+        return self._build_416_response(content_type, file_total, stat)
+
       if range_info is not None:
         meta: ResponseMeta = self._build_partial_meta(range_info[0], range_info[1], file_total)
       else:
@@ -350,17 +369,8 @@ class StaticFileHandler:
       # If-Range 不匹配或 Range 无效时，对视频返回 416 而非 200，
       # 引导浏览器重发不带 If-Range 的 Range 请求，重新走 206 节流路径
       if meta.status == 200 and self._is_video(file_path):
-        headers_416: Dict[str, str] = {
-          'Content-Range': f'bytes */{file_total}',
-          'Accept-Ranges': 'bytes',
-          'Content-Type': content_type,
-          'Content-Length': '0',
-          'ETag': self._compute_etag(stat.st_size, stat.st_mtime),
-          'Last-Modified': self._format_http_date(stat.st_mtime),
-          'Cache-Control': self._build_partial_cache_control(),
-        }
         print(f'静态资源视频 416 回退  文件：{file_name}  大小：{self._format_size(file_total)}')
-        return Response(b'', status=416, headers=headers_416)
+        return self._build_416_response(content_type, file_total, stat)
 
       meta.headers['Content-Length'] = str(meta.content_length)
       meta.headers['Content-Type'] = content_type
@@ -544,6 +554,19 @@ class StaticFileHandler:
       'Cache-Control': self._build_cache_control(file_path),
     }
     return Response('', status=304, headers=headers)
+
+  def _build_416_response(self, content_type: str, file_total: int, stat: os.stat_result) -> Response:
+    """构建 416 Range Not Satisfiable 响应"""
+    headers_416: Dict[str, str] = {
+      'Content-Range': f'bytes */{file_total}',
+      'Accept-Ranges': 'bytes',
+      'Content-Type': content_type,
+      'Content-Length': '0',
+      'ETag': self._compute_etag(stat.st_size, stat.st_mtime),
+      'Last-Modified': self._format_http_date(stat.st_mtime),
+      'Cache-Control': self._build_partial_cache_control(),
+    }
+    return Response(b'', status=416, headers=headers_416)
 
   @staticmethod
   def _parse_range(range_header: Optional[str], file_total: int) -> Optional[Tuple[int, int]]:
