@@ -173,6 +173,15 @@ class CopyVariantParams(TypedDict):
   api_data_id: str   # 目标 api_data ID
 
 
+class SetVariantExclusiveEnabledParams(TypedDict):
+  """
+  /variant/set_exclusive_enabled 请求参数
+
+  传入目标变体 id，handler 将该变体设为启用，同时禁用同一 api_data_id 下的所有其他变体。
+  """
+  id: str  # 目标变体 ID
+
+
 class AppServerRunningData(TypedDict):
   """
   APP_SERVER 启动结果数据
