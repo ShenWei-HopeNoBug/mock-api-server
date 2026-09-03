@@ -400,6 +400,41 @@ class ApiResponseVariantMixin:
     except Exception as e:
       return {"success": False, "id": None, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
 
+  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "设为唯一启用失败"})
+  def set_variant_exclusive_enabled(self, variant_id: str) -> OperationResult:
+    """将指定变体设为启用，同时禁用同一 api_data_id 下的所有其他变体，失败返回 {"success": False, "status_code": 具体错误码, "status_msg": "具体错误信息"}"""
+    if not variant_id:
+      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: id"}
+
+    with self._lock:
+      row = self._conn.execute(
+        'SELECT api_data_id FROM api_response_variants WHERE id=?',
+        (variant_id,),
+      ).fetchone()
+    if row is None:
+      return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {variant_id}"}
+    api_data_id = row[0]
+
+    try:
+      with self._transaction() as conn:
+        conn.execute(
+          '''UPDATE api_response_variants
+             SET enabled=0,
+                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+             WHERE api_data_id=? AND id!=?''',
+          (api_data_id, variant_id),
+        )
+        conn.execute(
+          '''UPDATE api_response_variants
+             SET enabled=1,
+                 updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')
+             WHERE id=?''',
+          (variant_id,),
+        )
+      return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+    except Exception as e:
+      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+
   @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "绑定变体失败"})
   def bind_variants_to_api(self, api_data_id: str, variant_ids: List[str]) -> OperationResult:
     """直接替换 api_data 的变体 ID 绑定列表，失败返回 {"success": False, "status_code": 具体错误码, "status_msg": "具体错误信息"}"""

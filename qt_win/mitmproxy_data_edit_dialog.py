@@ -26,6 +26,7 @@ from app_types.app_gui_types import (
   DeleteVariantParams,
   ReorderVariantParams,
   CopyVariantParams,
+  SetVariantExclusiveEnabledParams,
 )
 from app_types.db_types import (
   ApiRecord,
@@ -287,6 +288,10 @@ class MitmproxyDataEditDialog(QDialog):
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.copy_variant(params['id'], params['api_data_id'], operator='USER', variant_type='USER')
 
+  def _handle_set_variant_exclusive_enabled(self, params: SetVariantExclusiveEnabledParams) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.set_variant_exclusive_enabled(params['id'])
+
   # 请求名称 → handler 映射（/mock_data 命名空间，动作作为路径末级）
   _REQUEST_HANDLERS = {
     '/mock_data/list': _handle_get_mock_data_page,
@@ -301,6 +306,7 @@ class MitmproxyDataEditDialog(QDialog):
     '/variant/delete': _handle_delete_variant,
     '/variant/reorder': _handle_reorder_variants,
     '/variant/copy': _handle_copy_variant,
+    '/variant/set_exclusive_enabled': _handle_set_variant_exclusive_enabled,
   }
 
   def closeEvent(self, event: QEvent) -> None:
