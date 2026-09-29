@@ -17,7 +17,7 @@ import socket
 from mitmproxy.coretypes.multidict import MultiDictView
 
 from lib.decorate import error_catch
-from app_types.app_gui_types import RequestContentType
+from app_types.request_types import RequestContentType
 import datetime
 import uuid
 from typing import Union, Optional, Any, Dict, List, TypeVar

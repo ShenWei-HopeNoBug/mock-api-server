@@ -2,9 +2,17 @@
 """
 Qt Bridge 通信协议相关类型定义
 """
-from typing import TypedDict
+from typing import Any, Dict, TypedDict
 
 from app_types.global_types import JsonValue
+
+
+class QtRequestEvent(TypedDict):
+  type: str
+  name: str
+  action_id: str
+  params: Dict[str, Any]
+  data: Any
 
 
 # Qt → JS 响应消息结构（对应 QT_BRIDGE.md 响应方向协议）

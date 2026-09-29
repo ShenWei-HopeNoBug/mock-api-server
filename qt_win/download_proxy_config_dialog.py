@@ -20,7 +20,7 @@ from app_types.download_types import (
   UpdateDownloadProxyParams,
   UpdateDownloadProxyResult,
 )
-from app_types.mock_server_types import QtRequestEvent
+from app_types.qt_bridge_types import QtRequestEvent
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (

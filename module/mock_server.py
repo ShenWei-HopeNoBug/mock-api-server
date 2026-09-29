@@ -38,7 +38,6 @@ import json
 from typing import Dict, List, Optional
 from app_types.db_types import ApiData, ApiResponseVariant
 from app_types.mock_server_types import (
-  AssetsReplaceFunc,
   ClientStateResult,
   FlaskRouteResult,
   HttpMethod,
@@ -50,9 +49,9 @@ from app_types.mock_server_types import (
   RequestKey,
   ResponseKey,
   Route,
-  ThrottleStrategy,
   VariantMeta,
 )
+from app_types.static_file_types import AssetsReplaceFunc
 from flask import (Flask, request, jsonify, make_response)
 from flask_cors import CORS
 

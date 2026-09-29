@@ -17,9 +17,9 @@ from config.enum.SERVER import STATIC_IMAGE_CACHE_MAX_AGE, STATIC_PARTIAL_CACHE_
 from config.route import STATIC_DELAY_ROUTE
 from lib.download_lib import get_static_match_regexp
 from lib.utils_lib import is_file_request
-from app_types.mock_server_types import (
+from app_types.mock_server_types import FlaskRouteResult
+from app_types.static_file_types import (
   AssetsReplaceFunc,
-  FlaskRouteResult,
   RequestHeaders,
   ResolveFileResult,
   ResponseMeta,

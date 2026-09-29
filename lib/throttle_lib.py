@@ -18,7 +18,7 @@ import time
 from collections import deque
 from typing import Any, Deque, Dict, Optional, Tuple
 
-from app_types.mock_server_types import ThrottleStrategy
+from app_types.static_file_types import ThrottleStrategy
 from lib.logger_lib import APP_LOGGER
 
 # 限速策略名 → ThrottleStrategy 子类

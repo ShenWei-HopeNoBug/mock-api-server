@@ -12,7 +12,7 @@ from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
 from lib.app_lib import is_app_server_running
 from lib.db import MockDB, MockDBCache
-from app_types.mock_server_types import QtRequestEvent
+from app_types.qt_bridge_types import QtRequestEvent
 from app_types.app_gui_types import (
   AppServerRunningData,
   GetMockDataPageParams,
