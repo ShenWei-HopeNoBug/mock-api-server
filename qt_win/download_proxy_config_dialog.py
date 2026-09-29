@@ -16,6 +16,14 @@ from lib.app_lib import is_app_server_running
 from app_types.app_gui_types import AppServerRunningData
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 from lib.logger_lib import APP_LOGGER
+from config.enum.BIZ_CODE import (
+  BIZ_SUCCESS,
+  BIZ_UNKNOWN_ERROR,
+  BIZ_PARAM_MISSING,
+  BIZ_PARAM_INVALID,
+  BIZ_FILE_READ_ERROR,
+  BIZ_FILE_WRITE_ERROR,
+)
 
 
 class DownloadProxyConfigDialog(QDialog):
@@ -115,11 +123,11 @@ class DownloadProxyConfigDialog(QDialog):
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      local_server_url = f"http://127.0.0.1:{app_server_port}/static/web/apps/configEdit/index.html"
+      local_server_url = f"http://127.0.0.1:{app_server_port}/static/web-v3/apps/configEdit/index.html"
       APP_LOGGER.info(f"[download_proxy_config_dialog]以本地服务方式加载编辑页面: {local_server_url}")
       current_page.load(QUrl(local_server_url))
     else:
-      web_path = os.path.abspath('./appServer/static/web/apps/configEdit/index.html')
+      web_path = os.path.abspath('./appServer/static/web-v3/apps/configEdit/index.html')
       APP_LOGGER.info(f"[download_proxy_config_dialog]以离线文件方式加载编辑页面: {web_path}")
       current_page.load(QUrl.fromLocalFile(web_path))
 
@@ -154,32 +162,52 @@ class DownloadProxyConfigDialog(QDialog):
       self._request(event_dict)
 
   def _request(self, event: dict) -> None:
-    msg_type = event.get('type')
-    name = event.get('name')
-    action_id = event.get('action_id')
-    extra = event.get('extra', {})
-    params = event.get('params', {})
-    if msg_type != 'request':
+    if event.get('type') != 'request':
       return
 
-    def send_response(data: any = None):
-      self.send_qt2js_dict_msg({
-        "type": msg_type,
-        "name": name,
-        "data": data,
-        "action_id": action_id or '',
-        "extra": extra,
-      })
+    name = event.get('name', '')
+    action_id = event.get('action_id', '')
+    params = event.get('params', {})
 
-    # 获取下载代理配置列表
-    if name == 'get_download_proxy':
-      download_proxy_list = self.download_config_manager.get_list(key='download_proxy_list')
-      send_response({"list": download_proxy_list})
-    # 更新下载代理配置列表
-    elif name == 'update_download_proxy':
-      download_proxy_list = params.get('download_proxy_list', [])
-      self.download_config_manager.set(
-        'download_proxy_list',
-        download_proxy_list,
+    def send_response(
+        data: any = None,
+        status_code: int = BIZ_SUCCESS,
+        status_msg: str = '',
+    ) -> None:
+      self.send_qt2js_dict_msg(
+        TInteractObj.build_qt_response(name, action_id, data, status_code, status_msg)
       )
-      self.close_signal.emit()
+
+    try:
+      if name == '/download_proxy/list':
+        download_proxy_list = self.download_config_manager.get_list(key='download_proxy_list')
+        send_response({"list": download_proxy_list})
+      elif name == '/download_proxy/update':
+        if not isinstance(params, dict):
+          raise ValueError('请求参数必须是对象')
+        if 'download_proxy_list' not in params:
+          raise KeyError('download_proxy_list')
+        download_proxy_list = params['download_proxy_list']
+        if not isinstance(download_proxy_list, list) or not all(
+            isinstance(item, dict) for item in download_proxy_list
+        ):
+          raise ValueError('download_proxy_list 必须是代理配置对象数组')
+        self.download_config_manager.set('download_proxy_list', download_proxy_list)
+        send_response({"success": True})
+        self.close_signal.emit()
+      else:
+        send_response(
+          None,
+          status_code=BIZ_PARAM_INVALID,
+          status_msg=f'不支持的请求路径: {name}',
+        )
+    except KeyError as e:
+      send_response(None, status_code=BIZ_PARAM_MISSING, status_msg=f'缺少必填参数: {e}')
+    except ValueError as e:
+      send_response(None, status_code=BIZ_PARAM_INVALID, status_msg=str(e))
+    except FileNotFoundError as e:
+      send_response(None, status_code=BIZ_FILE_READ_ERROR, status_msg=str(e))
+    except PermissionError as e:
+      send_response(None, status_code=BIZ_FILE_WRITE_ERROR, status_msg=str(e))
+    except Exception as e:
+      send_response(None, status_code=BIZ_UNKNOWN_ERROR, status_msg=str(e))
