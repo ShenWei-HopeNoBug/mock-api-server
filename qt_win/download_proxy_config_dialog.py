@@ -14,6 +14,7 @@ from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_d
 from lib.utils_lib import (ConfigFileManager)
 from lib.app_lib import is_app_server_running
 from app_types.app_gui_types import AppServerRunningData
+from app_types.mock_server_types import QtRequestEvent
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
@@ -156,12 +157,12 @@ class DownloadProxyConfigDialog(QDialog):
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
   def receive(self, message: str) -> None:
-    event_dict: dict = json.loads(message)
+    event_dict: QtRequestEvent = json.loads(message)
     msg_type = event_dict.get('type')
     if msg_type == 'request':
       self._request(event_dict)
 
-  def _request(self, event: dict) -> None:
+  def _request(self, event: QtRequestEvent) -> None:
     if event.get('type') != 'request':
       return
 

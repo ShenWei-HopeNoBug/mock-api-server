@@ -11,6 +11,14 @@ from werkzeug.datastructures import Headers
 from app_types.global_types import JsonValue
 
 
+class QtRequestEvent(TypedDict):
+  type: str
+  name: str
+  action_id: str
+  params: Dict[str, Any]
+  data: Any
+
+
 class MockApiEntry(TypedDict):
   response: JsonValue
   timeout: int
@@ -133,7 +141,6 @@ class ResponseMeta(NamedTuple):
 
 # Flask request.headers 实际类型
 RequestHeaders = Headers
-
 
 # 静态资源 URL 替换函数类型
 AssetsReplaceFunc = Callable[[str], str]

@@ -12,6 +12,7 @@ from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
 from lib.app_lib import is_app_server_running
 from lib.db import MockDB, MockDBCache
+from app_types.mock_server_types import QtRequestEvent
 from app_types.app_gui_types import (
   AppServerRunningData,
   GetMockDataPageParams,
@@ -149,7 +150,7 @@ class MitmproxyDataEditDialog(QDialog):
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
   def receive(self, message: str) -> None:
-    event_dict: dict = json.loads(message)
+    event_dict: QtRequestEvent = json.loads(message)
 
     msg_type = event_dict.get('type')
     if msg_type == 'request':
@@ -160,7 +161,7 @@ class MitmproxyDataEditDialog(QDialog):
     self.interact_obj.send_qt2js_dict_msg(data)
 
   # 处理 web 发出的请求相关事件
-  def _request(self, event: dict) -> None:
+  def _request(self, event: QtRequestEvent) -> None:
     msg_type = event.get('type')
     name = event.get('name')
     action_id = event.get('action_id')
