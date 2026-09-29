@@ -14,11 +14,10 @@ from lib.utils_lib import (
   remove_byte_empty_content,
   remove_url_query,
 )
-from app_types.app_gui_types import RequestContentType
+from app_types.request_types import RequestContentType
 from app_types.global_types import JsonValue
 from app_types.mock_server_types import (
   ApiMatchMeta,
-  AssetsReplaceFunc,
   ClientStateResult,
   DeviceId,
   DeviceState,
@@ -38,6 +37,7 @@ from app_types.mock_server_types import (
   VariantMeta,
   VariantState,
 )
+from app_types.static_file_types import AssetsReplaceFunc
 
 T = TypeVar('T')
 

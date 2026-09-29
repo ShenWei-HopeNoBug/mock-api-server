@@ -17,7 +17,7 @@ import socket
 from mitmproxy.coretypes.multidict import MultiDictView
 
 from lib.decorate import error_catch
-from app_types.app_gui_types import RequestContentType
+from app_types.request_types import RequestContentType
 import datetime
 import uuid
 from typing import Union, Optional, Any, Dict, List, TypeVar
@@ -269,10 +269,10 @@ class ConfigFileManager:
 
     return dict_data.get(key, None)
 
-  @error_catch(error_msg='更新变量失败！')
-  def set(self, key: str, value: Any) -> None:
+  @error_catch(error_msg='更新变量失败！', error_return=False)
+  def set(self, key: str, value: Any) -> bool:
     if not key:
-      return
+      return False
 
     with open(self.path, 'r', encoding='utf-8') as fl:
       data: str = fl.read()
@@ -281,6 +281,7 @@ class ConfigFileManager:
 
     with open(self.path, 'w', encoding='utf-8') as fl:
       fl.write(JsonFormat.dumps(dict_data))
+    return True
 
   @error_catch(error_msg='列表数据 get 失败', error_return=[])
   def get_list(self, key: str) -> list:

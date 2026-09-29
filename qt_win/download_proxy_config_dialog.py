@@ -2,7 +2,9 @@
 import os
 import json
 import copy
-from typing import Optional
+from collections import OrderedDict
+from threading import Lock
+from typing import List, Optional
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -13,9 +15,20 @@ from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
 from lib.utils_lib import (ConfigFileManager)
 from lib.app_lib import is_app_server_running
+from lib.biz_error_lib import resolve_biz_error
 from app_types.app_gui_types import AppServerRunningData
+from app_types.download_types import (
+  DownloadProxyItem,
+  GetDownloadProxyListResult,
+  UpdateDownloadProxyParams,
+)
+from app_types.qt_bridge_types import QtBridgeEvent, QtBridgeIncomingMessage, QtBridgeRequest
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 from lib.logger_lib import APP_LOGGER
+from config.enum.BIZ_CODE import (
+  BIZ_SUCCESS,
+  BIZ_PARAM_INVALID,
+)
 
 
 class DownloadProxyConfigDialog(QDialog):
@@ -46,6 +59,8 @@ class DownloadProxyConfigDialog(QDialog):
     self.download_config_manager: ConfigFileManager = download_config_manager
     self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
     self._devtools_view: Optional[QWebEngineView] = None
+    self._seen_event_ids = OrderedDict()
+    self._event_lock = Lock()
 
     self.init()
 
@@ -83,14 +98,8 @@ class DownloadProxyConfigDialog(QDialog):
     self.web_channel = web_channel
     self.interact_obj = interact_obj
 
-    # 页面加载完成
-    def page_loaded(result):
-      if result:
-        self.webview.page().runJavaScript("window.location.href = '#/downloadProxy';")
-
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    webview.loadFinished.connect(page_loaded)
 
     # 加载中占位组件
     loading_widget = WebLoadingWidget()
@@ -112,16 +121,22 @@ class DownloadProxyConfigDialog(QDialog):
     # F12 打开内嵌 DevTools
     self._devtools_view = setup_devtools(webview, self)
 
+    # 离线页面路径
+    web_route = '#/downloadProxy'
+    web_base_path = '/web-v3/apps/configEdit/index.html'
+
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      local_server_url = f"http://127.0.0.1:{app_server_port}/static/web/apps/configEdit/index.html"
+      local_server_url = f"http://127.0.0.1:{app_server_port}/static{web_base_path}{web_route}"
       APP_LOGGER.info(f"[download_proxy_config_dialog]以本地服务方式加载编辑页面: {local_server_url}")
       current_page.load(QUrl(local_server_url))
     else:
-      web_path = os.path.abspath('./appServer/static/web/apps/configEdit/index.html')
-      APP_LOGGER.info(f"[download_proxy_config_dialog]以离线文件方式加载编辑页面: {web_path}")
-      current_page.load(QUrl.fromLocalFile(web_path))
+      web_path = os.path.abspath(f"./appServer/static{web_base_path}")
+      APP_LOGGER.info(f"[download_proxy_config_dialog]以离线文件方式加载编辑页面: {web_path}{web_route}")
+      local_url = QUrl.fromLocalFile(web_path)
+      local_url.setFragment(web_route.lstrip('#'))
+      current_page.load(local_url)
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
@@ -148,38 +163,103 @@ class DownloadProxyConfigDialog(QDialog):
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
   def receive(self, message: str) -> None:
-    event_dict: dict = json.loads(message)
-    msg_type = event_dict.get('type')
-    if msg_type == 'request':
-      self._request(event_dict)
+    incoming: QtBridgeIncomingMessage = json.loads(message)
+    if incoming.get('type') == 'request':
+      self._request(incoming)
+    elif incoming.get('type') == 'event':
+      self._event(incoming)
 
-  def _request(self, event: dict) -> None:
-    msg_type = event.get('type')
-    name = event.get('name')
-    action_id = event.get('action_id')
-    extra = event.get('extra', {})
-    params = event.get('params', {})
-    if msg_type != 'request':
+  def _request(self, event: QtBridgeRequest) -> None:
+    if event.get('type') != 'request':
       return
 
-    def send_response(data: any = None):
-      self.send_qt2js_dict_msg({
-        "type": msg_type,
-        "name": name,
-        "data": data,
-        "action_id": action_id or '',
-        "extra": extra,
-      })
+    name = event.get('name', '')
+    action_id = event.get('action_id', '')
+    params = event.get('params', {})
 
-    # 获取下载代理配置列表
-    if name == 'get_download_proxy':
-      download_proxy_list = self.download_config_manager.get_list(key='download_proxy_list')
-      send_response({"list": download_proxy_list})
-    # 更新下载代理配置列表
-    elif name == 'update_download_proxy':
-      download_proxy_list = params.get('download_proxy_list', [])
-      self.download_config_manager.set(
-        'download_proxy_list',
-        download_proxy_list,
+    def send_response(
+        data: any = None,
+        status_code: int = BIZ_SUCCESS,
+        status_msg: str = '',
+    ) -> None:
+      self.send_qt2js_dict_msg(
+        TInteractObj.build_qt_response(name, action_id, data, status_code, status_msg)
       )
-      self.close_signal.emit()
+
+    handler = self._REQUEST_HANDLERS.get(name)
+    if handler is None:
+      send_response(
+        None,
+        status_code=BIZ_PARAM_INVALID,
+        status_msg=f'不支持的请求路径: {name}',
+      )
+      return
+
+    try:
+      result = handler(self, params)
+    except Exception as e:
+      status_code, status_msg = resolve_biz_error(e)
+      send_response(None, status_code=status_code, status_msg=status_msg)
+      return
+
+    send_response(result)
+
+  # 处理 web 发出的单向事件（无需回包）
+  def _event(self, event: QtBridgeEvent) -> None:
+    # 忽略类型不匹配或缺少去重标识的消息
+    if event.get('type') != 'event':
+      return
+    name = event.get('name')
+    action_id = event.get('action_id')
+    if not isinstance(name, str) or not isinstance(action_id, str) or not action_id:
+      return
+    handler = self._EVENT_HANDLERS.get(name)
+    if handler is None:
+      return
+
+    # receive 在独立线程执行，检查与记录需加锁；只保留最近 256 个事件标识
+    key = (name, action_id)
+    with self._event_lock:
+      if key in self._seen_event_ids:
+        return
+      self._seen_event_ids[key] = None
+      if len(self._seen_event_ids) > 256:
+        self._seen_event_ids.popitem(last=False)
+
+    try:
+      handler(self, event)
+    except Exception:
+      # 处理失败不计入已完成事件，允许相同 action_id 重试
+      with self._event_lock:
+        self._seen_event_ids.pop(key, None)
+      raise
+
+  def _handle_close_requested(self, _event: QtBridgeEvent) -> None:
+    self.close_signal.emit()
+
+  def _handle_get_download_proxy_list(self, _params: dict) -> GetDownloadProxyListResult:
+    download_proxy_list: List[DownloadProxyItem] = self.download_config_manager.get_list(key='download_proxy_list')
+    return {"list": download_proxy_list}
+
+  def _handle_update_download_proxy(self, params: UpdateDownloadProxyParams) -> None:
+    if not isinstance(params, dict):
+      raise ValueError('请求参数必须是对象')
+    if 'download_proxy_list' not in params:
+      raise KeyError('download_proxy_list')
+    download_proxy_list = params['download_proxy_list']
+    if not isinstance(download_proxy_list, list) or not all(
+        isinstance(item, dict) for item in download_proxy_list
+    ):
+      raise ValueError('download_proxy_list 必须是代理配置对象数组')
+    if not self.download_config_manager.set('download_proxy_list', download_proxy_list):
+      raise RuntimeError('下载代理配置保存失败，请查看应用日志')
+
+  _REQUEST_HANDLERS = {
+    '/download_proxy/list': _handle_get_download_proxy_list,
+    '/download_proxy/update': _handle_update_download_proxy,
+  }
+
+  # 事件名称 → handler 映射（单向事件，无需回包）
+  _EVENT_HANDLERS = {
+    'download_proxy.close_requested': _handle_close_requested,
+  }

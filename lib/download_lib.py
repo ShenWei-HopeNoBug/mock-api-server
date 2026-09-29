@@ -29,6 +29,7 @@ from lib.utils_lib import (
 )
 from lib.app_lib import get_mock_api_data_list
 from lib.db import MockDBCache
+from app_types.download_types import DownloadProxyItem
 
 
 @error_catch(error_msg='获取导出下载地址列表失败', error_return=[])
@@ -291,7 +292,7 @@ class DownloadDetailManager:
 @error_catch(error_msg='获取下载代理配置失败', error_return={})
 def get_download_proxies(
     url: str,
-    download_proxy_list: List[Dict[str, Any]]
+    download_proxy_list: List[DownloadProxyItem]
 ) -> Dict[str, str]:
   if not url or not isinstance(download_proxy_list, list):
     return {}
@@ -357,7 +358,7 @@ def download_server_static(
     DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT,
   )
   # 下载代理配置列表
-  download_proxy_list = download_config.get('download_proxy_list', [])
+  download_proxy_list: List[DownloadProxyItem] = download_config.get('download_proxy_list', [])
 
   # 下载详情管理器
   download_detail_manager = DownloadDetailManager(timeout=base_timeout)

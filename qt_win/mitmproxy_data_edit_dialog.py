@@ -11,7 +11,9 @@ from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
 from lib.app_lib import is_app_server_running
+from lib.biz_error_lib import resolve_biz_error
 from lib.db import MockDB, MockDBCache
+from app_types.qt_bridge_types import QtBridgeIncomingMessage, QtBridgeRequest
 from app_types.app_gui_types import (
   AppServerRunningData,
   GetMockDataPageParams,
@@ -39,10 +41,6 @@ from app_types.db_types import (
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
   BIZ_SUCCESS,
-  BIZ_UNKNOWN_ERROR,
-  BIZ_PARAM_MISSING,
-  BIZ_FILE_READ_ERROR,
-  BIZ_FILE_WRITE_ERROR,
 )
 
 
@@ -149,18 +147,17 @@ class MitmproxyDataEditDialog(QDialog):
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
   def receive(self, message: str) -> None:
-    event_dict: dict = json.loads(message)
+    incoming: QtBridgeIncomingMessage = json.loads(message)
 
-    msg_type = event_dict.get('type')
-    if msg_type == 'request':
-      self._request(event_dict)
+    if incoming.get('type') == 'request':
+      self._request(incoming)
 
   @create_thread
   def send_qt2js_dict_msg(self, data: dict) -> None:
     self.interact_obj.send_qt2js_dict_msg(data)
 
   # 处理 web 发出的请求相关事件
-  def _request(self, event: dict) -> None:
+  def _request(self, event: QtBridgeRequest) -> None:
     msg_type = event.get('type')
     name = event.get('name')
     action_id = event.get('action_id')
@@ -179,15 +176,12 @@ class MitmproxyDataEditDialog(QDialog):
 
     try:
       result = handler(self, params)
-      send_response(result)
-    except KeyError as e:
-      send_response(None, status_code=BIZ_PARAM_MISSING, status_msg=f'缺少必填参数: {e}')
-    except FileNotFoundError as e:
-      send_response(None, status_code=BIZ_FILE_READ_ERROR, status_msg=str(e))
-    except PermissionError as e:
-      send_response(None, status_code=BIZ_FILE_WRITE_ERROR, status_msg=str(e))
     except Exception as e:
-      send_response(None, status_code=BIZ_UNKNOWN_ERROR, status_msg=str(e))
+      status_code, status_msg = resolve_biz_error(e)
+      send_response(None, status_code=status_code, status_msg=status_msg)
+      return
+
+    send_response(result)
 
   # --- 请求 handler：只关注业务逻辑，返回数据 ---
 
