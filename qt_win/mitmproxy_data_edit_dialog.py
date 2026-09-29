@@ -11,6 +11,7 @@ from lib.TInteractObject import TInteractObj
 from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
 from lib.app_lib import is_app_server_running
+from lib.biz_error_lib import resolve_biz_error
 from lib.db import MockDB, MockDBCache
 from app_types.qt_bridge_types import QtRequestEvent
 from app_types.app_gui_types import (
@@ -40,10 +41,6 @@ from app_types.db_types import (
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
   BIZ_SUCCESS,
-  BIZ_UNKNOWN_ERROR,
-  BIZ_PARAM_MISSING,
-  BIZ_FILE_READ_ERROR,
-  BIZ_FILE_WRITE_ERROR,
 )
 
 
@@ -181,14 +178,9 @@ class MitmproxyDataEditDialog(QDialog):
     try:
       result = handler(self, params)
       send_response(result)
-    except KeyError as e:
-      send_response(None, status_code=BIZ_PARAM_MISSING, status_msg=f'缺少必填参数: {e}')
-    except FileNotFoundError as e:
-      send_response(None, status_code=BIZ_FILE_READ_ERROR, status_msg=str(e))
-    except PermissionError as e:
-      send_response(None, status_code=BIZ_FILE_WRITE_ERROR, status_msg=str(e))
     except Exception as e:
-      send_response(None, status_code=BIZ_UNKNOWN_ERROR, status_msg=str(e))
+      status_code, status_msg = resolve_biz_error(e)
+      send_response(None, status_code=status_code, status_msg=status_msg)
 
   # --- 请求 handler：只关注业务逻辑，返回数据 ---
 

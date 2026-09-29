@@ -13,6 +13,7 @@ from lib.decorate import (create_thread, error_catch)
 from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
 from lib.utils_lib import (ConfigFileManager)
 from lib.app_lib import is_app_server_running
+from lib.biz_error_lib import resolve_biz_error
 from app_types.app_gui_types import AppServerRunningData
 from app_types.download_types import (
   DownloadProxyItem,
@@ -24,11 +25,7 @@ from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
   BIZ_SUCCESS,
-  BIZ_UNKNOWN_ERROR,
-  BIZ_PARAM_MISSING,
   BIZ_PARAM_INVALID,
-  BIZ_FILE_READ_ERROR,
-  BIZ_FILE_WRITE_ERROR,
 )
 
 
@@ -197,20 +194,9 @@ class DownloadProxyConfigDialog(QDialog):
 
     try:
       result = handler(self, params)
-    except KeyError as e:
-      send_response(None, status_code=BIZ_PARAM_MISSING, status_msg=f'缺少必填参数: {e}')
-      return
-    except ValueError as e:
-      send_response(None, status_code=BIZ_PARAM_INVALID, status_msg=str(e))
-      return
-    except FileNotFoundError as e:
-      send_response(None, status_code=BIZ_FILE_READ_ERROR, status_msg=str(e))
-      return
-    except PermissionError as e:
-      send_response(None, status_code=BIZ_FILE_WRITE_ERROR, status_msg=str(e))
-      return
     except Exception as e:
-      send_response(None, status_code=BIZ_UNKNOWN_ERROR, status_msg=str(e))
+      status_code, status_msg = resolve_biz_error(e)
+      send_response(None, status_code=status_code, status_msg=status_msg)
       return
 
     send_response(result)
