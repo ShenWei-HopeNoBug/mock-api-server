@@ -163,8 +163,8 @@ class DownloadProxyConfigDialog(QDialog):
     msg_type = event_dict.get('type')
     if msg_type == 'request':
       self._request(event_dict)
-    elif msg_type == 'event' and event_dict.get('name') == '/download_proxy/close':
-      self.close_signal.emit()
+    elif msg_type == 'event':
+      self._event(event_dict)
 
   def _request(self, event: QtRequestEvent) -> None:
     if event.get('type') != 'request':
@@ -201,6 +201,15 @@ class DownloadProxyConfigDialog(QDialog):
 
     send_response(result)
 
+  # 处理 web 发出的单向事件（无需回包）
+  def _event(self, event: QtRequestEvent) -> None:
+    handler = self._EVENT_HANDLERS.get(event.get('name', ''))
+    if handler is not None:
+      handler(self, event)
+
+  def _handle_close_event(self, _event: QtRequestEvent) -> None:
+    self.close_signal.emit()
+
   def _handle_get_download_proxy_list(self, _params: dict) -> GetDownloadProxyListResult:
     download_proxy_list: List[DownloadProxyItem] = self.download_config_manager.get_list(key='download_proxy_list')
     return {"list": download_proxy_list}
@@ -221,4 +230,9 @@ class DownloadProxyConfigDialog(QDialog):
   _REQUEST_HANDLERS = {
     '/download_proxy/list': _handle_get_download_proxy_list,
     '/download_proxy/update': _handle_update_download_proxy,
+  }
+
+  # 事件名称 → handler 映射（单向事件，无需回包）
+  _EVENT_HANDLERS = {
+    '/download_proxy/close': _handle_close_event,
   }
