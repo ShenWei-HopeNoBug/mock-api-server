@@ -100,29 +100,24 @@ class StaticFileHandler:
     if self._should_use_throttled(file_path, range_header):
       return self._serve_throttled(file_path, file_name, range_header, request_headers)
 
-    # 其余场景统一走 direct：
+    # 其余场景统一走 direct（不限速）：
     # - 无 Range 的常规静态资源请求
-    # - 限速视频探测请求（200 empty，引导后续 Range）
-    # - 不限速含 Range 的标准 send_from_directory 条件处理
+    # - 有 Range 的标准 send_from_directory 条件处理
     return self._serve_direct(file_path, file_name, request_headers)
 
   def _should_use_throttled(self, file_path: str, range_header: Optional[str]) -> bool:
     """
     判断当前请求是否应走节流读取。
 
-    规则（保持现有行为）：
+    规则：
     - 未开启限速：全部 direct；
-    - 图片：开启限速后无论是否带 Range 都节流（修复图片空 body 问题）；
-    - 视频：仅带 Range 时节流（无 Range 先走 probe）；
-    - 其他类型：仅带 Range 时节流。
+    - 开启限速后：图片、视频及其他类型均走节流（无 Range 时 200 节流全量，有 Range 时 206 节流分片）。
     """
     if self.static_load_speed <= 0:
       return False
     if self._is_image(file_path):
       return True
-    if self._is_video(file_path):
-      return range_header is not None
-    return range_header is not None
+    return True
 
   def _serve_direct(
       self,
@@ -130,7 +125,7 @@ class StaticFileHandler:
       file_name: str,
       request_headers: RequestHeaders,
   ) -> FlaskRouteResult:
-    """直接返回文件（限速时仅视频返回探测头部；不限速含 Range 时启用条件处理）"""
+    """直接返回文件（不限速场景；有 Range 时启用条件处理）"""
     # 入口处 stat 一次，后续全部复用，避免 TOCTOU 竞态
     stat: os.stat_result = os.stat(file_path)
 
@@ -138,20 +133,6 @@ class StaticFileHandler:
     if self._check_cache_hit(file_path, request_headers, stat):
       print(f'静态资源缓存命中(304)  文件：{file_name}')
       return self._build_304_response(file_path, stat)
-
-    # 有限速且为视频时，200 探测请求返回空 body + Content-Length: 0：
-    # 浏览器收到 Accept-Ranges: bytes 后会立即改发 Range 请求走 _serve_throttled 节流路径，
-    # 避免对 69MB 大文件做无节流的全量传输导致播放卡死。
-    if self.static_load_speed > 0 and self._is_video(file_path):
-      content_type: str = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
-      headers: Dict[str, str] = {
-        'Accept-Ranges': 'bytes',
-        'Content-Type': content_type,
-        'Content-Length': '0',
-      }
-      self._apply_common_headers(headers, file_path, stat, status_code=200)
-      print(f'静态资源探测响应(200 empty)  文件：{file_name}  大小：{self._format_size(stat.st_size)}')
-      return Response(b'', status=200, headers=headers)
 
     # 无限速场景下：
     # - 有 Range 头时启用 conditional，交给底层处理 206/416 等分段响应
@@ -298,12 +279,6 @@ class StaticFileHandler:
       meta: ResponseMeta = self._build_partial_meta(range_info[0], range_info[1], file_total)
     else:
       meta = self._build_full_meta(file_total)
-
-    # 视频在限速模式下必须避免 200 全量传输：
-    # 若最终退化为 200，则返回 416 引导浏览器重发不带 If-Range 的 Range 请求。
-    if meta.status == 200 and self._is_video(file_path):
-      print(f'静态资源视频 416 回退  文件：{file_name}  大小：{self._format_size(file_total)}')
-      return self._build_416_response(content_type, file_total, stat)
 
     meta.headers['Content-Length'] = str(meta.content_length)
     meta.headers['Content-Type'] = content_type
