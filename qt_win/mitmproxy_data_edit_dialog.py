@@ -177,10 +177,12 @@ class MitmproxyDataEditDialog(QDialog):
 
     try:
       result = handler(self, params)
-      send_response(result)
     except Exception as e:
       status_code, status_msg = resolve_biz_error(e)
       send_response(None, status_code=status_code, status_msg=status_msg)
+      return
+
+    send_response(result)
 
   # --- 请求 handler：只关注业务逻辑，返回数据 ---
 
