@@ -98,14 +98,8 @@ class DownloadProxyConfigDialog(QDialog):
     self.web_channel = web_channel
     self.interact_obj = interact_obj
 
-    # 页面加载完成
-    def page_loaded(result):
-      if result:
-        self.webview.page().runJavaScript("window.location.href = '#/downloadProxy';")
-
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    webview.loadFinished.connect(page_loaded)
 
     # 加载中占位组件
     loading_widget = WebLoadingWidget()
@@ -127,16 +121,22 @@ class DownloadProxyConfigDialog(QDialog):
     # F12 打开内嵌 DevTools
     self._devtools_view = setup_devtools(webview, self)
 
+    # 离线页面路径
+    web_route = '#/downloadProxy'
+    web_base_path = '/web-v3/apps/configEdit/index.html'
+
     # 检查 APP_SERVER 是否正常启动
     if is_app_server_running(self.app_sever_running_data):
       app_server_port = self.app_sever_running_data.get('port', 5050)
-      local_server_url = f"http://127.0.0.1:{app_server_port}/static/web-v3/apps/configEdit/index.html"
+      local_server_url = f"http://127.0.0.1:{app_server_port}/static{web_base_path}{web_route}"
       APP_LOGGER.info(f"[download_proxy_config_dialog]以本地服务方式加载编辑页面: {local_server_url}")
       current_page.load(QUrl(local_server_url))
     else:
-      web_path = os.path.abspath('./appServer/static/web-v3/apps/configEdit/index.html')
-      APP_LOGGER.info(f"[download_proxy_config_dialog]以离线文件方式加载编辑页面: {web_path}")
-      current_page.load(QUrl.fromLocalFile(web_path))
+      web_path = os.path.abspath(f"./appServer/static{web_base_path}")
+      APP_LOGGER.info(f"[download_proxy_config_dialog]以离线文件方式加载编辑页面: {web_path}{web_route}")
+      local_url = QUrl.fromLocalFile(web_path)
+      local_url.setFragment(web_route.lstrip('#'))
+      current_page.load(local_url)
 
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
