@@ -18,7 +18,6 @@ from app_types.download_types import (
   DownloadProxyItem,
   GetDownloadProxyListResult,
   UpdateDownloadProxyParams,
-  UpdateDownloadProxyResult,
 )
 from app_types.qt_bridge_types import QtRequestEvent
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
@@ -167,6 +166,8 @@ class DownloadProxyConfigDialog(QDialog):
     msg_type = event_dict.get('type')
     if msg_type == 'request':
       self._request(event_dict)
+    elif msg_type == 'event' and event_dict.get('name') == '/download_proxy/close':
+      self.close_signal.emit()
 
   def _request(self, event: QtRequestEvent) -> None:
     if event.get('type') != 'request':
@@ -185,36 +186,40 @@ class DownloadProxyConfigDialog(QDialog):
         TInteractObj.build_qt_response(name, action_id, data, status_code, status_msg)
       )
 
-    try:
-      handler = self._REQUEST_HANDLERS.get(name)
-      if handler is None:
-        send_response(
-          None,
-          status_code=BIZ_PARAM_INVALID,
-          status_msg=f'不支持的请求路径: {name}',
-        )
-        return
+    handler = self._REQUEST_HANDLERS.get(name)
+    if handler is None:
+      send_response(
+        None,
+        status_code=BIZ_PARAM_INVALID,
+        status_msg=f'不支持的请求路径: {name}',
+      )
+      return
 
+    try:
       result = handler(self, params)
-      send_response(result)
-      if name == '/download_proxy/update':
-        self.close_signal.emit()
     except KeyError as e:
       send_response(None, status_code=BIZ_PARAM_MISSING, status_msg=f'缺少必填参数: {e}')
+      return
     except ValueError as e:
       send_response(None, status_code=BIZ_PARAM_INVALID, status_msg=str(e))
+      return
     except FileNotFoundError as e:
       send_response(None, status_code=BIZ_FILE_READ_ERROR, status_msg=str(e))
+      return
     except PermissionError as e:
       send_response(None, status_code=BIZ_FILE_WRITE_ERROR, status_msg=str(e))
+      return
     except Exception as e:
       send_response(None, status_code=BIZ_UNKNOWN_ERROR, status_msg=str(e))
+      return
 
-  def _handle_get_download_proxy_list(self, params: dict) -> GetDownloadProxyListResult:
+    send_response(result)
+
+  def _handle_get_download_proxy_list(self, _params: dict) -> GetDownloadProxyListResult:
     download_proxy_list: List[DownloadProxyItem] = self.download_config_manager.get_list(key='download_proxy_list')
     return {"list": download_proxy_list}
 
-  def _handle_update_download_proxy(self, params: UpdateDownloadProxyParams) -> UpdateDownloadProxyResult:
+  def _handle_update_download_proxy(self, params: UpdateDownloadProxyParams) -> None:
     if not isinstance(params, dict):
       raise ValueError('请求参数必须是对象')
     if 'download_proxy_list' not in params:
@@ -224,8 +229,8 @@ class DownloadProxyConfigDialog(QDialog):
         isinstance(item, dict) for item in download_proxy_list
     ):
       raise ValueError('download_proxy_list 必须是代理配置对象数组')
-    self.download_config_manager.set('download_proxy_list', download_proxy_list)
-    return {"success": True}
+    if not self.download_config_manager.set('download_proxy_list', download_proxy_list):
+      raise RuntimeError('下载代理配置保存失败，请查看应用日志')
 
   _REQUEST_HANDLERS = {
     '/download_proxy/list': _handle_get_download_proxy_list,

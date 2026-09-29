@@ -31,10 +31,3 @@ class UpdateDownloadProxyParams(TypedDict):
   全量覆盖式更新：传入的新列表会整体替换配置文件中的 download_proxy_list。
   """
   download_proxy_list: List[DownloadProxyItem]  # 新的代理配置列表
-
-
-class UpdateDownloadProxyResult(TypedDict):
-  """
-  /download_proxy/update 返回数据
-  """
-  success: bool  # 是否写入成功
