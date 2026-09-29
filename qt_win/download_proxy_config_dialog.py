@@ -2,7 +2,7 @@
 import os
 import json
 import copy
-from typing import Optional
+from typing import List, Optional
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -14,6 +14,12 @@ from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_d
 from lib.utils_lib import (ConfigFileManager)
 from lib.app_lib import is_app_server_running
 from app_types.app_gui_types import AppServerRunningData
+from app_types.download_types import (
+  DownloadProxyItem,
+  GetDownloadProxyListResult,
+  UpdateDownloadProxyParams,
+  UpdateDownloadProxyResult,
+)
 from app_types.mock_server_types import QtRequestEvent
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 from lib.logger_lib import APP_LOGGER
@@ -204,11 +210,11 @@ class DownloadProxyConfigDialog(QDialog):
     except Exception as e:
       send_response(None, status_code=BIZ_UNKNOWN_ERROR, status_msg=str(e))
 
-  def _handle_get_download_proxy_list(self, params: dict) -> dict:
-    download_proxy_list = self.download_config_manager.get_list(key='download_proxy_list')
+  def _handle_get_download_proxy_list(self, params: dict) -> GetDownloadProxyListResult:
+    download_proxy_list: List[DownloadProxyItem] = self.download_config_manager.get_list(key='download_proxy_list')
     return {"list": download_proxy_list}
 
-  def _handle_update_download_proxy(self, params: dict) -> dict:
+  def _handle_update_download_proxy(self, params: UpdateDownloadProxyParams) -> UpdateDownloadProxyResult:
     if not isinstance(params, dict):
       raise ValueError('请求参数必须是对象')
     if 'download_proxy_list' not in params:
