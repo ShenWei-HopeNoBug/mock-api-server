@@ -180,28 +180,19 @@ class DownloadProxyConfigDialog(QDialog):
       )
 
     try:
-      if name == '/download_proxy/list':
-        download_proxy_list = self.download_config_manager.get_list(key='download_proxy_list')
-        send_response({"list": download_proxy_list})
-      elif name == '/download_proxy/update':
-        if not isinstance(params, dict):
-          raise ValueError('请求参数必须是对象')
-        if 'download_proxy_list' not in params:
-          raise KeyError('download_proxy_list')
-        download_proxy_list = params['download_proxy_list']
-        if not isinstance(download_proxy_list, list) or not all(
-            isinstance(item, dict) for item in download_proxy_list
-        ):
-          raise ValueError('download_proxy_list 必须是代理配置对象数组')
-        self.download_config_manager.set('download_proxy_list', download_proxy_list)
-        send_response({"success": True})
-        self.close_signal.emit()
-      else:
+      handler = self._REQUEST_HANDLERS.get(name)
+      if handler is None:
         send_response(
           None,
           status_code=BIZ_PARAM_INVALID,
           status_msg=f'不支持的请求路径: {name}',
         )
+        return
+
+      result = handler(self, params)
+      send_response(result)
+      if name == '/download_proxy/update':
+        self.close_signal.emit()
     except KeyError as e:
       send_response(None, status_code=BIZ_PARAM_MISSING, status_msg=f'缺少必填参数: {e}')
     except ValueError as e:
@@ -212,3 +203,25 @@ class DownloadProxyConfigDialog(QDialog):
       send_response(None, status_code=BIZ_FILE_WRITE_ERROR, status_msg=str(e))
     except Exception as e:
       send_response(None, status_code=BIZ_UNKNOWN_ERROR, status_msg=str(e))
+
+  def _handle_get_download_proxy_list(self, params: dict) -> dict:
+    download_proxy_list = self.download_config_manager.get_list(key='download_proxy_list')
+    return {"list": download_proxy_list}
+
+  def _handle_update_download_proxy(self, params: dict) -> dict:
+    if not isinstance(params, dict):
+      raise ValueError('请求参数必须是对象')
+    if 'download_proxy_list' not in params:
+      raise KeyError('download_proxy_list')
+    download_proxy_list = params['download_proxy_list']
+    if not isinstance(download_proxy_list, list) or not all(
+        isinstance(item, dict) for item in download_proxy_list
+    ):
+      raise ValueError('download_proxy_list 必须是代理配置对象数组')
+    self.download_config_manager.set('download_proxy_list', download_proxy_list)
+    return {"success": True}
+
+  _REQUEST_HANDLERS = {
+    '/download_proxy/list': _handle_get_download_proxy_list,
+    '/download_proxy/update': _handle_update_download_proxy,
+  }
