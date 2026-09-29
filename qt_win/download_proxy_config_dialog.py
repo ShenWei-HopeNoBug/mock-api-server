@@ -2,6 +2,8 @@
 import os
 import json
 import copy
+from collections import OrderedDict
+from threading import Lock
 from typing import List, Optional
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QWidget
@@ -20,7 +22,7 @@ from app_types.download_types import (
   GetDownloadProxyListResult,
   UpdateDownloadProxyParams,
 )
-from app_types.qt_bridge_types import QtRequestEvent
+from app_types.qt_bridge_types import QtBridgeEvent, QtBridgeIncomingMessage, QtBridgeRequest
 from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
 from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
@@ -57,6 +59,8 @@ class DownloadProxyConfigDialog(QDialog):
     self.download_config_manager: ConfigFileManager = download_config_manager
     self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
     self._devtools_view: Optional[QWebEngineView] = None
+    self._seen_event_ids = OrderedDict()
+    self._event_lock = Lock()
 
     self.init()
 
@@ -159,14 +163,13 @@ class DownloadProxyConfigDialog(QDialog):
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
   def receive(self, message: str) -> None:
-    event_dict: QtRequestEvent = json.loads(message)
-    msg_type = event_dict.get('type')
-    if msg_type == 'request':
-      self._request(event_dict)
-    elif msg_type == 'event':
-      self._event(event_dict)
+    incoming: QtBridgeIncomingMessage = json.loads(message)
+    if incoming.get('type') == 'request':
+      self._request(incoming)
+    elif incoming.get('type') == 'event':
+      self._event(incoming)
 
-  def _request(self, event: QtRequestEvent) -> None:
+  def _request(self, event: QtBridgeRequest) -> None:
     if event.get('type') != 'request':
       return
 
@@ -202,12 +205,33 @@ class DownloadProxyConfigDialog(QDialog):
     send_response(result)
 
   # 处理 web 发出的单向事件（无需回包）
-  def _event(self, event: QtRequestEvent) -> None:
-    handler = self._EVENT_HANDLERS.get(event.get('name', ''))
-    if handler is not None:
-      handler(self, event)
+  def _event(self, event: QtBridgeEvent) -> None:
+    if event.get('type') != 'event':
+      return
+    name = event.get('name')
+    action_id = event.get('action_id')
+    if not isinstance(name, str) or not isinstance(action_id, str) or not action_id:
+      return
+    handler = self._EVENT_HANDLERS.get(name)
+    if handler is None:
+      return
 
-  def _handle_close_event(self, _event: QtRequestEvent) -> None:
+    key = (name, action_id)
+    with self._event_lock:
+      if key in self._seen_event_ids:
+        return
+      self._seen_event_ids[key] = None
+      if len(self._seen_event_ids) > 256:
+        self._seen_event_ids.popitem(last=False)
+
+    try:
+      handler(self, event)
+    except Exception:
+      with self._event_lock:
+        self._seen_event_ids.pop(key, None)
+      raise
+
+  def _handle_close_requested(self, _event: QtBridgeEvent) -> None:
     self.close_signal.emit()
 
   def _handle_get_download_proxy_list(self, _params: dict) -> GetDownloadProxyListResult:
@@ -234,5 +258,5 @@ class DownloadProxyConfigDialog(QDialog):
 
   # 事件名称 → handler 映射（单向事件，无需回包）
   _EVENT_HANDLERS = {
-    '/download_proxy/close': _handle_close_event,
+    'download_proxy.close_requested': _handle_close_requested,
   }

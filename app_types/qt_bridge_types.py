@@ -2,17 +2,31 @@
 """
 Qt Bridge 通信协议相关类型定义
 """
-from typing import Any, Callable, Dict, Tuple, Type, TypedDict
+from typing import Any, Callable, Dict, Literal, Tuple, Type, TypedDict, Union
 
 from app_types.global_types import JsonValue
 
 
-class QtRequestEvent(TypedDict):
-  type: str
+class QtBridgeRequest(TypedDict):
+  type: Literal['request']
   name: str
   action_id: str
   params: Dict[str, Any]
   data: Any
+
+
+class _QtBridgeEventOptionalFields(TypedDict, total=False):
+  params: Dict[str, Any]
+  data: Any
+
+
+class QtBridgeEvent(_QtBridgeEventOptionalFields):
+  type: Literal['event']
+  name: str
+  action_id: str
+
+
+QtBridgeIncomingMessage = Union[QtBridgeRequest, QtBridgeEvent]
 
 
 # Qt → JS 响应消息结构（对应 QT_BRIDGE.md 响应方向协议）

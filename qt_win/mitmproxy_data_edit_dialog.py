@@ -13,7 +13,7 @@ from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_d
 from lib.app_lib import is_app_server_running
 from lib.biz_error_lib import resolve_biz_error
 from lib.db import MockDB, MockDBCache
-from app_types.qt_bridge_types import QtRequestEvent
+from app_types.qt_bridge_types import QtBridgeIncomingMessage, QtBridgeRequest
 from app_types.app_gui_types import (
   AppServerRunningData,
   GetMockDataPageParams,
@@ -147,18 +147,17 @@ class MitmproxyDataEditDialog(QDialog):
   @create_thread
   @error_catch(error_msg='处理web接受信息异常')
   def receive(self, message: str) -> None:
-    event_dict: QtRequestEvent = json.loads(message)
+    incoming: QtBridgeIncomingMessage = json.loads(message)
 
-    msg_type = event_dict.get('type')
-    if msg_type == 'request':
-      self._request(event_dict)
+    if incoming.get('type') == 'request':
+      self._request(incoming)
 
   @create_thread
   def send_qt2js_dict_msg(self, data: dict) -> None:
     self.interact_obj.send_qt2js_dict_msg(data)
 
   # 处理 web 发出的请求相关事件
-  def _request(self, event: QtRequestEvent) -> None:
+  def _request(self, event: QtBridgeRequest) -> None:
     msg_type = event.get('type')
     name = event.get('name')
     action_id = event.get('action_id')
