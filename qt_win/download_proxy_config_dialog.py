@@ -206,6 +206,7 @@ class DownloadProxyConfigDialog(QDialog):
 
   # 处理 web 发出的单向事件（无需回包）
   def _event(self, event: QtBridgeEvent) -> None:
+    # 忽略类型不匹配或缺少去重标识的消息
     if event.get('type') != 'event':
       return
     name = event.get('name')
@@ -216,6 +217,7 @@ class DownloadProxyConfigDialog(QDialog):
     if handler is None:
       return
 
+    # receive 在独立线程执行，检查与记录需加锁；只保留最近 256 个事件标识
     key = (name, action_id)
     with self._event_lock:
       if key in self._seen_event_ids:
@@ -227,6 +229,7 @@ class DownloadProxyConfigDialog(QDialog):
     try:
       handler(self, event)
     except Exception:
+      # 处理失败不计入已完成事件，允许相同 action_id 重试
       with self._event_lock:
         self._seen_event_ids.pop(key, None)
       raise
