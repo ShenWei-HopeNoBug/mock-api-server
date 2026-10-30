@@ -1,20 +1,12 @@
 # -*- coding: utf-8 -*-
 import json
-import time
 import threading
+import time
 from collections import OrderedDict
-from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 
 from flask import Request, jsonify
 
-from lib.db import MockDBCache
-from lib.utils_lib import (
-  create_md5,
-  get_request_content_type,
-  remove_byte_empty_content,
-  remove_url_query,
-)
-from app_types.request_types import RequestContentType
 from app_types.global_types import JsonValue
 from app_types.mock_server_types import (
   ApiMatchMeta,
@@ -37,7 +29,15 @@ from app_types.mock_server_types import (
   VariantMeta,
   VariantState,
 )
+from app_types.request_types import RequestContentType
 from app_types.static_file_types import AssetsReplaceFunc
+from lib.db import MockDBCache
+from lib.utils_lib import (
+  create_md5,
+  get_request_content_type,
+  remove_byte_empty_content,
+  remove_url_query,
+)
 
 T = TypeVar('T')
 

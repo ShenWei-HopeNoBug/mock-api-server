@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QWidget
 from PyQt5.QtCore import Qt, pyqtSignal
-
-from qt_ui.text_input_win.win_ui import Ui_Dialog
+from PyQt5.QtWidgets import QDialog, QWidget
 
 from qt_ui.text_input_win import text_input_win_style
+from qt_ui.text_input_win.win_ui import Ui_Dialog
 
 
 class TextInputDialog(QDialog, Ui_Dialog):

@@ -1,7 +1,7 @@
 # 工程文件补齐方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「§12 工程化缺失清单」「改进建议-7」
-> 状态：已实施待提交
+> 状态：已完成
 > 范围：`.gitignore` / `LICENSE` / `CHANGELOG.md` / `pyproject.toml` / `.editorconfig` / `.python-version` / `README.md` / 存量 lint 基线
 
 ## 1. 背景
@@ -85,7 +85,7 @@ uv run python build.py        # 打包链路不断（import 排序属机械改�
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
 | 2026-10-31 | §3 清单 1~7 工程文件 | `.gitignore` 重写；`LICENSE`（MIT/shenwei）；`CHANGELOG.md` 回填 v0.0.3~v0.1.5；`pyproject.toml` 补元数据 + `[tool.ruff]` 配置；`.editorconfig`；`.python-version`；README 开发工作流 | ruff 基线实测 56 报错（52 可自动修），与 §1 预估一致 |
-| 2026-10-31 | §3 清单 8 lint 基线清理 | （进行中） | |
+| 2026-10-31 | §3 清单 8 lint 基线清理 | `ruff check --fix` 自动修 52 处（I001×48 等）；手工修正 F841 未用 cursor×3（`lib/db`）、E721 `type()!=bool`→`isinstance`（`qt_win/download_config_dialog.py`）；`ruff check .` 归零，`MainWindow` 冒烟通过 | 提交 `3e73ff0`（工程文件）+ lint 清理独立 commit |
 
 ## 8. 方案修正
 

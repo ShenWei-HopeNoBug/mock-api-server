@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 import asyncio
-from typing import Optional
-from mitmproxy.options import Options
-from mitmproxy.tools.dump import DumpMaster
 from multiprocessing import Process
 from multiprocessing.synchronize import Event as EventType
-from module.request_catch import RequestRecorder
+from typing import Optional
+
+from mitmproxy.options import Options
+from mitmproxy.tools.dump import DumpMaster
+
 from app_types.mitmproxy_types import MitmproxyRunConfig
 from lib.logger_lib import APP_LOGGER
+from module.request_catch import RequestRecorder
 
 
 # 轮询停止信号的后台任务

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-from .base import BaseSQLiteDB
 from .api_data import ApiDataMixin
+from .base import BaseSQLiteDB
+from .constants import CURRENT_SCHEMA_VERSION
 from .static_data import StaticDataMixin
 from .variants import ApiResponseVariantMixin
-from .constants import CURRENT_SCHEMA_VERSION
 
 
 class MockDB(BaseSQLiteDB, ApiDataMixin, StaticDataMixin, ApiResponseVariantMixin):

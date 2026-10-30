@@ -1,29 +1,29 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import QApplication, QMessageBox
-from PyQt5.QtGui import QGuiApplication, QIcon
-from PyQt5.QtCore import Qt
-
-import sys
 import ctypes
 import multiprocessing
+import sys
 import traceback as tb_module
 from types import TracebackType
 from typing import Optional, Type
 
-from module.app_server import start_app_server
-from lib.splash import StartSplash
-from qt_win.app import MainWindow
-from lib.logger_lib import APP_LOGGER
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QGuiApplication, QIcon
+from PyQt5.QtWidgets import QApplication, QMessageBox
+
+import app_env
+from app_types.app_gui_types import AppServerRunningData
 from lib.app_lib import (
+  bring_to_front,
+  find_running_app_pid,
   get_memory_name,
   is_app_running,
-  find_running_app_pid,
-  bring_to_front,
   is_app_work_dir_valid,
   run_blocking_with_events,
 )
-from app_types.app_gui_types import AppServerRunningData
-import app_env
+from lib.logger_lib import APP_LOGGER
+from lib.splash import StartSplash
+from module.app_server import start_app_server
+from qt_win.app import MainWindow
 
 
 def exception_handler(

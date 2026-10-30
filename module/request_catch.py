@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from typing import Dict, List, Optional, Union
 from multiprocessing.synchronize import Event as EventType
+from typing import Dict, List, Optional, Union
+
 from mitmproxy import http
+from mitmproxy.tools.dump import DumpMaster
+
 from app_types.db_types import ApiRecord
 from app_types.mitmproxy_types import (
   MitmproxyConfig,
@@ -11,21 +14,20 @@ from app_types.mitmproxy_types import (
   StaticCacheDict,
   StaticRecord,
 )
-from mitmproxy.tools.dump import DumpMaster
 from config.work_file import (
-  MITMPROXY_CONFIG_PATH,
   DB_DATA_PATH,
+  MITMPROXY_CONFIG_PATH,
 )
 from lib import mitmproxy_lib
 from lib.db import MockDB
-from lib.work_file_lib import create_work_files
 from lib.utils_lib import (
   JsonFormat,
-  is_file_request,
-  is_url_match,
   get_multipart_dict,
   get_request_content_type,
+  is_file_request,
+  is_url_match,
 )
+from lib.work_file_lib import create_work_files
 
 
 # 处理请求抓包工具类

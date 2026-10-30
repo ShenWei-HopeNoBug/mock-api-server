@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
+import copy
+import os
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QListView
+from PyQt5.QtCore import QRect, Qt
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QListView, QVBoxLayout, QWidget
 
-import os
-import copy
-from lib.utils_lib import ConfigFileManager
-from qt_ui.server_config_win.win_ui import Ui_Dialog
-from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, MOCK_SERVER_CONFIG_PATH)
-from qt_ui.server_config_win.module import (FileTypeListModule, StaticRouteListModule)
+from config.work_file import DEFAULT_WORK_DIR, MOCK_SERVER_CONFIG_PATH, WORK_FILE_DICT
 from lib.throttle_lib import get_strategy_options
-
+from lib.utils_lib import ConfigFileManager
 from qt_ui.server_config_win import server_config_win_style
+from qt_ui.server_config_win.module import FileTypeListModule, StaticRouteListModule
+from qt_ui.server_config_win.win_ui import Ui_Dialog
 
 
 class ServerConfigDialog(QDialog, Ui_Dialog):

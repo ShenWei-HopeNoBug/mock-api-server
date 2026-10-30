@@ -2,6 +2,7 @@
 import re
 
 from PyQt5.QtWidgets import QMessageBox
+
 from qt_ui.list_edit_module.module import ListEditModule
 
 

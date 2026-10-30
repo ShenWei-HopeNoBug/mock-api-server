@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 import asyncio
-from typing import Annotated, List, Optional
 from multiprocessing import Process
 from multiprocessing.synchronize import Event as EventType
+from typing import Annotated, List, Optional
 
 import uvicorn
 from mcp.server import MCPServer
-from starlette.routing import Route
 from starlette.responses import JSONResponse
-from lib.logger_lib import APP_LOGGER
-from lib.db import MockDBCache
+from starlette.routing import Route
+
 from app_types.db_types import (
   ApiDataDetail,
   ApiQuery,
@@ -26,7 +25,8 @@ from app_types.db_types import (
   VariantQuery,
 )
 from app_types.mcp_server_types import McpServerRunConfig
-
+from lib.db import MockDBCache
+from lib.logger_lib import APP_LOGGER
 
 # -------------------
 # MCP 服务封装

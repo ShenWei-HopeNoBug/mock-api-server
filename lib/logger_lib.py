@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
-from logging import Logger, INFO
+from logging import INFO, Logger
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 

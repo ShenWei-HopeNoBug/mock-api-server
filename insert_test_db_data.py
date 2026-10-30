@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from lib.db import MockDBCache
 from typing import List
+
 from app_types.db_types import ApiRecord
+from lib.db import MockDBCache
 
 test_api_records: List[ApiRecord] = [
   # GET 无参数 —— 用户列表

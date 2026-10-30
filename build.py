@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-import subprocess
-from config import globals
 import os
 import re
 import shutil
+import subprocess
+
+from config import globals
 from lib.utils_lib import create_timestamp
 
 # 构建配置模块文件（打包时动态生成，编译进每个 exe 的 PYZ 中）
@@ -100,7 +101,7 @@ def app_build(window=False, timestamp=''):
   args = [
     "pyinstaller",
     f"--name={app_name}",
-    f"--contents-directory=site-packages",
+    "--contents-directory=site-packages",
     "--add-data", "schema;schema/",
     "--add-data", "assets;assets/",
     "--icon=assets/app.ico",

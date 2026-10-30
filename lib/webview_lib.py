@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import math
 from typing import Optional
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QShortcut
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPainter, QColor, QPen, QPaintEvent, QKeySequence
+from PyQt5.QtGui import QColor, QKeySequence, QPainter, QPaintEvent, QPen
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtWidgets import QApplication, QLabel, QShortcut, QVBoxLayout, QWidget
 
 
 class SpinnerWidget(QWidget):

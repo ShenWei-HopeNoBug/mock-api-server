@@ -1,41 +1,12 @@
 # -*- coding: utf-8 -*-
-import time
-import os
-from config.work_file import (
-  MOCK_SERVER_CONFIG_PATH,
-  STATIC_DIR,
-)
-from config.default import DEFAULT_THROTTLE_STRATEGY
-from config.enum import SERVER
-from config.route import (STATIC_DELAY_ROUTE, SYSTEM_ROUTE, MOCK_API_ROUTE)
-from lib.decorate import create_thread, error_catch
-from lib.logger_lib import APP_LOGGER
-from lib.work_file_lib import create_work_files
-from lib.app_lib import get_mock_api_data_list
-from lib.server_lib import (
-  ClientStateManager,
-  MockRequestHandler,
-  MockRequestParseError,
-  ThreadSafeLRUCache,
-  parse_flask_request,
-)
-from lib.static_file_lib import (
-  StaticFileHandler,
-  create_assets_replace_func,
-)
-from lib.throttle_lib import create_throttle
-from lib.db import MockDBCache
-from lib.utils_lib import (
-  JsonFormat,
-  create_md5,
-  remove_url_domain,
-  remove_url_query,
-  get_ip_address,
-  shutdown_local_server,
-  is_local_server_running,
-)
 import json
+import os
+import time
 from typing import Dict, List, Optional
+
+from flask import Flask, jsonify, make_response, request
+from flask_cors import CORS
+
 from app_types.db_types import ApiData, ApiResponseVariant
 from app_types.mock_server_types import (
   ClientStateResult,
@@ -52,8 +23,39 @@ from app_types.mock_server_types import (
   VariantMeta,
 )
 from app_types.static_file_types import AssetsReplaceFunc
-from flask import (Flask, request, jsonify, make_response)
-from flask_cors import CORS
+from config.default import DEFAULT_THROTTLE_STRATEGY
+from config.enum import SERVER
+from config.route import MOCK_API_ROUTE, STATIC_DELAY_ROUTE, SYSTEM_ROUTE
+from config.work_file import (
+  MOCK_SERVER_CONFIG_PATH,
+  STATIC_DIR,
+)
+from lib.app_lib import get_mock_api_data_list
+from lib.db import MockDBCache
+from lib.decorate import create_thread, error_catch
+from lib.logger_lib import APP_LOGGER
+from lib.server_lib import (
+  ClientStateManager,
+  MockRequestHandler,
+  MockRequestParseError,
+  ThreadSafeLRUCache,
+  parse_flask_request,
+)
+from lib.static_file_lib import (
+  StaticFileHandler,
+  create_assets_replace_func,
+)
+from lib.throttle_lib import create_throttle
+from lib.utils_lib import (
+  JsonFormat,
+  create_md5,
+  get_ip_address,
+  is_local_server_running,
+  remove_url_domain,
+  remove_url_query,
+  shutdown_local_server,
+)
+from lib.work_file_lib import create_work_files
 
 
 class MockServer:

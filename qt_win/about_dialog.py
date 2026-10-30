@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QLabel, QWidget
-from PyQt5.QtCore import Qt, QRect, QSize
+from PyQt5.QtCore import QRect, QSize, Qt, QUrl
 from PyQt5.QtGui import QCursor, QDesktopServices, QFont, QMouseEvent
-from PyQt5.QtCore import QUrl
+from PyQt5.QtWidgets import QDialog, QLabel, QWidget
 
-from qt_ui.about_win.win_ui import Ui_Dialog
 import app_env
-
 from qt_ui.about_win import about_win_style
+from qt_ui.about_win.win_ui import Ui_Dialog
 
 
 class LinkLabel(QLabel):

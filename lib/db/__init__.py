@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .mock_db import MockDB
 from .cache import MockDBCache
+from .mock_db import MockDB
 
 __all__ = ['MockDB', 'MockDBCache']

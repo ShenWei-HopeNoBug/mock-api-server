@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-import os
-from typing import Optional
 import hashlib
-from lib.decorate import error_catch
+import os
 import sys
+from typing import Optional
+
+from lib.decorate import error_catch
 
 
 def is_dir_path_valid(dir_path: str) -> bool:

@@ -1,27 +1,28 @@
 # -*- coding: utf-8 -*-
 import os
-import time
 import threading
+import time
 import webbrowser
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from PyQt5.QtWidgets import QMenu, QAction, QApplication
-from PyQt5.QtCore import QSharedMemory
-from lib.db import MockDB, MockDBCache
-from lib.decorate import error_catch
-from lib.utils_lib import (
-  find_process,
-  create_md5,
-  is_local_server_running,
-)
-from app_types.app_gui_types import AppServerRunningData
-from app_types.db_types import ApiData, ApiQuery
-from lib.logger_lib import APP_LOGGER
 import psutil
+import win32con
 import win32gui
 import win32process
-import win32con
+from PyQt5.QtCore import QSharedMemory
+from PyQt5.QtWidgets import QAction, QApplication, QMenu
+
+from app_types.app_gui_types import AppServerRunningData
+from app_types.db_types import ApiData, ApiQuery
+from lib.db import MockDB, MockDBCache
+from lib.decorate import error_catch
+from lib.logger_lib import APP_LOGGER
+from lib.utils_lib import (
+  create_md5,
+  find_process,
+  is_local_server_running,
+)
 
 
 def run_blocking_with_events(app: QApplication, func: Callable, *args: Any, **kwargs: Any) -> Any:

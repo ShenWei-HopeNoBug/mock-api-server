@@ -1,26 +1,25 @@
 # -*- coding: utf-8 -*-
+import copy
+import datetime
+import hashlib
+import itertools
+import json
 import os
 import re
-import copy
-import hashlib
-import time
-import itertools
-import threading
-
-import requests
-from urllib.parse import urlparse
-import json
-import psutil
-from PIL import Image
 import socket
-
-from mitmproxy.coretypes.multidict import MultiDictView
-
-from lib.decorate import error_catch
-from app_types.request_types import RequestContentType
-import datetime
+import threading
+import time
 import uuid
-from typing import Union, Optional, Any, Dict, List, TypeVar
+from typing import Any, Dict, List, Optional, TypeVar, Union
+from urllib.parse import urlparse
+
+import psutil
+import requests
+from mitmproxy.coretypes.multidict import MultiDictView
+from PIL import Image
+
+from app_types.request_types import RequestContentType
+from lib.decorate import error_catch
 
 # 数值类型 TypeVar，传入 int 返回 int，传入 float 返回 float
 _NumT = TypeVar('_NumT', int, float)

@@ -3,6 +3,7 @@
 mitmproxy 抓包相关的类型定义
 """
 from typing import Dict, List, TypedDict, Union
+
 from app_types.db_types import ApiRecord
 
 

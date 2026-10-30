@@ -9,13 +9,12 @@ from typing import Optional, Sequence
 
 from app_types.qt_bridge_types import BizStatus, ExcStatusRule
 from config.enum.BIZ_CODE import (
-  BIZ_UNKNOWN_ERROR,
-  BIZ_PARAM_MISSING,
-  BIZ_PARAM_INVALID,
   BIZ_FILE_READ_ERROR,
   BIZ_FILE_WRITE_ERROR,
+  BIZ_PARAM_INVALID,
+  BIZ_PARAM_MISSING,
+  BIZ_UNKNOWN_ERROR,
 )
-
 
 # 默认异常映射表：(异常类型, status_code, 消息格式化函数)
 # 按顺序 isinstance 匹配，具体异常类型需放在其父类之前

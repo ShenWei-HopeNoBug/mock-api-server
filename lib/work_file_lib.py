@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
-from lib.utils_lib import (check_and_create_dir, JsonFormat)
-from config.work_file import (DEFAULT_WORK_DIR, WORK_DIR_DICT, WORK_FILE_DICT)
+
+from config.work_file import DEFAULT_WORK_DIR, WORK_DIR_DICT, WORK_FILE_DICT
+from lib.utils_lib import JsonFormat, check_and_create_dir
 
 
 # 检查工作目录文件完整性

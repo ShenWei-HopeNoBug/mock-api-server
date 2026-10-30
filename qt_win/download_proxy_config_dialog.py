@@ -1,21 +1,16 @@
 # -*- coding: utf-8 -*-
-import os
-import json
 import copy
+import json
+import os
 from collections import OrderedDict
 from threading import Lock
 from typing import List, Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QWidget
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import Qt, QUrl, QEvent, pyqtSignal
+from PyQt5.QtCore import QEvent, Qt, QUrl, pyqtSignal
 from PyQt5.QtWebChannel import QWebChannel
-from lib.TInteractObject import TInteractObj
-from lib.decorate import (create_thread, error_catch)
-from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
-from lib.utils_lib import (ConfigFileManager)
-from lib.app_lib import is_app_server_running
-from lib.biz_error_lib import resolve_biz_error
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtWidgets import QDialog, QStackedWidget, QVBoxLayout, QWidget
+
 from app_types.app_gui_types import AppServerRunningData
 from app_types.download_types import (
   DownloadProxyItem,
@@ -23,12 +18,18 @@ from app_types.download_types import (
   UpdateDownloadProxyParams,
 )
 from app_types.qt_bridge_types import QtBridgeEvent, QtBridgeIncomingMessage, QtBridgeRequest
-from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
-from lib.logger_lib import APP_LOGGER
 from config.enum.BIZ_CODE import (
-  BIZ_SUCCESS,
   BIZ_PARAM_INVALID,
+  BIZ_SUCCESS,
 )
+from config.work_file import DEFAULT_WORK_DIR, DOWNLOAD_CONFIG_PATH, WORK_FILE_DICT
+from lib.app_lib import is_app_server_running
+from lib.biz_error_lib import resolve_biz_error
+from lib.decorate import create_thread, error_catch
+from lib.logger_lib import APP_LOGGER
+from lib.TInteractObject import TInteractObj
+from lib.utils_lib import ConfigFileManager
+from lib.webview_lib import WebLoadingWidget, get_webview_dialog_config, setup_devtools
 
 
 class DownloadProxyConfigDialog(QDialog):

@@ -3,35 +3,36 @@ import sqlite3
 import threading
 from typing import Callable, ContextManager, List, Optional
 
-from lib.utils_lib import generate_uuid, JsonFormat
-from lib.logger_lib import APP_LOGGER
-from config.enum import DATABASE
-from config.enum.DATABASE import VALID_HTTP_METHODS, VALID_REQUEST_CONTENT_TYPES
-from config.enum.BIZ_CODE import (
-  BIZ_SUCCESS,
-  BIZ_PARAM_MISSING,
-  BIZ_PARAM_INVALID,
-  BIZ_DATA_NOT_FOUND,
-  BIZ_DATA_EMPTY,
-  BIZ_DB_ERROR,
-  BIZ_CONSTRAINT_VIOLATION,
-  BIZ_UNKNOWN_ERROR,
-)
 from app_types.db_types import (
-  ApiRecord,
-  ApiQuery,
   ApiData,
   ApiDataDetail,
+  ApiQuery,
+  ApiRecord,
+  BatchOperationResult,
   OperationResult,
   OperationResultWithOptionalId,
-  BatchOperationResult,
 )
+from config.enum import DATABASE
+from config.enum.BIZ_CODE import (
+  BIZ_CONSTRAINT_VIOLATION,
+  BIZ_DATA_EMPTY,
+  BIZ_DATA_NOT_FOUND,
+  BIZ_DB_ERROR,
+  BIZ_PARAM_INVALID,
+  BIZ_PARAM_MISSING,
+  BIZ_SUCCESS,
+  BIZ_UNKNOWN_ERROR,
+)
+from config.enum.DATABASE import VALID_HTTP_METHODS, VALID_REQUEST_CONTENT_TYPES
+from lib.logger_lib import APP_LOGGER
+from lib.utils_lib import JsonFormat, generate_uuid
+
 from .utils import (
   _ensure_open,
-  _normalize_response_variant_ids,
-  _parse_response_variant_ids,
   _normalize_enabled,
+  _normalize_response_variant_ids,
   _parse_enabled,
+  _parse_response_variant_ids,
 )
 
 
@@ -442,7 +443,7 @@ class ApiDataMixin:
 
     try:
       with self._transaction() as conn:
-        cursor = conn.execute(
+        conn.execute(
           '''UPDATE api_data
              SET response_variant_ids=?,
                  updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')

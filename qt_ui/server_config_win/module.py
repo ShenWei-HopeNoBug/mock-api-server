@@ -2,8 +2,9 @@
 import re
 
 from PyQt5.QtWidgets import QMessageBox
+
+from config.route import INNER_ROUTE_LIST
 from qt_ui.list_edit_module.module import ListEditModule
-from config.route import (INNER_ROUTE_LIST)
 
 
 class FileTypeListModule(ListEditModule):

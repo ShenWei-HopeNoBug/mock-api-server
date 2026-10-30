@@ -3,45 +3,46 @@ import json
 import os
 from typing import Optional
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QStackedWidget, QWidget
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import Qt, QUrl, QEvent
+from PyQt5.QtCore import QEvent, Qt, QUrl
 from PyQt5.QtWebChannel import QWebChannel
-from lib.TInteractObject import TInteractObj
-from lib.decorate import (create_thread, error_catch)
-from lib.webview_lib import get_webview_dialog_config, WebLoadingWidget, setup_devtools
-from lib.app_lib import is_app_server_running
-from lib.biz_error_lib import resolve_biz_error
-from lib.db import MockDB, MockDBCache
-from app_types.qt_bridge_types import QtBridgeIncomingMessage, QtBridgeRequest
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtWidgets import QDialog, QStackedWidget, QVBoxLayout, QWidget
+
 from app_types.app_gui_types import (
+  AddMockDataParams,
+  AddVariantParams,
   AppServerRunningData,
+  BatchDeleteMockDataParams,
+  CopyMockDataParams,
+  CopyVariantParams,
+  DeleteMockDataParams,
+  DeleteVariantParams,
+  GetMockDataDetailParams,
   GetMockDataPageParams,
   MockDataPageResult,
-  DeleteMockDataParams,
-  BatchDeleteMockDataParams,
-  AddMockDataParams,
-  CopyMockDataParams,
-  GetMockDataDetailParams,
-  AddVariantParams,
-  UpdateVariantParams,
-  DeleteVariantParams,
   ReorderVariantParams,
-  CopyVariantParams,
   SetVariantExclusiveEnabledParams,
+  UpdateVariantParams,
 )
 from app_types.db_types import (
-  ApiRecord,
-  ApiQuery,
   ApiDataDetail,
+  ApiQuery,
+  ApiRecord,
+  BatchOperationResult,
   OperationResult,
   OperationResultWithOptionalId,
-  BatchOperationResult,
 )
-from lib.logger_lib import APP_LOGGER
+from app_types.qt_bridge_types import QtBridgeIncomingMessage, QtBridgeRequest
 from config.enum.BIZ_CODE import (
   BIZ_SUCCESS,
 )
+from lib.app_lib import is_app_server_running
+from lib.biz_error_lib import resolve_biz_error
+from lib.db import MockDB, MockDBCache
+from lib.decorate import create_thread, error_catch
+from lib.logger_lib import APP_LOGGER
+from lib.TInteractObject import TInteractObj
+from lib.webview_lib import WebLoadingWidget, get_webview_dialog_config, setup_devtools
 
 
 class MitmproxyDataEditDialog(QDialog):

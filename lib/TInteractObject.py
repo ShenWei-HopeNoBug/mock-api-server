@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal
-from lib.utils_lib import JsonFormat
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+
 from app_types.qt_bridge_types import JsonValue, QtResponsePayload
+from lib.utils_lib import JsonFormat
 
 
 class TInteractObj(QObject):

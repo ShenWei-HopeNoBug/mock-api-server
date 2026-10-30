@@ -1,35 +1,37 @@
 # -*- coding: utf-8 -*-
-import os
 import json
-import shutil
-import re
-import time
 import math
+import os
+import re
+import shutil
 import threading
-import requests
+import time
 from typing import Any, Callable, Dict, List, Optional
+
+import requests
 from requests.exceptions import ConnectionError
+
+from app_types.download_types import DownloadProxyItem
+from config.default import DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT, DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
+from config.enum import DOWNLOAD
 from config.work_file import (
   DOWNLOAD_CONFIG_PATH,
-  STATIC_DIR,
   DOWNLOAD_DIR,
-)
-from config.enum import DOWNLOAD
-from config.default import (DEFAULT_DOWNLOAD_CONNECT_TIMEOUT, DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT)
-from lib.decorate import error_catch
-from lib.utils_lib import (
-  check_and_create_dir,
-  create_timestamp,
-  JsonFormat,
-  compress_image,
-  get_url_domain,
-  create_md5,
-  limit_num_range,
-  is_url_match,
+  STATIC_DIR,
 )
 from lib.app_lib import get_mock_api_data_list
 from lib.db import MockDBCache
-from app_types.download_types import DownloadProxyItem
+from lib.decorate import error_catch
+from lib.utils_lib import (
+  JsonFormat,
+  check_and_create_dir,
+  compress_image,
+  create_md5,
+  create_timestamp,
+  get_url_domain,
+  is_url_match,
+  limit_num_range,
+)
 
 
 @error_catch(error_msg='获取导出下载地址列表失败', error_return=[])

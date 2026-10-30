@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 import os
-import shutil
-from datetime import datetime
-from typing import List, Dict, Any, Optional
-from lib.logger_lib import APP_LOGGER
-from lib.decorate import error_catch
-from lib.file_lib import is_dir_path_valid, diff_file
-from logging import Logger
 import re
+import shutil
 import sys
+from datetime import datetime
+from logging import Logger
+from typing import Any, Dict, List, Optional
+
+from lib.decorate import error_catch
+from lib.file_lib import diff_file, is_dir_path_valid
+from lib.logger_lib import APP_LOGGER
 
 
 class SimpleFolderBackup:
@@ -197,7 +198,7 @@ class SimpleFolderBackup:
       self.logger.info(f"找到最新的备份: {latest_backup_path}")
       return self.restore(latest_backup_path)
     else:
-      self.logger.error(f"未找到最新的备份")
+      self.logger.error("未找到最新的备份")
       return False
 
   @error_catch(error_msg='查找最新的备份文件夹路径异常', error_return=None)

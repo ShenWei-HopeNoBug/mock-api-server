@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import QWidget, QMessageBox
-
 import copy
+
+from PyQt5.QtWidgets import QMessageBox, QWidget
+
 from lib.decorate import error_catch
+from qt_ui.list_edit_module import module_style
 from qt_ui.list_edit_module.win_ui import Ui_Form
 from qt_win.text_input_dialog import TextInputDialog
-
-from qt_ui.list_edit_module import module_style
 
 
 class ListEditModule(QWidget, Ui_Form):

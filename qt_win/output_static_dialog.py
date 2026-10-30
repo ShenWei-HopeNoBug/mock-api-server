@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
+import os
 from typing import List
 
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 from PyQt5.QtCore import Qt, pyqtSignal
-from qt_ui.output_static_win.win_ui import Ui_Dialog
+from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
 
-import os
-from config.work_file import (DEFAULT_WORK_DIR, DOWNLOAD_DIR, OUTPUT_DIR)
-from lib.download_lib import (get_output_data_list, output_static_files)
+from config.work_file import DEFAULT_WORK_DIR, DOWNLOAD_DIR, OUTPUT_DIR
 from lib.decorate import create_thread
-
+from lib.download_lib import get_output_data_list, output_static_files
 from qt_ui.output_static_win import output_static_win_style
+from qt_ui.output_static_win.win_ui import Ui_Dialog
 
 
 # 导出静态资源弹窗
@@ -180,7 +179,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     log_path_set = set(self.get_download_log_path_list())
 
     # 过滤重复日志后的待添加路径列表
-    add_path_list = [file for file in file_list if not file in log_path_set]
+    add_path_list = [file for file in file_list if file not in log_path_set]
 
     if not len(add_path_list):
       return

@@ -22,7 +22,7 @@
 
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
-| [engineering-files-plan](v0_1_5/engineering/engineering-files-plan.md) | 仓库工程文件 | 9 项改动 + lint 基线清理，两 commit 拆分 | 待实施 |
+| [engineering-files-plan](v0_1_5/engineering/engineering-files-plan.md) | 仓库工程文件 | 9 项改动 + lint 基线清理，两 commit 拆分 | 已完成 |
 
 ## 历史方案存档
 

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import contextlib
-import threading
 import sqlite3
+import threading
 from importlib.resources import read_text
 
 from lib.logger_lib import APP_LOGGER
+
 from .utils import _ensure_open
 
 

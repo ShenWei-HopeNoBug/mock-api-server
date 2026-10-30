@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 import os
 import time
-from typing import Any, Dict
-from flask import Flask, jsonify
+from multiprocessing import Process
 from pathlib import Path
+from typing import Any, Dict
+
+from flask import Flask, jsonify
+
+from app_types.app_gui_types import AppServerRunningData
 from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APP_LOGGER
-from app_types.app_gui_types import AppServerRunningData
-from multiprocessing import Process
 from lib.utils_lib import (
   check_local_connection,
   is_local_server_running,

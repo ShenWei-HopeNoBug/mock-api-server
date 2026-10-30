@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
+import copy
+import os
 from typing import Optional
 
-from PyQt5.QtWidgets import QWidget, QDialog, QVBoxLayout
-from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtCore import QRect, Qt
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QWidget
 
-import os
-import copy
+from config.work_file import DEFAULT_WORK_DIR, MITMPROXY_CONFIG_PATH, WORK_FILE_DICT
 from lib.utils_lib import ConfigFileManager
-from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, MITMPROXY_CONFIG_PATH)
-from qt_ui.mitmproxy_config_win.win_ui import Ui_Dialog
 from qt_ui.list_edit_module.module import ListEditModule
-
 from qt_ui.mitmproxy_config_win import mitmproxy_config_win_style
+from qt_ui.mitmproxy_config_win.win_ui import Ui_Dialog
 
 
 # 抓包配置弹窗

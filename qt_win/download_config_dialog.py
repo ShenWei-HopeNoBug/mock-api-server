@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
+import copy
+import os
 from typing import Optional
 
-from PyQt5.QtWidgets import QWidget, QDialog, QVBoxLayout
-from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtCore import QRect, Qt
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QWidget
 
-import os
-import copy
-from config.default import (DEFAULT_DOWNLOAD_CONNECT_TIMEOUT, DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT)
+from config.default import DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT, DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
 from config.enum import DOWNLOAD
-from lib.utils_lib import (ConfigFileManager, limit_num_range)
-from config.work_file import (DEFAULT_WORK_DIR, WORK_FILE_DICT, DOWNLOAD_CONFIG_PATH)
-from qt_ui.download_config_win.win_ui import Ui_Dialog
-
+from config.work_file import DEFAULT_WORK_DIR, DOWNLOAD_CONFIG_PATH, WORK_FILE_DICT
+from lib.utils_lib import ConfigFileManager, limit_num_range
 from qt_ui.download_config_win import download_config_win_style
 from qt_ui.download_config_win.module import FileTypeListModule
+from qt_ui.download_config_win.win_ui import Ui_Dialog
 
 
 # 抓包配置弹窗
@@ -62,7 +61,7 @@ class DownloadConfigDialog(QDialog, Ui_Dialog):
     self.timeoutSpinBox.setValue(init_timeout)
 
     auto_adjust_timeout = self.download_config_manager.get(key='auto_adjust_timeout')
-    if type(auto_adjust_timeout) != bool:
+    if not isinstance(auto_adjust_timeout, bool):
       auto_adjust_timeout = DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT
     self.auto_adjust_timeout = auto_adjust_timeout
     self.autoAdjustTimeoutCheckBox.setChecked(auto_adjust_timeout)

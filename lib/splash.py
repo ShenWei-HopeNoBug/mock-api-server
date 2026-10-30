@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
-from PyQt5.QtWidgets import (
-  QWidget, QLabel, QVBoxLayout, QProgressBar, QFrame,
-)
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QTimer
-
 import time
 from typing import Callable, Optional
+
+from PyQt5.QtCore import QObject, Qt, QTimer, pyqtSignal
+from PyQt5.QtWidgets import (
+  QFrame,
+  QLabel,
+  QProgressBar,
+  QVBoxLayout,
+  QWidget,
+)
+
 from lib.decorate import create_thread
 
 """启动阶段文案，key 为进度百分比阈值，value 为该阶段的启动文案

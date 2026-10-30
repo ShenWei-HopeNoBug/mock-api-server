@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-import json
-import functools
 import copy
+import functools
+import json
 from typing import Any, Callable, List
 
-from lib.utils_lib import JsonFormat
 from lib.logger_lib import APP_LOGGER
+from lib.utils_lib import JsonFormat
 
 
 def _normalize_response_variant_ids(value: Any) -> str:

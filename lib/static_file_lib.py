@@ -5,18 +5,14 @@
 包含静态资源 URL 替换函数构造、静态文件请求处理器（匹配/缓存/Range/限速）。
 从 lib/server_lib.py 中抽离，降低 server_lib.py 的模块体积。
 """
+import mimetypes
 import os
 import re
-import mimetypes
 from email.utils import formatdate, parsedate_to_datetime
 from typing import Dict, List, Optional, Tuple, Union
 
 from flask import Response, send_from_directory
 
-from config.enum.SERVER import STATIC_IMAGE_CACHE_MAX_AGE, STATIC_PARTIAL_CACHE_MAX_AGE
-from config.route import STATIC_DELAY_ROUTE
-from lib.download_lib import get_static_match_regexp
-from lib.utils_lib import is_file_request
 from app_types.mock_server_types import FlaskRouteResult
 from app_types.static_file_types import (
   AssetsReplaceFunc,
@@ -25,6 +21,10 @@ from app_types.static_file_types import (
   ResponseMeta,
   ThrottleStrategy,
 )
+from config.enum.SERVER import STATIC_IMAGE_CACHE_MAX_AGE, STATIC_PARTIAL_CACHE_MAX_AGE
+from config.route import STATIC_DELAY_ROUTE
+from lib.download_lib import get_static_match_regexp
+from lib.utils_lib import is_file_request
 
 
 def create_assets_replace_func(

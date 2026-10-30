@@ -1,51 +1,58 @@
 # -*- coding: utf-8 -*-
+import os
+import threading
+import time
+from multiprocessing import Event, Process
+from multiprocessing.synchronize import Event as EventType
 from typing import Any, Dict, Optional
 
-from PyQt5.QtGui import QCloseEvent, QResizeEvent
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtWidgets import (QMessageBox, QMainWindow, QFileDialog, QMenu, QApplication, QFrame, QLabel, QVBoxLayout,
-                             QProgressBar)
-import threading
-
-from qt_win.output_static_dialog import OutputStaticDialog
-from qt_win.about_dialog import AboutDialog
-from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
-from qt_win.server_config_dialog import ServerConfigDialog
-from qt_win.download_config_dialog import DownloadConfigDialog
-from qt_win.mitmproxy_data_edit_dialog import MitmproxyDataEditDialog
-from qt_win.download_proxy_config_dialog import DownloadProxyConfigDialog
-
-import os
-import time
 import requests
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QCloseEvent, QResizeEvent
+from PyQt5.QtWidgets import (
+  QApplication,
+  QFileDialog,
+  QFrame,
+  QLabel,
+  QMainWindow,
+  QMenu,
+  QMessageBox,
+  QProgressBar,
+  QVBoxLayout,
+)
+
+import app_env
+from app_types.app_gui_types import AppServerRunningData
+from app_types.mcp_server_types import McpServerRunConfig
+from app_types.mitmproxy_types import MitmproxyRunConfig
 from config import globals
-from qt_ui.main_win.win_ui import Ui_MainWindow
-from module.asyncio_mitmproxy_server import start_mitmproxy
-from module.mcp_server import start_mcp_server
-from multiprocessing import Process, Event
-from multiprocessing.synchronize import Event as EventType
-from lib.decorate import create_thread, error_catch
-from lib.logger_lib import APP_LOGGER
-from lib.utils_lib import check_local_connection, is_local_server_running
-from lib.server_lib import server_process_start
-from lib.work_file_lib import (check_work_files, create_work_files)
+from config.menu import EDIT, FILE, HELP
+from config.work_file import DEFAULT_WORK_DIR, STATIC_DIR
 from lib.app_lib import (
+  is_app_server_running,
   open_operation_manual_html,
   set_menu_config,
   set_menu_item_disabled,
-  is_app_server_running,
 )
-from app_types.app_gui_types import AppServerRunningData
-from app_types.mitmproxy_types import MitmproxyRunConfig
-from app_types.mcp_server_types import McpServerRunConfig
 from lib.db import MockDBCache
+from lib.decorate import create_thread, error_catch
 from lib.download_lib import download_server_static
-from config.work_file import (DEFAULT_WORK_DIR, STATIC_DIR)
-from config.menu import (FILE, EDIT, HELP)
+from lib.logger_lib import APP_LOGGER
+from lib.server_lib import server_process_start
 from lib.system_lib import HISTORY_CONFIG_MANAGER
-import app_env
-
+from lib.utils_lib import check_local_connection, is_local_server_running
+from lib.work_file_lib import check_work_files, create_work_files
+from module.asyncio_mitmproxy_server import start_mitmproxy
+from module.mcp_server import start_mcp_server
 from qt_ui.main_win import main_win_style
+from qt_ui.main_win.win_ui import Ui_MainWindow
+from qt_win.about_dialog import AboutDialog
+from qt_win.download_config_dialog import DownloadConfigDialog
+from qt_win.download_proxy_config_dialog import DownloadProxyConfigDialog
+from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
+from qt_win.mitmproxy_data_edit_dialog import MitmproxyDataEditDialog
+from qt_win.output_static_dialog import OutputStaticDialog
+from qt_win.server_config_dialog import ServerConfigDialog
 
 
 # app 主窗口
