@@ -4,7 +4,17 @@
 > 约定：每篇为唯一权威方案，偏离修正以增量章节追加、不改正文；
 > 跨方案的后续变更单开增量文档（`*-changes.md`）。
 >
-> 当前仅登记历史存档；新功能域方案后续陆续补充。
+## v0_1_5/
+
+当前版本工作目录，按功能域分设子目录。
+
+### dependency/
+
+依赖管理整改：`requirements.txt` 单源化 → uv 迁移两步走。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [dependency-management-plan](v0_1_5/dependency/dependency-management-plan.md) | 全项目依赖配置 | Step 1 requirements.txt 单源化（实施范围）；Step 2 uv 迁移冻结待议 | 待实施 |
 
 ## 历史方案存档
 
