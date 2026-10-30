@@ -1,7 +1,7 @@
 # 依赖管理整改方案（两步走）
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「改进建议-1」
-> 状态：Step 1 待实施；Step 2 冻结待议
+> 状态：Step 1 已完成（`5b4dc12`）；Step 2 已实施待提交
 > 范围：`requirements.txt` / `package.txt` / `requirements-dev.txt` / `.gitattributes` / `pyproject.toml` / `README.md` / `config/globals.py` / `gen_requirements.py`
 
 ## 1. 背景
@@ -141,10 +141,16 @@ git ls-files | xargs file | grep -iE "utf-16|utf-32"   # 应无输出
 |---|---|---|---|
 | 2026-10-31 | §4.1 对账 | 除 PyQtWebEngine 外新发现 `werkzeug` 直接依赖（`app_types/static_file_types.py:8` Headers）；`PyQt5_sip` 判定为传递依赖剔除 | requirements.txt 最终 13 条直接依赖 |
 | 2026-10-31 | §4.2 ~ §4.5 文件改动 | requirements.txt 重建（13 条）；requirements-dev.txt 新建；.gitattributes 写入 `* text=auto eol=lf`；package.txt / gen_requirements.py 删除；README 修订 | `git ls-files --eol` 确认三文件 index 均为 LF |
-| 2026-10-31 | §4.6 验收 | 干净 venv `pip install -r requirements.txt` 成功；`from qt_win.app import MainWindow` 冒烟通过；dev 安装后 `PyInstaller --version` = 6.11.1；无 UTF-16/32 漏网文件 | 待人工验收确认后提交 |
+| 2026-10-31 | §4.6 验收 | 干净 venv `pip install -r requirements.txt` 成功；`from qt_win.app import MainWindow` 冒烟通过；dev 安装后 `PyInstaller --version` = 6.11.1；无 UTF-16/32 漏网文件 | 已提交 `5b4dc12` |
+| 2026-10-31 | §5 uv 迁移实施 | uv 0.13.6 安装；`pyproject.toml` 创建（13 条直接依赖全 `==`，dev 组 = pyinstaller/hooks-contrib/pytest/ruff/uv，`package = false`）；`uv.lock` 生成（96 包）；`uv sync` 收敛 `.venv`（清除开发机污染包） | 发现 `pyqt5-qt5` 解析漂移问题，以 `constraint-dependencies` 修正，详见 §9 |
+| 2026-10-31 | §5 版本单源化 + 文档对齐 | `globals.py` 改 `tomllib` 读 pyproject（兜底 `v0.0.0`）；README 换 `uv sync`/`uv run` 工作流；code-rules.md Python 版本更正为 3.13；`requirements*.txt` 删除 | 应用户要求版本同步提升至 `0.1.5` |
+| 2026-10-31 | §5 验收 | 干净目录（工作树副本）`uv sync` 96 包安装成功；`MainWindow` 冒烟 + `globals.version = v0.1.5` 通过；`uv run python build.py` 打包成功，产出 `dist/mockServer.20261031044326-v0.1.5/`（两个 exe + site-packages） | 二进制关键面核对：Qt 5.15.2/PyQt 5.15.11、mitmproxy-rs/windows 0.12.11 与快照一致 |
 
 ## 9. 方案修正
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
-| （待填） | | |
+| 2026-10-31 | `pyproject.toml` 增加 `[tool.uv] constraint-dependencies`：`pyqt5-qt5==5.15.2`、`pyqt5-sip==12.17.0`、`pyqtwebengine-qt5==5.15.2`、`mitmproxy-rs==0.12.11`、`mitmproxy-windows==0.12.11` | 直接依赖全 `==` 只能保证直接依赖不漂移，传递依赖仍会解析到最新版：① `pyqt5-qt5`/`pyqtwebengine-qt5` 被解析到 5.15.19，但该版本无 win_amd64 wheel 导致 `uv sync` 直接失败；② `mitmproxy-rs`/`windows`、`pyqt5-sip` 等二进制面漂移存在行为差异风险，钉死到 package.txt 快照版本保证迁移环境与现状等价。纯 Python 工具类传递依赖不约束，跟随正常解析 |
+| 2026-10-31 | dev 依赖组不含 `pipreqs` | `gen_requirements.py` 已删除，pipreqs 产物不可靠且不再有需要它的流程 |
+| 2026-10-31 | dev 依赖组包含 `uv==0.13.6` | uv 装进项目 `.venv` 使用；若不在依赖组内，`uv sync` 会把 venv 里的 uv 本体一并清除 |
+| 2026-10-31 | `pyproject.toml` 版本号定为 `0.1.5` 而非快照 `0.1.4` | 用户要求版本提升；`globals.version` 经 `tomllib` 读出为 `v0.1.5`，构建产物名同步带 `v0.1.5` |

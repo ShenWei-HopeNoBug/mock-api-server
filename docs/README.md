@@ -14,7 +14,7 @@
 
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
-| [dependency-management-plan](v0_1_5/dependency/dependency-management-plan.md) | 全项目依赖配置 | Step 1 requirements.txt 单源化（实施范围）；Step 2 uv 迁移冻结待议 | 待实施 |
+| [dependency-management-plan](v0_1_5/dependency/dependency-management-plan.md) | 全项目依赖配置 | Step 1 requirements.txt 单源化（`5b4dc12`）；Step 2 uv + pyproject.toml 迁移 | 已实施待提交 |
 
 ## 历史方案存档
 

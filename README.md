@@ -35,22 +35,23 @@
 
 ## 环境要求
 
-- Python 3.13.15
+- Python 3.13+
+- [uv](https://docs.astral.sh/uv/)（依赖与环境管理，`pip install uv` 或 winget 安装）
 
 ## 快速开始
 
 ### 安装依赖
 
-运行应用所需的依赖：
-
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
-打包、工具链等开发依赖（不参与应用运行）：
+`uv sync` 会按 `uv.lock` 自动创建 `.venv` 并安装全部运行依赖与开发依赖（打包工具链 PyInstaller 包含在 dev 依赖组中）。
+
+### 运行
 
 ```bash
-pip install -r requirements-dev.txt
+uv run python main.py
 ```
 
 ## 工具命令
@@ -60,7 +61,7 @@ pip install -r requirements-dev.txt
 运行项目目录中的 `build.py` 脚本进行打包，基于 PyInstaller 构建，一次产出两个 exe（带控制台黑窗和不带黑窗版本），共用同一份 `site-packages` 依赖目录：
 
 ```bash
-python build.py
+uv run python build.py
 ```
 
 产物输出在 `dist/` 目录下，包含可执行 exe、`site-packages` 依赖目录以及内置的 `schema/` 和 `assets/` 资源。
