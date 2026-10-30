@@ -14,7 +14,15 @@
 
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
-| [dependency-management-plan](v0_1_5/dependency/dependency-management-plan.md) | 全项目依赖配置 | Step 1 requirements.txt 单源化（`5b4dc12`）；Step 2 uv + pyproject.toml 迁移 | 已实施待提交 |
+| [dependency-management-plan](v0_1_5/dependency/dependency-management-plan.md) | 全项目依赖配置 | Step 1 requirements.txt 单源化（`5b4dc12`）；Step 2 uv + pyproject.toml 迁移（`fc26535`） | 已完成 |
+
+### engineering/
+
+工程文件补齐：`.gitignore` 重写、LICENSE、CHANGELOG、ruff 配置、editorconfig 等。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [engineering-files-plan](v0_1_5/engineering/engineering-files-plan.md) | 仓库工程文件 | 9 项改动 + lint 基线清理，两 commit 拆分 | 待实施 |
 
 ## 历史方案存档
 
