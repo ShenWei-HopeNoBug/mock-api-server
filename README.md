@@ -41,16 +41,16 @@
 
 ### 安装依赖
 
+运行应用所需的依赖：
+
 ```bash
-pip install -r package.txt
+pip install -r requirements.txt
 ```
 
-### 初始化 package.txt
-
-导出当前环境已安装的全部包：
+打包、工具链等开发依赖（不参与应用运行）：
 
 ```bash
-pip freeze > package.txt
+pip install -r requirements-dev.txt
 ```
 
 ## 工具命令

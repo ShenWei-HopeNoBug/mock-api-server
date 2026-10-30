@@ -139,7 +139,9 @@ git ls-files | xargs file | grep -iE "utf-16|utf-32"   # 应无输出
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| （待填） | | | |
+| 2026-10-31 | §4.1 对账 | 除 PyQtWebEngine 外新发现 `werkzeug` 直接依赖（`app_types/static_file_types.py:8` Headers）；`PyQt5_sip` 判定为传递依赖剔除 | requirements.txt 最终 13 条直接依赖 |
+| 2026-10-31 | §4.2 ~ §4.5 文件改动 | requirements.txt 重建（13 条）；requirements-dev.txt 新建；.gitattributes 写入 `* text=auto eol=lf`；package.txt / gen_requirements.py 删除；README 修订 | `git ls-files --eol` 确认三文件 index 均为 LF |
+| 2026-10-31 | §4.6 验收 | 干净 venv `pip install -r requirements.txt` 成功；`from qt_win.app import MainWindow` 冒烟通过；dev 安装后 `PyInstaller --version` = 6.11.1；无 UTF-16/32 漏网文件 | 待人工验收确认后提交 |
 
 ## 9. 方案修正
 

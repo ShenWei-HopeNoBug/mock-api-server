@@ -5,8 +5,9 @@ mitmproxy==12.2.3
 Pillow==10.4.0
 psutil==6.1.0
 PyQt5==5.15.11
-PyQt5_sip==12.17.0
+PyQtWebEngine==5.15.7
 pywin32==312
 Requests==2.32.3
 starlette==1.6.0
 uvicorn==0.52.4
+Werkzeug==3.1.3
