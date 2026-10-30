@@ -10,7 +10,7 @@ from flask import Flask, jsonify
 
 from app_types.app_gui_types import AppServerRunningData
 from lib.decorate import create_thread, error_catch
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import APPSRV_LOGGER
 from lib.utils_lib import (
   check_local_connection,
   is_local_server_running,
@@ -27,7 +27,7 @@ class AppServer:
     """确保app目录存在"""
     if not self.web_root.exists():
       self.web_root.mkdir(parents=True)
-      print(f"创建app目录: {self.web_root}")
+      APPSRV_LOGGER.info(f"创建app目录: {self.web_root}")
 
   @create_thread
   def start(self) -> None:
@@ -42,7 +42,7 @@ class AppServer:
     def server_shutdown():
       @create_thread(daemon=True)
       def delayed_shutdown():
-        APP_LOGGER.info('APP_SERVER 服务收到 shutdown 指令！正在关闭服务...')
+        APPSRV_LOGGER.info('APP_SERVER 服务收到 shutdown 指令！正在关闭服务...')
         time.sleep(0.5)
         self.shutdown()
 
@@ -61,7 +61,7 @@ class AppServer:
       caller='APP_SERVER_SHUTDOWN',
     )
     if result:
-      APP_LOGGER.info(f"即将关闭 APP_SERVER 服务！port={self.port}")
+      APPSRV_LOGGER.info(f"即将关闭 APP_SERVER 服务！port={self.port}")
       shutdown_local_server(port=self.port)
 
 
@@ -94,20 +94,20 @@ def start_app_server() -> AppServerRunningData:
   max_port_attempts = 100
   attempts = 0
   while check_local_connection(ip='0.0.0.0', port=app_server_port):
-    APP_LOGGER.warning(f"APP_SERVER 待启动服务端口被占用: {app_server_port}")
+    APPSRV_LOGGER.warning(f"APP_SERVER 待启动服务端口被占用: {app_server_port}")
     app_server_port += 1
     attempts += 1
     if attempts >= max_port_attempts:
-      APP_LOGGER.error(f"APP_SERVER 连续 {max_port_attempts} 个端口均被占用，无法启动服务！")
+      APPSRV_LOGGER.error(f"APP_SERVER 连续 {max_port_attempts} 个端口均被占用，无法启动服务！")
       return {"success": False, "port": app_server_port}
 
-  APP_LOGGER.info(f"APP_SERVER 准备启动: prot {app_server_port}")
+  APPSRV_LOGGER.info(f"APP_SERVER 准备启动: prot {app_server_port}")
 
   _start_server(port=app_server_port)
   time.sleep(1)
   result: bool = is_local_server_running(port=app_server_port, retry=20, caller='APP_SERVER_START')
 
   if not result:
-    APP_LOGGER.error(f"APP_SERVER 准备启动失败! port={app_server_port}")
+    APPSRV_LOGGER.error(f"APP_SERVER 准备启动失败! port={app_server_port}")
 
   return {"success": result, "port": app_server_port}

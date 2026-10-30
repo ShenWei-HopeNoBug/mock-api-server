@@ -591,7 +591,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 阻塞等待子进程就绪信号，最多等待 10 秒
     ready = self.mitmproxy_ready_event.wait(timeout=10)
     if not ready:
-      print('mitmproxy 服务启动超时（10s），请检查日志...')
+      APP_LOGGER.warning('mitmproxy 服务启动超时（10s），请检查日志...')
     self.mitmproxy_server_status_signal.emit('RUNNING')
 
   # 停止抓包服务（同步）
@@ -610,7 +610,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 超时未退出，强制终止
     if self.mitmproxy_process.is_alive():
-      print('mitmproxy 子进程优雅关闭超时，执行强制终止...')
+      APP_LOGGER.warning('mitmproxy 子进程优雅关闭超时，执行强制终止...')
       self.mitmproxy_process.terminate()
       self.mitmproxy_process.join(timeout=3)
 

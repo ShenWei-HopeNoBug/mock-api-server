@@ -4,7 +4,7 @@ import functools
 import json
 from typing import Any, Callable, List
 
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import DB_LOGGER
 from lib.utils_lib import JsonFormat
 
 
@@ -55,7 +55,7 @@ def _ensure_open(default: Any = None):
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
       if self._closed:
-        APP_LOGGER.warning(f'{self.__class__.__name__} 已关闭，{method.__name__} 未执行')
+        DB_LOGGER.warning(f'{self.__class__.__name__} 已关闭，{method.__name__} 未执行')
         return copy.deepcopy(default)
       return method(self, *args, **kwargs)
 

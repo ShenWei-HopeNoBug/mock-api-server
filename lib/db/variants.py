@@ -19,7 +19,7 @@ from config.enum.BIZ_CODE import (
   BIZ_SUCCESS,
   BIZ_UNKNOWN_ERROR,
 )
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import DB_LOGGER
 from lib.utils_lib import JsonFormat, generate_uuid
 
 from .utils import (
@@ -68,15 +68,15 @@ class ApiResponseVariantMixin:
       )
       # @formatter:on
       self._conn.execute('CREATE INDEX IF NOT EXISTS idx_variant_api_data_id ON api_response_variants(api_data_id)')
-      APP_LOGGER.info('ApiResponseVariantMixin schema 迁移: v2 → v3, 新增 response 变体支持')
+      DB_LOGGER.info('ApiResponseVariantMixin schema 迁移: v2 → v3, 新增 response 变体支持')
     if from_version < 4 <= to_version:
       # v3 → v4: api_response_variants 新增 operator 字段
       self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
-      APP_LOGGER.info('ApiResponseVariantMixin schema 迁移: v3 → v4, api_response_variants 新增 operator 字段')
+      DB_LOGGER.info('ApiResponseVariantMixin schema 迁移: v3 → v4, api_response_variants 新增 operator 字段')
     if from_version < 5 <= to_version:
       # v4 → v5: api_response_variants 新增 type 字段（创建来源类型，创建后不可变更）
       self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN type TEXT NOT NULL DEFAULT 'USER'")
-      APP_LOGGER.info('ApiResponseVariantMixin schema 迁移: v4 → v5, api_response_variants 新增 type 字段')
+      DB_LOGGER.info('ApiResponseVariantMixin schema 迁移: v4 → v5, api_response_variants 新增 type 字段')
 
   @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "插入变体失败"})
   def insert_variant(self, record: ApiResponseVariantInsertRecord) -> OperationResultWithOptionalId:
@@ -85,7 +85,7 @@ class ApiResponseVariantMixin:
     variant_id = generate_uuid()
     api_data_id = data.get('api_data_id')
     if not api_data_id:
-      APP_LOGGER.warning('ApiResponseVariantMixin insert_variant 缺少 api_data_id')
+      DB_LOGGER.warning('ApiResponseVariantMixin insert_variant 缺少 api_data_id')
       return {"success": False, "id": None, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: api_data_id"}
 
     data['response'] = JsonFormat.format_json_string(data['response'])

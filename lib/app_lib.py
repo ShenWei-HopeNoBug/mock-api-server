@@ -304,7 +304,7 @@ def is_app_server_running(app_sever_running_data: Optional[AppServerRunningData]
     return False
 
   if is_local_server_running(port=port, retry=0, retry_condition='NOT_RUNNING', caller='APP_SERVER_CHECK'):
-    print(f"检测到 APP_SERVER 运行中！port={port}")
+    APP_LOGGER.info(f"检测到 APP_SERVER 运行中！port={port}")
     return True
   else:
     APP_LOGGER.error(f"检测到 APP_SERVER 未运行！port={port}")

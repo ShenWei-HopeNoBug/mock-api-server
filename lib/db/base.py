@@ -4,7 +4,7 @@ import sqlite3
 import threading
 from importlib.resources import read_text
 
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import DB_LOGGER
 
 from .utils import _ensure_open
 
@@ -44,7 +44,7 @@ class BaseSQLiteDB:
     self._conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
     # schema 版本管理
     self._check_schema_version()
-    APP_LOGGER.info(f'{self.__class__.__name__} 初始化完成: {db_path}')
+    DB_LOGGER.info(f'{self.__class__.__name__} 初始化完成: {db_path}')
 
   def _init_schema(self) -> None:
     """从 schema 包读取 .sql 文件执行建表 DDL"""
@@ -52,7 +52,7 @@ class BaseSQLiteDB:
       schema_sql = read_text(self._schema_package, f'v{self._schema_version}.sql')
       self._conn.executescript(schema_sql)
     except Exception as e:
-      APP_LOGGER.error(f'{self.__class__.__name__} 建表失败 (schema v{self._schema_version}): {e}')
+      DB_LOGGER.error(f'{self.__class__.__name__} 建表失败 (schema v{self._schema_version}): {e}')
       raise
 
   def _migrate_schema(self, from_version: int, to_version: int) -> None:
@@ -70,7 +70,7 @@ class BaseSQLiteDB:
     elif db_version < self._schema_version:
       self._migrate_schema(db_version, self._schema_version)
     else:
-      APP_LOGGER.warning(
+      DB_LOGGER.warning(
         f'{self.__class__.__name__} 数据库版本({db_version})比代码版本({self._schema_version})新，降级运行可能存在风险')
 
   # 执行 PASSIVE checkpoint，供批量写入后调用
@@ -100,8 +100,8 @@ class BaseSQLiteDB:
         try:
           conn.execute('ROLLBACK')
         except Exception as rb_err:
-          APP_LOGGER.error(f'{self.__class__.__name__} ROLLBACK 失败: {rb_err}')
-        APP_LOGGER.error(f'{self.__class__.__name__} 事务回滚: {e}')
+          DB_LOGGER.error(f'{self.__class__.__name__} ROLLBACK 失败: {rb_err}')
+        DB_LOGGER.error(f'{self.__class__.__name__} 事务回滚: {e}')
         raise
 
   # 关闭 DB 连接，触发 SQLite 自动 checkpoint

@@ -15,6 +15,11 @@
 
 - `.gitignore` 重写：移除 JS 模板残留，补齐 `.venv`、`*.pyc`、`.ruff_cache`、`.pytest_cache`、`mockServer.*.spec` 等 Python 产物忽略项
 - `README.md` 补充开发工作流命令一览
+- 日志统一：运行时 `print` 全部迁移至分域 logger（APP/MOCK/STATIC/CATCH/MCP/APPSRV/DB/DOWNLOAD），`error_catch` 记录完整堆栈，werkzeug access 日志降级
+
+### Fixed
+
+- 修复 PyInstaller `-w` 打包态下 `print()` 与 `StreamHandler` 因 `sys.stdout`/`sys.stderr` 为 `None` 崩溃的隐患
 
 ## [0.1.5] - 2026-10-31
 

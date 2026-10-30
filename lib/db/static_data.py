@@ -10,7 +10,7 @@ from config.enum.BIZ_CODE import (
   BIZ_SUCCESS,
   BIZ_UNKNOWN_ERROR,
 )
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import DB_LOGGER
 from lib.utils_lib import generate_uuid
 
 from .utils import _ensure_open
@@ -36,11 +36,11 @@ class StaticDataMixin:
     if from_version < 3 <= to_version:
       # v2 → v3: 删除未使用的 idx_static_url 索引
       self._conn.execute('DROP INDEX IF EXISTS idx_static_url')
-      APP_LOGGER.info('StaticDataMixin schema 迁移: v2 → v3, 删除未使用的 idx_static_url 索引')
+      DB_LOGGER.info('StaticDataMixin schema 迁移: v2 → v3, 删除未使用的 idx_static_url 索引')
     if from_version < 4 <= to_version:
       # v3 → v4: static_data 新增 operator 字段
       self._conn.execute("ALTER TABLE static_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
-      APP_LOGGER.info('StaticDataMixin schema 迁移: v3 → v4, static_data 新增 operator 字段')
+      DB_LOGGER.info('StaticDataMixin schema 迁移: v3 → v4, static_data 新增 operator 字段')
 
   # 批量写静态资源到 DB
   @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "批量插入失败", "affected_count": 0})
@@ -65,7 +65,7 @@ class StaticDataMixin:
     try:
       with self._transaction() as conn:
         conn.executemany(insert_sql, insert_data)
-      APP_LOGGER.info(f'MockDB batch_insert_static 写入 {len(insert_data)}/{len(urls)} 条')
+      DB_LOGGER.info(f'MockDB batch_insert_static 写入 {len(insert_data)}/{len(urls)} 条')
       return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功", "affected_count": len(insert_data)}
     except Exception as e:
       return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"批量插入失败: {str(e)}", "affected_count": 0}
@@ -73,7 +73,7 @@ class StaticDataMixin:
       try:
         self._wal_checkpoint_passive()
       except Exception as e:
-        APP_LOGGER.error(f'MockDB batch_insert_static checkpoint 失败: {e}')
+        DB_LOGGER.error(f'MockDB batch_insert_static checkpoint 失败: {e}')
 
   # 查静态资源列表
   @_ensure_open(default=[])

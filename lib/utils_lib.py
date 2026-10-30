@@ -20,6 +20,7 @@ from PIL import Image
 
 from app_types.request_types import RequestContentType
 from lib.decorate import error_catch
+from lib.logger_lib import APP_LOGGER
 
 # 数值类型 TypeVar，传入 int 返回 int，传入 float 返回 float
 _NumT = TypeVar('_NumT', int, float)
@@ -221,11 +222,11 @@ def compress_image(input_path: str, output_path: str, quality: int = 80) -> bool
   img_compare = re.compile(img_pattern, flags=re.IGNORECASE)
 
   if len(img_compare.findall(input_path)) == 0:
-    print('待压缩图片文件格式不支持：{}'.format(input_path))
+    APP_LOGGER.warning('待压缩图片文件格式不支持：{}'.format(input_path))
     return False
 
   if not os.path.isfile(input_path):
-    print('待压缩图片不存在：{}'.format(input_path))
+    APP_LOGGER.warning('待压缩图片不存在：{}'.format(input_path))
     return False
 
   with Image.open(input_path) as img:
@@ -410,7 +411,7 @@ def is_local_server_running(
 ) -> bool:
   valid_conditions = ('RUNNING', 'NOT_RUNNING')
   if retry_condition not in valid_conditions:
-    print(f"retry_condition 参数非法：{retry_condition}，将使用默认值 NOT_RUNNING")
+    APP_LOGGER.warning(f"retry_condition 参数非法：{retry_condition}，将使用默认值 NOT_RUNNING")
     retry_condition = 'NOT_RUNNING'
 
   tag = f"[{caller}] " if caller else ''
@@ -420,10 +421,10 @@ def is_local_server_running(
       response = requests.get(f"http://127.0.0.1:{port}/ping", timeout=3)
       is_running = response.status_code == 200
       status = "运行中" if is_running else "未运行"
-      print(f"{tag}第 {count} 次检测：本地{port}端口服务{status}！")
+      APP_LOGGER.debug(f"{tag}第 {count} 次检测：本地{port}端口服务{status}！")
       return is_running
     except Exception as e:
-      print(f"{tag}第 {count} 次检测：本地{port}端口服务未运行！", e)
+      APP_LOGGER.debug(f"{tag}第 {count} 次检测：本地{port}端口服务未运行！{e}")
       return False
 
   check_count = 1
@@ -449,8 +450,8 @@ def is_local_server_running(
 def shutdown_local_server(ip: str = '0.0.0.0', port: int = 5000) -> None:
   process_list = find_connection_process(ip=ip, port=port)
   if len(process_list) == 0:
-    print(f"未找到本地服务进程！port={port}")
+    APP_LOGGER.warning(f"未找到本地服务进程！port={port}")
 
   for proc in process_list:
-    print(f"正在关闭本地服务进程! port={port}", proc)
+    APP_LOGGER.info(f"正在关闭本地服务进程! port={port} {proc}")
     proc.terminate()

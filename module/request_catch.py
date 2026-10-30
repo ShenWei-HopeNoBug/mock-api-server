@@ -20,6 +20,7 @@ from config.work_file import (
 )
 from lib import mitmproxy_lib
 from lib.db import MockDB
+from lib.logger_lib import CATCH_LOGGER
 from lib.utils_lib import (
   JsonFormat,
   get_multipart_dict,
@@ -106,7 +107,7 @@ class RequestRecorder:
     url: str = flow.request.url
     # 请求检查
     if not self.__check_response(flow.request, flow.response):
-      print('不满足抓取条件：{}'.format(url))
+      CATCH_LOGGER.debug('不满足抓取条件：{}'.format(url))
       return
 
     # 请求链接
@@ -127,7 +128,7 @@ class RequestRecorder:
         params = JsonFormat.format_json_string(params_json)
       # 文件上传：multipart 内可能含文件字段，get_multipart_dict 对 file 传参做特殊处理（提取文件名等）
       elif 'multipart/form-data' in raw_content_type:
-        print('content-type 为 multipart/form-data，针对内部的 file 传参作特殊处理：\n{}'.format(url))
+        CATCH_LOGGER.debug('content-type 为 multipart/form-data，针对内部的 file 传参作特殊处理：\n{}'.format(url))
         multipart_dict: Dict[str, str] = get_multipart_dict(flow.request.multipart_form)
         params = JsonFormat.dumps(multipart_dict)
       # 其他 POST content-type（如 text/plain、application/xml 等）不提取参数，保持默认空对象
@@ -154,7 +155,7 @@ class RequestRecorder:
 
   # 抓包结束
   def done(self) -> None:
-    print('mitmproxy done!')
+    CATCH_LOGGER.info('mitmproxy done!')
 
     # 从 response_cache_dict 提取全部抓包记录
     # 缓冲结构: {search_key: {md5_key: ApiRecord, ...}, ...}
@@ -163,14 +164,14 @@ class RequestRecorder:
       for record in response_data.values():
         records.append(record)
 
-    print('----> 正在保存抓包数据，共 {} 条'.format(len(records)))
+    CATCH_LOGGER.info('----> 正在保存抓包数据，共 {} 条'.format(len(records)))
     self.mock_db.batch_insert_api(records)
     self.response_cache_dict = {}
 
     # 从 static_cache_dict 提取全部静态资源 URL
     # 缓冲结构: {md5_key: StaticRecord, ...}
     urls: List[str] = [record.get('url', '') for record in self.static_cache_dict.values()]
-    print('----> 正在保存静态资源数据，共 {} 条'.format(len(urls)))
+    CATCH_LOGGER.info('----> 正在保存静态资源数据，共 {} 条'.format(len(urls)))
     self.mock_db.batch_insert_static(urls)
     self.static_cache_dict = {}
 

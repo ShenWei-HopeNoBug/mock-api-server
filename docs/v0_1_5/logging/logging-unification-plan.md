@@ -1,7 +1,7 @@
 # 日志统一方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「§4 print 炸弹」「§6 error_catch」「§7 日志不统一」「§9 日志噪音」「改进建议-4」
-> 状态：Commit 1 已实施待提交；Commit 2 待实施
+> 状态：已完成（`01d35d5` + print 迁移 commit）
 > 范围：`lib/logger_lib.py` / `lib/decorate.py` / 运行时文件 print 迁移 / werkzeug 降噪
 
 ## 1. 背景
@@ -90,6 +90,8 @@ from lib.logger_lib import APP_LOGGER; APP_LOGGER.info('test')"
 | 2026-10-31 | §3.1 logger_lib 加固 + 分域 | `get_stream_logger_handler` 改 `Optional`（`sys.stderr is None` 不挂载）；8 个分域 logger 预置；`LOG_FORMAT`/`LOG_DATE_FORMAT` 提为模块常量 | 模拟 `sys.stdout/stderr=None` 验证：logger 不崩且 `logs/app.log` 正常写入 |
 | 2026-10-31 | §3.2 error_catch 堆栈 | sync/async 两处改 `APP_LOGGER.error(msg, exc_info=True)`，删手动时间戳与 `datetime` import | 语义不变 |
 | 2026-10-31 | §3.4 werkzeug 降噪 | `mock_server`/`app_server` 启动处 `setLevel(ERROR)` | `ruff check` 归零保持，`MainWindow` 冒烟通过 |
+| 2026-10-31 | §3.3 print→logger 迁移 | 45 处运行时 print 全部转换（info×37 / warning×6 / debug×2）；`lib/db/*` 及 `module/*` 文件内 `APP_LOGGER` 同步迁移至 DB/MOCK/APPSRV/CATCH/MCP 域；`work_file_lib.py` 的 `__main__` 块 print 按 CLI 约定保留 | 级别微调：`server_config`/`mitmproxy_config`/`mcp_config` 等启动配置类归 info，probe 检测与抓包过滤归 debug |
+| 2026-10-31 | §5 验收 | 范围内 print 残留 0；8 域 logger 在 `stdout/stderr=None` 下全部正常写入 `logs/app.log`；`MainWindow` 冒烟通过 | CHANGELOG [Unreleased] 已补记 |
 
 ## 8. 方案修正
 

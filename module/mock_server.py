@@ -34,7 +34,7 @@ from config.work_file import (
 from lib.app_lib import get_mock_api_data_list
 from lib.db import MockDBCache
 from lib.decorate import create_thread, error_catch
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import MOCK_LOGGER
 from lib.server_lib import (
   ClientStateManager,
   MockRequestHandler,
@@ -193,7 +193,7 @@ class MockServer:
           'variants': variant_metas,
         }
       except Exception as e:
-        print(f'mock 数据匹配映射构建失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
+        MOCK_LOGGER.warning(f'mock 数据匹配映射构建失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
 
     # 过滤掉所有 mock 数据均处理失败而残留的空字典
     mock_api_map = {k: v for k, v in mock_api_map.items() if v}
@@ -202,7 +202,7 @@ class MockServer:
   # 启动本地 mock 服务
   @create_thread
   def start_server(self) -> None:
-    print('>' * 10, '本地 mock 服务启动...')
+    MOCK_LOGGER.info('>' * 10 + ' 本地 mock 服务启动...')
     mock_api_map: MockApiMap = self.create_api_map()
 
     root_path: str = os.path.abspath(self.work_dir)
@@ -220,7 +220,7 @@ class MockServer:
     }
 
     # 限速策略
-    print(f'当前生效的静态资源限速策略：{self.throttle_strategy}')
+    MOCK_LOGGER.info(f'当前生效的静态资源限速策略：{self.throttle_strategy}')
     throttle_strategy = create_throttle(
       strategy=self.throttle_strategy,
       speed_kbps=self.static_load_speed,
@@ -271,7 +271,7 @@ class MockServer:
     def server_shutdown() -> FlaskRouteResult:
       @create_thread(daemon=True)
       def delayed_shutdown() -> None:
-        APP_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
+        MOCK_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
         time.sleep(0.5)
         self.shutdown()
 
@@ -313,7 +313,7 @@ class MockServer:
       caller='MOCK_SERVER_SHUTDOWN',
     )
     if result:
-      APP_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
+      MOCK_LOGGER.info(f"即将关闭 MOCK_SERVER 服务！port={self.port}")
       shutdown_local_server(ip='0.0.0.0', port=self.port)
 
   @error_catch(error_msg='__get_params_json_string 解析异常', error_return='{}')

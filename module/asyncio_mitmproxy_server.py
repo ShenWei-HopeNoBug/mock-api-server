@@ -8,7 +8,7 @@ from mitmproxy.options import Options
 from mitmproxy.tools.dump import DumpMaster
 
 from app_types.mitmproxy_types import MitmproxyRunConfig
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import CATCH_LOGGER
 from module.request_catch import RequestRecorder
 
 
@@ -17,7 +17,7 @@ async def _stop_signal_watcher(stop_event: EventType, master: DumpMaster) -> Non
   """每 0.5s 检查 stop_event，检测到后调用 master.shutdown() 优雅关闭"""
   while not stop_event.is_set():
     await asyncio.sleep(0.5)
-  print('收到停止信号，正在关闭 mitmproxy 服务...')
+  CATCH_LOGGER.info('收到停止信号，正在关闭 mitmproxy 服务...')
   master.shutdown()
 
 
@@ -28,7 +28,7 @@ async def mitmproxy_task(
     stop_event: Optional[EventType] = None,
 ) -> None:
   """配置 mitmproxy 参数与启动"""
-  print('mitmproxy_config', mitmproxy_config)
+  CATCH_LOGGER.info(f'mitmproxy_config: {mitmproxy_config}')
   host = mitmproxy_config.get('host', '0.0.0.0')
   port = mitmproxy_config.get('port', 8080)
   work_dir = mitmproxy_config.get('work_dir', '.')
@@ -43,7 +43,7 @@ async def mitmproxy_task(
   # 把 master 实例挂在脚本实例上，用于内部条件触发关闭 master 服务
   request_recorder.mitmproxy_master = master
 
-  print('启动 mitmproxy 主循环...')
+  CATCH_LOGGER.info('启动 mitmproxy 主循环...')
 
   # 启动停止信号轮询任务
   watcher_task: Optional[asyncio.Task] = None
@@ -54,12 +54,12 @@ async def mitmproxy_task(
     # 启动 mitmproxy 主循环
     await master.run()
   except Exception as e:
-    APP_LOGGER.error(f'mitmproxy_task: 启动抓包服务失败！{e}')
+    CATCH_LOGGER.error(f'mitmproxy_task: 启动抓包服务失败！{e}')
     raise
   finally:
     if watcher_task is not None and not watcher_task.done():
       watcher_task.cancel()
-    print('mitmproxy 主循环结束！')
+    CATCH_LOGGER.info('mitmproxy 主循环结束！')
 
 
 # 启动抓包服务
@@ -87,8 +87,8 @@ def start_mitmproxy(
     ready_event: Optional[EventType] = None
 ) -> Process:
   """启动 mitmproxy"""
-  print("Start Mitmproxy")
+  CATCH_LOGGER.info("Start Mitmproxy")
   mitmproxy_process = Process(target=run_mitmproxy, args=(share_dict, ready_event, stop_event))
   mitmproxy_process.start()
-  print("Mitmproxy is running")
+  CATCH_LOGGER.info("Mitmproxy is running")
   return mitmproxy_process

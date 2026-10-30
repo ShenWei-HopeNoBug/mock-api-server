@@ -179,7 +179,7 @@
 - [x] 依赖管理整改（requirements.txt / package.txt / pyproject.toml）— `5b4dc12` + `fc26535`
 - [ ] 自动化测试补齐（pytest + CI）
 - [ ] 安全面收敛（绑定地址 / shutdown 鉴权 / 下载校验）
-- [ ] 日志统一（消灭裸 print / error_catch 带堆栈）
+- [x] 日志统一（消灭裸 print / error_catch 带堆栈）— `01d35d5` + 本次提交
 - [ ] 明确 bug 修复（下载日志 / basename 碰撞 / schema 迁移事务 / 死分支）
 - [ ] 死代码清理（backup_lib / file_lib / hash_lib / resources）
 - [x] 工程文件补齐（LICENSE / CHANGELOG / lint 配置）— `3e73ff0`

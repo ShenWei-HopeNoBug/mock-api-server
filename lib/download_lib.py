@@ -22,6 +22,7 @@ from config.work_file import (
 from lib.app_lib import get_mock_api_data_list
 from lib.db import MockDBCache
 from lib.decorate import error_catch
+from lib.logger_lib import DOWNLOAD_LOGGER
 from lib.utils_lib import (
   JsonFormat,
   check_and_create_dir,
@@ -321,7 +322,7 @@ def download_server_static(
     callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> None:
-  print('>' * 10, '开始检查和下载静态资源...')
+  DOWNLOAD_LOGGER.info('>' * 10 + ' 开始检查和下载静态资源...')
   # 待下载静态资源列表
   download_assets = get_download_ready_assets(
     work_dir=work_dir,
@@ -331,7 +332,7 @@ def download_server_static(
 
   # 静态资源列表为空
   if not len(download_assets):
-    print('没有需要下载的静态资源！')
+    DOWNLOAD_LOGGER.info('没有需要下载的静态资源！')
     return
 
   # 静态资源目录
@@ -389,14 +390,14 @@ def download_server_static(
 
     connect_timeout = download_detail_manager.get_timeout(url=asset) if auto_adjust_timeout else base_timeout
     proxies = get_download_proxies(url=asset, download_proxy_list=download_proxy_list)
-    print(
+    DOWNLOAD_LOGGER.info(
       f'\n******** 正在下载：{i + 1}/{assets_length} ********\nCONNECT_TIMEOUT：{connect_timeout}s\nURL：{asset}\nPROXIES：{proxies}'
     )
     # 下载静态资源
     try:
       response = requests.get(asset, timeout=(connect_timeout, DOWNLOAD.READ_TIMEOUT), proxies=proxies)
       if response.status_code != 200:
-        print(f'下载失败：{asset}')
+        DOWNLOAD_LOGGER.warning(f'下载失败：{asset}')
         # 保存下载日志
         download_log.append({
           "url": asset,
@@ -438,7 +439,7 @@ def download_server_static(
 
       time.sleep(0.8)
     except ConnectionError as e:
-      print('下载静态资源连接异常！', e)
+      DOWNLOAD_LOGGER.warning(f'下载静态资源连接异常！{e}')
       # 更新下载详情
       if auto_adjust_timeout:
         download_detail_manager.update_detail(url=asset, connect_error=True)
@@ -452,7 +453,7 @@ def download_server_static(
         "message": f"下载连接异常! ConnectionError:{e}",
       })
     except Exception as e:
-      print('下载静态资源出错！', e)
+      DOWNLOAD_LOGGER.warning(f'下载静态资源出错！{e}')
       # 保存下载日志
       download_log.append({
         "url": asset,
@@ -463,8 +464,8 @@ def download_server_static(
         "message": f"下载报错! ERROR:{e}",
       })
     finally:
-      print('*' * 29)
+      DOWNLOAD_LOGGER.info('*' * 29)
 
     white_log()
 
-  print('下载静态资源完毕！')
+  DOWNLOAD_LOGGER.info('下载静态资源完毕！')

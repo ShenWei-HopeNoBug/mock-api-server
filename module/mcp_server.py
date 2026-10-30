@@ -26,7 +26,7 @@ from app_types.db_types import (
 )
 from app_types.mcp_server_types import McpServerRunConfig
 from lib.db import MockDBCache
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import MCP_LOGGER
 
 # -------------------
 # MCP 服务封装
@@ -627,7 +627,7 @@ class McpServer:
   async def _stop_watcher(self) -> None:
     while not self.stop_event.is_set():
       await asyncio.sleep(0.5)
-    APP_LOGGER.info('MCP_SERVER 收到 stop_event 信号，正在优雅关闭...')
+    MCP_LOGGER.info('MCP_SERVER 收到 stop_event 信号，正在优雅关闭...')
     # 1. 先执行自定义保存/清理逻辑
     await self._before_shutdown()
     # 2. 再触发 uvicorn 优雅关闭
@@ -636,7 +636,7 @@ class McpServer:
 
   # 启动 MCP 服务
   def start_server(self) -> None:
-    print('>' * 10, 'MCP 服务启动...')
+    MCP_LOGGER.info('>' * 10 + ' MCP 服务启动...')
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -685,7 +685,7 @@ class McpServer:
 # MCP 服务进程入口
 def run_mcp_server(config: McpServerRunConfig, stop_event: Optional[EventType] = None) -> None:
   """运行 MCP 服务"""
-  print('mcp_config', config)
+  MCP_LOGGER.info(f'mcp_config: {config}')
   port = config.get('port', 8765)
   work_dir = config.get('work_dir', '.')
   mcp_log = config.get('mcp_log', True)
@@ -696,8 +696,8 @@ def run_mcp_server(config: McpServerRunConfig, stop_event: Optional[EventType] =
 # 启动 MCP 服务
 def start_mcp_server(config: McpServerRunConfig, stop_event: Optional[EventType] = None) -> Process:
   """启动 MCP 服务子进程"""
-  print('Start MCP Server')
+  MCP_LOGGER.info('Start MCP Server')
   mcp_process = Process(target=run_mcp_server, args=(config, stop_event), name='mcp_server')
   mcp_process.start()
-  print('MCP Server is running')
+  MCP_LOGGER.info('MCP Server is running')
   return mcp_process

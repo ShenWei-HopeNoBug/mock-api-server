@@ -24,6 +24,7 @@ from app_types.static_file_types import (
 from config.enum.SERVER import STATIC_IMAGE_CACHE_MAX_AGE, STATIC_PARTIAL_CACHE_MAX_AGE
 from config.route import STATIC_DELAY_ROUTE
 from lib.download_lib import get_static_match_regexp
+from lib.logger_lib import STATIC_LOGGER
 from lib.utils_lib import is_file_request
 
 
@@ -131,7 +132,7 @@ class StaticFileHandler:
 
     # 浏览器缓存校验：条件请求命中时返回 304，跳过延时
     if self._check_cache_hit(file_path, request_headers, stat):
-      print(f'静态资源缓存命中(304)  文件：{file_name}')
+      STATIC_LOGGER.info(f'静态资源缓存命中(304)  文件：{file_name}')
       return self._build_304_response(file_path, stat)
 
     # 无限速场景下：
@@ -208,7 +209,7 @@ class StaticFileHandler:
 
     # 浏览器缓存校验：条件请求命中时返回 304，跳过延时
     if self._check_cache_hit(file_path, request_headers, stat):
-      print(f'静态资源缓存命中(304)  文件：{file_name}')
+      STATIC_LOGGER.info(f'静态资源缓存命中(304)  文件：{file_name}')
       return self._build_304_response(file_path, stat)
 
     # 先打开文件获取大小并解析 Range，随后关闭；实际读取由限速策略创建的 reader 重新打开
@@ -244,7 +245,7 @@ class StaticFileHandler:
     except (FileNotFoundError, OSError):
       return 'Not Found', 404
 
-    print(
+    STATIC_LOGGER.info(
       f'静态资源节流  文件：{file_name}  大小：{self._format_size(meta.content_length)}  速率：{self._format_size(self.static_load_speed * 1024)}/s')
     return Response(reader, status=meta.status, headers=meta.headers)
 
@@ -272,7 +273,7 @@ class StaticFileHandler:
 
     # 有 Range 头但无法解析/不满足时，返回 416（RFC 7233）
     if effective_range_header is not None and range_info is None:
-      print(f'静态资源非法 Range 416  文件：{file_name}  Range：{effective_range_header}')
+      STATIC_LOGGER.info(f'静态资源非法 Range 416  文件：{file_name}  Range：{effective_range_header}')
       return self._build_416_response(content_type, file_total, stat)
 
     if range_info is not None:

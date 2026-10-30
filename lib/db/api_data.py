@@ -24,7 +24,7 @@ from config.enum.BIZ_CODE import (
   BIZ_UNKNOWN_ERROR,
 )
 from config.enum.DATABASE import VALID_HTTP_METHODS, VALID_REQUEST_CONTENT_TYPES
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import DB_LOGGER
 from lib.utils_lib import JsonFormat, generate_uuid
 
 from .utils import (
@@ -69,16 +69,16 @@ class ApiDataMixin:
       self._conn.execute('ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0')
       # v1 → v2: api_data 新增 request_content_type 字段
       self._conn.execute("ALTER TABLE api_data ADD COLUMN request_content_type TEXT NOT NULL DEFAULT 'NONE'")
-      APP_LOGGER.info('ApiDataMixin schema 迁移: v1 → v2, api_data 新增 timeout 和 request_content_type 字段')
+      DB_LOGGER.info('ApiDataMixin schema 迁移: v1 → v2, api_data 新增 timeout 和 request_content_type 字段')
     if from_version < 3 <= to_version:
       # v2 → v3: api_data 新增 response_variant_ids 与 enabled 字段
       self._conn.execute("ALTER TABLE api_data ADD COLUMN response_variant_ids TEXT NOT NULL DEFAULT '[]'")
       self._conn.execute('ALTER TABLE api_data ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1')
-      APP_LOGGER.info('ApiDataMixin schema 迁移: v2 → v3, api_data 新增 response_variant_ids 和 enabled 字段')
+      DB_LOGGER.info('ApiDataMixin schema 迁移: v2 → v3, api_data 新增 response_variant_ids 和 enabled 字段')
     if from_version < 4 <= to_version:
       # v3 → v4: api_data 新增 operator 字段
       self._conn.execute("ALTER TABLE api_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
-      APP_LOGGER.info('ApiDataMixin schema 迁移: v3 → v4, api_data 新增 operator 字段')
+      DB_LOGGER.info('ApiDataMixin schema 迁移: v3 → v4, api_data 新增 operator 字段')
 
   # 新增插入（纯 INSERT，不去重），返回是否成功
   @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "插入失败"})
@@ -152,7 +152,7 @@ class ApiDataMixin:
     try:
       with self._transaction() as conn:
         conn.executemany(insert_sql, insert_data)
-      APP_LOGGER.info(f'MockDB batch_insert_api 写入 {len(records)} 条')
+      DB_LOGGER.info(f'MockDB batch_insert_api 写入 {len(records)} 条')
       return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功", "affected_count": len(insert_data)}
     except Exception as e:
       return {"success": False,
@@ -163,7 +163,7 @@ class ApiDataMixin:
       try:
         self._wal_checkpoint_passive()
       except Exception as e:
-        APP_LOGGER.error(f'MockDB batch_insert_api checkpoint 失败: {e}')
+        DB_LOGGER.error(f'MockDB batch_insert_api checkpoint 失败: {e}')
 
   # 查询 api 数据列表
   @_ensure_open(default=[])
@@ -484,7 +484,7 @@ class ApiDataMixin:
     """
     where_sql, sql_params = self._build_api_where(query)
     if not where_sql:
-      APP_LOGGER.warning('MockDB batch_delete_api 拒绝执行：未提供有效筛选条件')
+      DB_LOGGER.warning('MockDB batch_delete_api 拒绝执行：未提供有效筛选条件')
       return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "未提供有效筛选条件，拒绝执行",
               "affected_count": 0}
 
@@ -497,7 +497,7 @@ class ApiDataMixin:
           placeholders = ','.join('?' * len(api_ids))
           conn.execute(f'DELETE FROM api_response_variants WHERE api_data_id IN ({placeholders})', api_ids)
         cursor = conn.execute(f'DELETE FROM api_data{where_sql}', tuple(sql_params))
-      APP_LOGGER.info(f'MockDB batch_delete_api 删除 {cursor.rowcount} 条')
+      DB_LOGGER.info(f'MockDB batch_delete_api 删除 {cursor.rowcount} 条')
       return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功", "affected_count": cursor.rowcount}
     except Exception as e:
       return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"批量删除失败: {str(e)}",

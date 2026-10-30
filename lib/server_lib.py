@@ -32,6 +32,7 @@ from app_types.mock_server_types import (
 from app_types.request_types import RequestContentType
 from app_types.static_file_types import AssetsReplaceFunc
 from lib.db import MockDBCache
+from lib.logger_lib import MOCK_LOGGER
 from lib.utils_lib import (
   create_md5,
   get_request_content_type,
@@ -182,10 +183,10 @@ def parse_flask_request(
           content: bytes = remove_byte_empty_content(file.read())
           file_md5: str = f'file-{create_md5(content)}'
           multipart_dict['file'] = file_md5
-          print('params 存在 file 传参：', multipart_dict)
+          MOCK_LOGGER.info(f'params 存在 file 传参：{multipart_dict}')
         params = get_params_json_string(multipart_dict)
       except Exception as e:
-        print('Mock Server 解析 multipart/form-data 传参异常', e)
+        MOCK_LOGGER.warning(f'Mock Server 解析 multipart/form-data 传参异常：{e}')
         raise MockRequestParseError('multipart/form-data parse error')
     else:
       # 未识别的 content-type 按 NONE 处理，params 保持空对象
@@ -369,7 +370,7 @@ class MockRequestHandler:
     meta: Optional[ApiMatchMeta] = self._get_api_match_meta(request_key, response_key)
 
     if meta is None:
-      print(f'mock 数据命中失败：\n - {method} {route} {params}')
+      MOCK_LOGGER.info(f'mock 数据命中失败：\n - {method} {route} {params}')
       return jsonify({'error': 'No valid mock data'}), 404
 
     entry: MockApiEntry
@@ -391,10 +392,10 @@ class MockRequestHandler:
     # 接口响应延时（单条 timeout 优先于全局 response_delay）
     per_entry_delay: int = meta['timeout']
     if per_entry_delay > 0:
-      print(f'接口响应延时（单条）：{per_entry_delay}ms, route：{route}')
+      MOCK_LOGGER.info(f'接口响应延时（单条）：{per_entry_delay}ms, route：{route}')
       time.sleep(per_entry_delay / 1000)
     elif self.response_delay > 0:
-      print(f'接口响应延时（全局）：{self.response_delay}ms, route：{route}')
+      MOCK_LOGGER.info(f'接口响应延时（全局）：{self.response_delay}ms, route：{route}')
       time.sleep(self.response_delay / 1000)
 
     return jsonify(entry['response'])
@@ -402,7 +403,7 @@ class MockRequestHandler:
 
 # mock 服务进程启动（子进程入口，避免在 qt_win/app.py 中定义以减少子进程模块导入开销）
 def server_process_start(server_config: Dict[str, Any]) -> None:
-  print('server_config', server_config)
+  MOCK_LOGGER.info(f'server_config: {server_config}')
   port = server_config.get('port', 5000)
   work_dir = server_config.get('work_dir', '.')
   response_delay = server_config.get('response_delay', 0)
