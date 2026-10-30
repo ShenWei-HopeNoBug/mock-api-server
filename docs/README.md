@@ -24,6 +24,14 @@
 |---|---|---|---|
 | [engineering-files-plan](v0_1_5/engineering/engineering-files-plan.md) | 仓库工程文件 | 9 项改动 + lint 基线清理，两 commit 拆分 | 已完成 |
 
+### logging/
+
+日志统一：分域 logger、error_catch 堆栈、print 迁移、-w 打包态防御。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [logging-unification-plan](v0_1_5/logging/logging-unification-plan.md) | `lib/logger_lib` / `decorate` / 运行时 print | 基建加固 + 全量迁移，两 commit 拆分 | 待实施 |
+
 ## 历史方案存档
 
 ### v0_1_3/
