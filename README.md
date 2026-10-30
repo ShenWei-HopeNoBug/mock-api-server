@@ -65,3 +65,15 @@ uv run python build.py
 ```
 
 产物输出在 `dist/` 目录下，包含可执行 exe、`site-packages` 依赖目录以及内置的 `schema/` 和 `assets/` 资源。
+
+## 开发工作流
+
+```bash
+uv sync                    # 安装/同步依赖（含 dev 组）
+uv run python main.py      # 运行应用
+uv run python build.py     # PyInstaller 打包
+uv run ruff check .        # lint 检查
+uv run ruff check --fix .  # 自动修复可修项
+uv add <pkg>               # 新增运行依赖
+uv add --dev <pkg>         # 新增开发依赖
+```

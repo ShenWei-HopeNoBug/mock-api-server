@@ -1,7 +1,7 @@
 # 工程文件补齐方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「§12 工程化缺失清单」「改进建议-7」
-> 状态：待实施
+> 状态：已实施待提交
 > 范围：`.gitignore` / `LICENSE` / `CHANGELOG.md` / `pyproject.toml` / `.editorconfig` / `.python-version` / `README.md` / 存量 lint 基线
 
 ## 1. 背景
@@ -84,7 +84,8 @@ uv run python build.py        # 打包链路不断（import 排序属机械改�
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| （待填） | | | |
+| 2026-10-31 | §3 清单 1~7 工程文件 | `.gitignore` 重写；`LICENSE`（MIT/shenwei）；`CHANGELOG.md` 回填 v0.0.3~v0.1.5；`pyproject.toml` 补元数据 + `[tool.ruff]` 配置；`.editorconfig`；`.python-version`；README 开发工作流 | ruff 基线实测 56 报错（52 可自动修），与 §1 预估一致 |
+| 2026-10-31 | §3 清单 8 lint 基线清理 | （进行中） | |
 
 ## 8. 方案修正
 

@@ -1,40 +1,47 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[co]
+*.egg-info/
+
+# Virtual environments
+.venv/
+.venv-*/
+venv/
+
+# Tool caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Build / packaging
+build/
+dist/
+mockServer.*.spec
+main.spec
+_build_config.py
+
 # Logs
-logs
+logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-logs
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-__pycache__
+# Editor / OS
+.idea/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
-.idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
+Thumbs.db
 *.sw?
 
-# User directories and files
+# Agent 本地配置（会话生成，不入库）
+.devin/mcp_config.local.json
+
+# 运行时数据与工作产物（生成于工作目录，不入库）
 /system
 /static
 /server
+/web
 /output.*
 /api_dict.json
-/build
-/web
-main.spec
+/appServer/*
 /test.py
-appServer/*
-/_build_config.py
