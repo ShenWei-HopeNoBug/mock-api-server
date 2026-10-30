@@ -1,7 +1,7 @@
 # 日志统一方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「§4 print 炸弹」「§6 error_catch」「§7 日志不统一」「§9 日志噪音」「改进建议-4」
-> 状态：待实施
+> 状态：Commit 1 已实施待提交；Commit 2 待实施
 > 范围：`lib/logger_lib.py` / `lib/decorate.py` / 运行时文件 print 迁移 / werkzeug 降噪
 
 ## 1. 背景
@@ -87,7 +87,9 @@ from lib.logger_lib import APP_LOGGER; APP_LOGGER.info('test')"
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| （待填） | | | |
+| 2026-10-31 | §3.1 logger_lib 加固 + 分域 | `get_stream_logger_handler` 改 `Optional`（`sys.stderr is None` 不挂载）；8 个分域 logger 预置；`LOG_FORMAT`/`LOG_DATE_FORMAT` 提为模块常量 | 模拟 `sys.stdout/stderr=None` 验证：logger 不崩且 `logs/app.log` 正常写入 |
+| 2026-10-31 | §3.2 error_catch 堆栈 | sync/async 两处改 `APP_LOGGER.error(msg, exc_info=True)`，删手动时间戳与 `datetime` import | 语义不变 |
+| 2026-10-31 | §3.4 werkzeug 降噪 | `mock_server`/`app_server` 启动处 `setLevel(ERROR)` | `ruff check` 归零保持，`MainWindow` 冒烟通过 |
 
 ## 8. 方案修正
 

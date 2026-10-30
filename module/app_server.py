@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import os
 import time
 from multiprocessing import Process
@@ -48,6 +49,8 @@ class AppServer:
       delayed_shutdown()
       return jsonify({'data': 'shutting down'})
 
+    # 关闭 werkzeug access 日志，避免 /ping 健康检查刷屏
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   def shutdown(self) -> None:

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import copy
-import datetime
 import threading
 from functools import wraps
 from typing import Any, Callable, Optional, TypeVar, Union
@@ -52,8 +51,7 @@ def error_catch(
         except Exception as e:
           if log:
             message = error_msg or 'Error'
-            current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            APP_LOGGER.error(f'[{current_time}] ERROR {message}：{e}')
+            APP_LOGGER.error(f'{message}：{e}', exc_info=True)
           return copy.deepcopy(error_return)
 
       return async_wrapper
@@ -66,8 +64,7 @@ def error_catch(
       except Exception as e:
         if log:
           message = error_msg or 'Error'
-          current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-          APP_LOGGER.error(f'[{current_time}] ERROR {message}：{e}')
+          APP_LOGGER.error(f'{message}：{e}', exc_info=True)
         return copy.deepcopy(error_return)
 
     return wrapper

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import logging
 import os
 import time
 from typing import Dict, List, Optional
@@ -299,6 +300,8 @@ class MockServer:
       return make_response(result)
 
     CORS(app, resources=resources)
+    # 关闭 werkzeug access 日志，避免 /ping 健康检查刷屏
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
     app.run(host='0.0.0.0', port=self.port, threaded=True)
 
   # 停止本地 mock 服务
