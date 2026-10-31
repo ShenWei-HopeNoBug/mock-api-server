@@ -7,9 +7,9 @@ from multiprocessing.synchronize import Event as EventType
 from typing import Any, Dict, Optional
 
 import requests
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QCloseEvent, QResizeEvent
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QCloseEvent, QResizeEvent
+from PySide6.QtWidgets import (
   QApplication,
   QFileDialog,
   QFrame,
@@ -58,19 +58,19 @@ from qt_win.server_config_dialog import ServerConfigDialog
 # app 主窗口
 class MainWindow(QMainWindow, Ui_MainWindow):
   # 抓包服务运行信号
-  mitmproxy_server_status_signal: pyqtSignal = pyqtSignal(str)
+  mitmproxy_server_status_signal: Signal = Signal(str)
   # 下载静态资源信号
-  downloading_signal: pyqtSignal = pyqtSignal(str)
+  downloading_signal: Signal = Signal(str)
   # mock 服务运行信号
-  server_status_signal: pyqtSignal = pyqtSignal(str)
+  server_status_signal: Signal = Signal(str)
   # MCP 服务运行信号
-  mcp_server_status_signal: pyqtSignal = pyqtSignal(str)
+  mcp_server_status_signal: Signal = Signal(str)
   # 提示弹窗信号
-  message_dialog_signal: pyqtSignal = pyqtSignal(str, str, str)
+  message_dialog_signal: Signal = Signal(str, str, str)
   # 退出清理完成信号
-  cleanup_done_signal: pyqtSignal = pyqtSignal()
+  cleanup_done_signal: Signal = Signal()
   # 退出清理进度信号
-  cleanup_progress_signal: pyqtSignal = pyqtSignal(str)
+  cleanup_progress_signal: Signal = Signal(str)
 
   def __init__(self, app_sever_running_data: Optional[AppServerRunningData] = None) -> None:
     super().__init__()
@@ -150,6 +150,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 退出蒙层
     self._exit_overlay: Optional[QFrame] = None
     self._exit_tip_label: Optional[QLabel] = None
+    # 退出清理是否已完成（放行 Qt 退出路径派发的关闭事件）
+    self._exit_finished: bool = False
 
     self.init_ui()
     self.render_menu_bar()
@@ -202,15 +204,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # ---------------------
     def open_mitmproxy_config_dialog():
       mitmproxy_config_dialog = MitmproxyConfigDialog(work_dir=self.work_dir)
-      mitmproxy_config_dialog.exec_()
+      mitmproxy_config_dialog.exec()
 
     def open_download_dialog():
       download_dialog = DownloadConfigDialog(work_dir=self.work_dir)
-      download_dialog.exec_()
+      download_dialog.exec()
 
     def open_server_config_dialog():
       server_config_dialog = ServerConfigDialog(work_dir=self.work_dir)
-      server_config_dialog.exec_()
+      server_config_dialog.exec()
 
     def open_mitmproxy_data_edit_dialog():
       mitmproxy_data_dialog = MitmproxyDataEditDialog(
@@ -245,7 +247,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # ---------------------
     def open_about_dialog():
       about_dialog = AboutDialog()
-      about_dialog.exec_()
+      about_dialog.exec()
 
     def open_operation_manual():
       result = open_operation_manual_html()
@@ -550,7 +552,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 导出静态资源
   def output_static(self) -> None:
     output_dialog = OutputStaticDialog(work_dir=self.work_dir)
-    output_dialog.exec_()
+    output_dialog.exec()
 
   # 启动抓包服务
   @create_thread
@@ -959,6 +961,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self._stop_app_server()
     self.cleanup_progress_signal.emit('正在关闭数据库…')
     time.sleep(0.5)
+    # 退出兜底：若事件循环因存活的 WebView 等原因未能退出，超时强制结束进程
+    def _force_exit() -> None:
+      APP_LOGGER.warning('退出兜底看门狗触发：Qt 事件循环未在限定时间内退出，强制结束进程')
+      os._exit(0)
+    watchdog = threading.Timer(8, _force_exit)
+    watchdog.daemon = True
+    watchdog.start()
     self.cleanup_done_signal.emit()
 
   # 退出清理完成槽（主线程）
@@ -966,10 +975,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     MockDBCache.close_all()
     if self._exit_tip_label is not None:
       self._exit_tip_label.setText('正在退出应用…')
+    # 先销毁仍存活的 WebView 弹窗，让 QtWebEngine 在事件循环存活期间有序析构
+    for widget in QApplication.topLevelWidgets():
+      if isinstance(widget, (MitmproxyDataEditDialog, DownloadProxyConfigDialog)):
+        widget.close()
+        widget.deleteLater()
+    QApplication.instance().processEvents()
+    # 标记清理完成：放行 QApplication.quit() 派发给本窗口的关闭事件
+    self._exit_finished = True
+    APP_LOGGER.info('退出清理完成，正在退出应用')
     QApplication.quit()
 
   # 重写弹窗关闭事件
   def closeEvent(self, event: QCloseEvent) -> None:
+    # 退出清理已完成：接受 Qt 退出路径派发的关闭事件（否则 ignore 会取消整个 quit）
+    if self._exit_finished:
+      event.accept()
+      return
+    # 退出清理进行中：忽略重复关闭请求，避免打断清理流程
     if self._exit_overlay is not None:
       event.ignore()
       return

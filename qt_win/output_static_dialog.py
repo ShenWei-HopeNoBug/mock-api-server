@@ -2,8 +2,8 @@
 import os
 from typing import List
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from config.work_file import DEFAULT_WORK_DIR, DOWNLOAD_DIR, OUTPUT_DIR
 from lib.decorate import create_thread
@@ -15,9 +15,9 @@ from qt_ui.output_static_win.win_ui import Ui_Dialog
 # 导出静态资源弹窗
 class OutputStaticDialog(QDialog, Ui_Dialog):
   # 导出状态信号
-  output_status_signal = pyqtSignal(str)
+  output_status_signal = Signal(str)
   # 提示弹窗信号
-  message_dialog_signal = pyqtSignal(str, str, str)
+  message_dialog_signal = Signal(str, str, str)
 
   def __init__(self, work_dir: str = DEFAULT_WORK_DIR) -> None:
     super().__init__()

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from PyQt5.QtCore import QRect, QSize, Qt, QUrl
-from PyQt5.QtGui import QCursor, QDesktopServices, QFont, QMouseEvent
-from PyQt5.QtWidgets import QDialog, QLabel, QWidget
+from PySide6.QtCore import QRect, QSize, Qt, QUrl
+from PySide6.QtGui import QCursor, QDesktopServices, QFont, QMouseEvent
+from PySide6.QtWidgets import QDialog, QLabel, QWidget
 
 import app_env
 from qt_ui.about_win import about_win_style

@@ -3,10 +3,10 @@ import json
 import os
 from typing import Optional
 
-from PyQt5.QtCore import QEvent, Qt, QUrl
-from PyQt5.QtWebChannel import QWebChannel
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtWidgets import QDialog, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtCore import QEvent, Qt, QUrl
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QDialog, QStackedWidget, QVBoxLayout, QWidget
 
 from app_types.app_gui_types import (
   AddMockDataParams,

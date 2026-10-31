@@ -3,8 +3,8 @@ import copy
 import os
 from typing import Optional
 
-from PyQt5.QtCore import QRect, Qt
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QWidget
+from PySide6.QtCore import QRect, Qt
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QWidget
 
 from config.default import DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT, DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
 from config.enum import DOWNLOAD

@@ -6,10 +6,10 @@ from collections import OrderedDict
 from threading import Lock
 from typing import List, Optional
 
-from PyQt5.QtCore import QEvent, Qt, QUrl, pyqtSignal
-from PyQt5.QtWebChannel import QWebChannel
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtWidgets import QDialog, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtCore import QEvent, Qt, QUrl, Signal
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QDialog, QStackedWidget, QVBoxLayout, QWidget
 
 from app_types.app_gui_types import AppServerRunningData
 from app_types.download_types import (
@@ -33,7 +33,7 @@ from lib.webview_lib import WebLoadingWidget, get_webview_dialog_config, setup_d
 
 
 class DownloadProxyConfigDialog(QDialog):
-  close_signal: pyqtSignal = pyqtSignal()
+  close_signal: Signal = Signal()
 
   def __init__(
       self,

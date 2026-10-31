@@ -3,9 +3,9 @@ import copy
 import os
 from typing import Optional
 
-from PyQt5.QtCore import QRect, Qt
-from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QListView, QVBoxLayout, QWidget
+from PySide6.QtCore import QRect, Qt
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QListView, QVBoxLayout, QWidget
 
 from config.work_file import DEFAULT_WORK_DIR, MOCK_SERVER_CONFIG_PATH, WORK_FILE_DICT
 from lib.throttle_lib import get_strategy_options

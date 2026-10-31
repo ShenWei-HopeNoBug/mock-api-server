@@ -2,8 +2,8 @@
 import time
 from typing import Callable, Optional
 
-from PyQt5.QtCore import QObject, Qt, QTimer, pyqtSignal
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtWidgets import (
   QFrame,
   QLabel,
   QProgressBar,
@@ -41,7 +41,7 @@ class StartSplash(QObject):
   到达下一阶段目标值 - 1 时暂停，等待 set_phase() 被调用后继续递增
   """
   # 进度变更信号，子线程 emit → 主线程槽函数更新 UI（线程安全）
-  percent_signal: pyqtSignal = pyqtSignal(int)
+  percent_signal: Signal = Signal(int)
 
   def __init__(self) -> None:
     super().__init__()

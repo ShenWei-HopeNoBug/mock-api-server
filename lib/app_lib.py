@@ -10,8 +10,9 @@ import psutil
 import win32con
 import win32gui
 import win32process
-from PyQt5.QtCore import QSharedMemory
-from PyQt5.QtWidgets import QAction, QApplication, QMenu
+from PySide6.QtCore import QSharedMemory
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QApplication, QMenu
 
 from app_types.app_gui_types import AppServerRunningData
 from app_types.db_types import ApiData, ApiQuery
@@ -261,7 +262,7 @@ def set_menu_config(menu: Optional[QMenu], config_list: List[Dict[str, Any]]) ->
     menu_name = config.get('name', '')
     menu.addAction(menu_name)
 
-  menu.triggered[QAction].connect(menu_action_callback)
+  menu.triggered.connect(menu_action_callback)
 
 
 # 批量设置菜单元素禁用状态

@@ -1,6 +1,6 @@
 # PySide6 迁移升级方案（PyQt5 → PySide6）
 
-> 状态：待实施
+> 状态：已实施（回归验证中）
 > 范围：`pyproject.toml` / `uv.lock` / `main.py` / `qt_win/*.py` / `qt_ui/*` / `lib/{app_lib,splash,TInteractObject,webview_lib}.py`
 > 前端仓库 `mock-api-server-web-v3` 本版零改动（ant-design-vue 维持 3.2.20）
 
@@ -148,9 +148,23 @@ pyproject.toml 改依赖 → uv sync → pyside6-uic --version 验证工具链
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
 | 2026-10-31 | 方案定稿 | 选型 PySide6 6.10.3；影响面全量扫描完成（25 个 PyQt5 import 文件、14 处 Signal、3 处 Slot、8 处 exec_、1 处 triggered 下标、2 处 import 改道） | 待实施 |
+| 2026-10-31 | §4 依赖换绑 | pyproject 改为 `pyside6==6.10.3`，constraints 换 `shiboken6`/`pyside6-essentials`/`pyside6-addons` 三条；`uv sync` 收敛，PyQt5 全部卸载 | — |
+| 2026-10-31 | §5 全局替换 + 语义改动 | 17 个手写文件完成：PyQt5→PySide6 import、14 处 Signal、3 处 Slot、8 处 exec_、`triggered[QAction]`→`triggered.connect`、QAction/QShortcut 改道 QtGui、main.py 高 DPI 改专用 API + 补 `AA_ShareOpenGLContexts` | — |
+| 2026-10-31 | §6 win_ui.py 重生成 | 7 个目录 pyside6-uic 重生成成功；**main_win 的 .ui 落后于生成物**（不含 MCP 控件），按 §12-修正回滚为旧生成文件 + import 换绑 | 详见 §12 |
+| 2026-10-31 | 冒烟验证 | `ruff check` 全绿（新增 `qt_ui/**/win_ui.py` per-file-ignores）；`MainWindow` 等全模块 import 通过；QWebEngineView+QWebChannel 实测 UA=`Chrome/134.0.0.0`；`main.py` 正常启动进入主窗口 | — |
+| 2026-10-31 | `win_ui.ui` 修复 + 再生成 | 按 §12-修正2 补齐 .ui（窗口高 370→460、【服务配置】区块整体 +80px、补入 MCP 三控件、移除死控件 cacheCheckBox）后 pyside6-uic 再生成；语义对比验证：控件名集合/geometry/resize 与旧版完全一致，文案/数值属性逐字一致 | `main.py` 复验启动正常 |
+| 2026-10-31 | 深色模式样式修复 | `main.py` 增加 `app.setStyle('windowsvista')`：Qt6 默认 windows11 样式跟随系统深色模式返回 dark palette（WindowText=白），与本应用橙色底样式表冲突导致字体发白；windowsvista 固定浅色 palette 且控件绘制与 Qt5 一致（SpinBox 按钮等） | 详见 §12-修正3 |
+| 2026-10-31 | 退出卡死修复 ×2 | ① `module/app_server.py` `Process` 加 `daemon=True`：修复非 daemon 子进程残留导致解释器退出时 multiprocessing atexit `join` 无限等待（py-spy 验证杀子进程后主进程立即退出）；② `qt_win/app.py` `_cleanup_in_thread` 加 8s `os._exit` 看门狗 + `_on_cleanup_done` 先销毁存活 WebView 弹窗再 `quit()`：修复开过 WebView 后 `app.exec()` 不退出（原生栈显示事件循环在 MsgWait 空闲等待、quit 未生效） | 详见 §12-修正4/5；复测开关 WebView 后 X 关闭正常 |
+| 2026-10-31 | 退出卡死真因定位与根治 | 二分定位（裸 QApplication/单实例/splash/app_server/裸窗口逐级豁免，锁定 MainWindow 显示）+ py-spy `--native` 抓到决定性栈：`quit()` → `processApplicationTermination` → `tryCloseAllWidgetWindows` → `MainWindow::closeEvent` → 二次弹确认框/`event.ignore()` 嵌套事件循环。修复：`closeEvent` 增加 `_exit_finished` 分支——清理完成后接受 Qt 退出路径派发的关闭事件。临时冒烟（模拟确认→蒙层→清理→quit）实测进程自行 `EXIT_CODE=0`、看门狗未触发 | 详见 §12-修正6；修正5 的 WebView 假设被推翻，看门狗/弹窗销毁作为兜底保留 |
 
 ## 12. 方案修正
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
 | 2026-10-31 | 初稿 | — |
+| 2026-10-31 | `qt_ui/main_win/win_ui.py` 不由 .ui 重生成，改为还原 HEAD 版本 + 仅换 `from PyQt5` → `from PySide6` import | main_win 的 `win_ui.ui` 落后于已提交生成物（不含 MCP 服务相关的 8 个控件属性：`mcpServerButton`/`mcpServerPortSpinBox`/2 组 layout widget/2 个 label），此前生成物系绕过 .ui 直接修改。重生成会导致 `app.py` 引用缺失（实测 AttributeError 崩溃）。其余 7 目录 .ui 与生成物一致，正常重生成。`.ui` 源文件补全属既有技术债（评审报告已标记生成物入库问题），建议后续用 pyside6-designer 补齐 main_win 的 MCP 控件。 **已被下一条修正取代** |
+| 2026-10-31 | 修正2：`win_ui.ui` 直接修复为与运行时 UI 一致，`win_ui.py` 恢复由 .ui 正常生成 | .ui 与生成物失配含两处：① MCP 新增区块（label_mcp / mcp_port 容器 / mcp_btn 容器）从未入 .ui；② 【服务配置】区块整体下移 80px + 窗口加高至 460 未回写 .ui；另发现 .ui 内存在未落地死控件 `cacheCheckBox`/`horizontalLayoutWidget_11`（旧 .py 与代码均无引用），一并以「忠实还原当前运行时 UI」原则移除。修复后控件树与旧 .py 语义级一致，.ui 重新成为可信源文件 |
+| 2026-10-31 | 修正3：`main.py` 固定 `windowsvista` 样式 | §9 风险表已预判「windows11 样式差异」，实测比预期严重：深色系统下 windows11 样式返回 dark palette（WindowText=#fff），叠加应用自定义浅色背景样式表导致字体近不可读、SpinBox 呈现代内嵌按钮样式。`setStyle('windowsvista')` 固定浅色 palette 并恢复 Qt5 控件观感 |
+| 2026-10-31 | 修正4：`module/app_server.py` 子进程改 daemon | 既有隐患非 Qt6 回归：app_server `Process` 非 daemon 且主进程不留引用，`shutdown_local_server` 按端口 LISTEN 者 terminate——Windows 下 Flask `SO_REUSEADDR` 允许孤儿与新子进程同端口共存，调试期反复强杀遗留孤儿抢占端口匹配，真子进程漏杀 → 解释器退出时 `multiprocessing` atexit 对非 daemon 子进程 `join` 无限等待 → 窗口冻结在退出蒙层。`daemon=True` 后收尾直接 terminate，且杜绝新孤儿 |
+| 2026-10-31 | 修正5：`qt_win/app.py` 退出加看门狗 + 先销毁 WebView 弹窗 | 开过 WebView 弹窗后点 X 卡住：py-spy native 栈显示主线程停在 `QCoreApplication::exec → QEventLoop::exec → NtUserMsgWaitForMultipleObjectsEx`，事件循环空闲但 `quit()` 未生效（最小复现未重现，机制未完全定位，疑似 QtWebEngine 消息泵集成影响）。处理：`_on_cleanup_done` 先 `close()+deleteLater()` 两个 WebView 弹窗并 `processEvents` 再 `quit()`；`_cleanup_in_thread` 发出 done 前启动 8s `threading.Timer(os._exit)` 看门狗兜底，触发时写日志。**「机制未定位」部分已被修正6 取代：真因与 WebEngine 无关，看门狗与弹窗预销毁仍作为兜底保留** |
+| 2026-10-31 | 修正6：`closeEvent` 增加 `_exit_finished` 放行分支（退出卡死真因根治） | 真因：Qt6 的 `QApplication.quit()` 会走 `processApplicationTermination → tryCloseAllWidgetWindows`，向所有可见顶层窗口派发关闭事件；`MainWindow::closeEvent` 第二次进入时因 `_exit_overlay` 已存在而 `event.ignore()`——窗口拒绝关闭会**取消整个 quit**，事件循环回到空闲等待 → 看门狗兜底才退出（此前「quit 不生效」的表象）。Qt5 的 quit 不派发关闭事件，故旧版无此问题，属 Qt6 行为差异放大的既有代码隐患。修复：`__init__` 增加 `_exit_finished` 标志，`_on_cleanup_done` 置位后 `quit()`；`closeEvent` 首分支检查该标志直接 `event.accept()`。二分期间的全部实验开关（EARLY_QUIT/S1~S3/MID/SKIP_*/PLAIN_SHOW/AUTO_QUIT_MS）与 `@@debug` 日志已清理 |

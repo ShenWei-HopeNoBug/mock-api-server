@@ -35,6 +35,7 @@
 
 ## 环境要求
 
+- 操作系统：64 位 Windows 10 及以上（含 Windows 11）；不支持 Windows 7 / 8 / 8.1（Qt6/PySide6 最低要求 Windows 10）
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/)（依赖与环境管理，`pip install uv` 或 winget 安装）
 

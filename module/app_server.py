@@ -85,6 +85,7 @@ def start_app_server() -> AppServerRunningData:
       target=start_app_server_process,
       args=(server_config,),
       name='app_server_process',
+      daemon=True,
     )
 
     # 启动进程 APP 服务进程

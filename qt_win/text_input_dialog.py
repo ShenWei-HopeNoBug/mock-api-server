@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QDialog, QWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QDialog, QWidget
 
 from qt_ui.text_input_win import text_input_win_style
 from qt_ui.text_input_win.win_ui import Ui_Dialog
 
 
 class TextInputDialog(QDialog, Ui_Dialog):
-  confirm_signal = pyqtSignal(str)
+  confirm_signal = Signal(str)
 
   def __init__(self, parent: Optional[QWidget] = None, text: str = '', title: str = '') -> None:
     super(TextInputDialog, self).__init__(parent)

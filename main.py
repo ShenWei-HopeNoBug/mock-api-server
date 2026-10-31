@@ -6,9 +6,9 @@ import traceback as tb_module
 from types import TracebackType
 from typing import Optional, Type
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QGuiApplication, QIcon
-from PyQt5.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 import app_env
 from app_types.app_gui_types import AppServerRunningData
@@ -44,9 +44,13 @@ if __name__ == '__main__':
   multiprocessing.freeze_support()
   # 设置 Windows 任务栏 AppUserModelID，使任务栏图标使用自定义图标而非 Python 默认图标
   ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('mock-api-server')
+  # Qt6 WebEngine Widgets 要求共享 OpenGL 上下文
+  QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
   # 禁止屏幕设置了缩放导致显示不一致
-  QGuiApplication.setAttribute(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+  QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
   app: QApplication = QApplication(sys.argv)
+  # 固定 windowsvista 样式：避免 Qt6 默认 windows11 样式跟随系统深色模式导致字体/控件观感异常
+  app.setStyle('windowsvista')
   # 设置应用图标（任务栏/标题栏）
   app.setWindowIcon(QIcon(app_env.APP_ICON))
   # 全局异常捕获
@@ -95,4 +99,4 @@ if __name__ == '__main__':
   # 结束启动动画（100%），动画结束后执行 init
   start_splash.finish(main_window, callback=main_window.init)
 
-  sys.exit(app.exec_())
+  sys.exit(app.exec())

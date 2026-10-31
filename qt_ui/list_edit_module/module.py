@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import copy
 
-from PyQt5.QtWidgets import QMessageBox, QWidget
+from PySide6.QtWidgets import QMessageBox, QWidget
 
 from lib.decorate import error_catch
 from qt_ui.list_edit_module import module_style
@@ -119,7 +119,7 @@ class ListEditModule(QWidget, Ui_Form):
   def add(self) -> bool:
     text_input_dialog = TextInputDialog(title='新增')
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
-    text_input_dialog.exec_()
+    text_input_dialog.exec()
 
     def is_valid():
       return self.check_edit_valid(
@@ -154,7 +154,7 @@ class ListEditModule(QWidget, Ui_Form):
     old_text = self.listWidget.item(self.select_row).text()
     text_input_dialog = TextInputDialog(text=old_text, title='编辑')
     text_input_dialog.confirm_signal.connect(self.set_edit_text)
-    text_input_dialog.exec_()
+    text_input_dialog.exec()
 
     def is_valid():
       return self.check_edit_valid(

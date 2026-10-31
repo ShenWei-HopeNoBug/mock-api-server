@@ -3,8 +3,8 @@ import copy
 import os
 from typing import Optional
 
-from PyQt5.QtCore import QRect, Qt
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QWidget
+from PySide6.QtCore import QRect, Qt
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QWidget
 
 from config.work_file import DEFAULT_WORK_DIR, MITMPROXY_CONFIG_PATH, WORK_FILE_DICT
 from lib.utils_lib import ConfigFileManager
