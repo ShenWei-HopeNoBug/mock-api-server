@@ -6,11 +6,12 @@ from multiprocessing import Process
 from pathlib import Path
 from typing import Any, Dict
 
-from flask import Flask, jsonify
+from flask import Flask
 
 from app_types.app_gui_types import AppServerRunningData
 from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APPSRV_LOGGER
+from lib.server_lib import register_system_routes
 from lib.utils_lib import (
   check_local_connection,
   is_local_server_running,
@@ -34,24 +35,16 @@ class AppServer:
     self._ensure_web_directory()
     app = Flask('APP_SERVER', root_path=str(self.web_root))
 
-    @app.route('/ping', methods=['GET'])
-    def ping():
-      return jsonify({'data': 'pong!'})
-
-    @app.route('/system/shutdown', methods=['GET'])
-    def server_shutdown():
-      @create_thread(daemon=True)
-      def delayed_shutdown():
-        APPSRV_LOGGER.info('APP_SERVER 服务收到 shutdown 指令！正在关闭服务...')
-        time.sleep(0.5)
-        self.shutdown()
-
-      delayed_shutdown()
-      return jsonify({'data': 'shutting down'})
+    register_system_routes(
+      app=app,
+      server_name='APP_SERVER',
+      on_shutdown=self.shutdown,
+      logger=APPSRV_LOGGER,
+    )
 
     # 关闭 werkzeug access 日志，避免 /ping 健康检查刷屏
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
-    app.run(host='0.0.0.0', port=self.port, threaded=True)
+    app.run(host='127.0.0.1', port=self.port, threaded=True)
 
   def shutdown(self) -> None:
     result = is_local_server_running(
@@ -62,7 +55,7 @@ class AppServer:
     )
     if result:
       APPSRV_LOGGER.info(f"即将关闭 APP_SERVER 服务！port={self.port}")
-      shutdown_local_server(port=self.port)
+      shutdown_local_server(ip='127.0.0.1', port=self.port)
 
 
 # app 服务进程启动
@@ -94,7 +87,9 @@ def start_app_server() -> AppServerRunningData:
   app_server_port = 5050
   max_port_attempts = 100
   attempts = 0
-  while check_local_connection(ip='0.0.0.0', port=app_server_port):
+  # 回环绑定下 0.0.0.0 与 127.0.0.1 任一地址被监听都会阻塞启动，两个地址都要探测
+  while (check_local_connection(ip='0.0.0.0', port=app_server_port)
+         or check_local_connection(ip='127.0.0.1', port=app_server_port)):
     APPSRV_LOGGER.warning(f"APP_SERVER 待启动服务端口被占用: {app_server_port}")
     app_server_port += 1
     attempts += 1

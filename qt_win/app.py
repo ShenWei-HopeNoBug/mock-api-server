@@ -729,7 +729,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     @error_catch(log=False)
     def shutdown():
       """这个请求发送到 mock 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
-      requests.get(f'http://127.0.0.1:{self.server_port}/system/shutdown')
+      requests.post(f'http://127.0.0.1:{self.server_port}/system/shutdown')
 
     shutdown()
     time.sleep(1)
@@ -854,7 +854,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def shutdown():
       app_sever_port = self.app_sever_running_data.get('port', 5050)
       """这个请求发送到 APP_SERVER 服务后，会触发关闭服务进程，没有响应一定会报错，这里就不打印捕获错误信息了"""
-      requests.get(f'http://127.0.0.1:{app_sever_port}/system/shutdown')
+      requests.post(f'http://127.0.0.1:{app_sever_port}/system/shutdown')
 
     shutdown()
 

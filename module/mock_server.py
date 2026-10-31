@@ -2,7 +2,6 @@
 import json
 import logging
 import os
-import time
 from typing import Dict, List, Optional
 
 from flask import Flask, jsonify, make_response, request
@@ -41,6 +40,7 @@ from lib.server_lib import (
   MockRequestParseError,
   ThreadSafeLRUCache,
   parse_flask_request,
+  register_system_routes,
 )
 from lib.static_file_lib import (
   StaticFileHandler,
@@ -263,20 +263,12 @@ class MockServer:
         _make_static_view(static_handler, f'static_{idx}')
       )
 
-    @app.route('/ping', methods=['GET'])
-    def ping() -> FlaskRouteResult:
-      return jsonify({'data': 'pong!'})
-
-    @app.route(f"{SYSTEM_ROUTE}/shutdown", methods=['GET'])
-    def server_shutdown() -> FlaskRouteResult:
-      @create_thread(daemon=True)
-      def delayed_shutdown() -> None:
-        MOCK_LOGGER.info('MOCK_SERVER 服务收到 shutdown 指令！正在关闭服务...')
-        time.sleep(0.5)
-        self.shutdown()
-
-      delayed_shutdown()
-      return jsonify({'data': 'shutting down'})
+    register_system_routes(
+      app=app,
+      server_name='MOCK_SERVER',
+      on_shutdown=self.shutdown,
+      logger=MOCK_LOGGER,
+    )
 
     @app.route(f"{MOCK_API_ROUTE}/<path:path>", methods=['GET', 'POST'])
     def request_api(path: str) -> FlaskRouteResult:

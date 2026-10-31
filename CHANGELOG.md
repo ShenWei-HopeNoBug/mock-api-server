@@ -16,6 +16,8 @@
 - `.gitignore` 重写：移除 JS 模板残留，补齐 `.venv`、`*.pyc`、`.ruff_cache`、`.pytest_cache`、`mockServer.*.spec` 等 Python 产物忽略项
 - `README.md` 补充开发工作流命令一览
 - 日志统一：运行时 `print` 全部迁移至分域 logger（APP/MOCK/STATIC/CATCH/MCP/APPSRV/DB/DOWNLOAD），`error_catch` 记录完整堆栈，werkzeug access 日志降级
+- 安全面收敛：`app_server` 绑定地址由 `0.0.0.0` 收敛至 `127.0.0.1`；`/system/shutdown` 改为 `POST` 并仅接受本机回环来源；两服务系统路由收敛为 `register_system_routes` 共享注册
+- `README.md` 新增「网络暴露面」节，说明各服务绑定地址与 LAN 可达范围
 
 ### Fixed
 

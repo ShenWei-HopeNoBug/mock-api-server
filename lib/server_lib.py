@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import json
+import logging
 import threading
 import time
 from collections import OrderedDict
-from typing import Any, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
 
-from flask import Request, jsonify
+from flask import Flask, Request, jsonify, request
 
 from app_types.global_types import JsonValue
 from app_types.mock_server_types import (
@@ -31,7 +32,9 @@ from app_types.mock_server_types import (
 )
 from app_types.request_types import RequestContentType
 from app_types.static_file_types import AssetsReplaceFunc
+from config.route import SYSTEM_ROUTE
 from lib.db import MockDBCache
+from lib.decorate import create_thread
 from lib.logger_lib import MOCK_LOGGER
 from lib.utils_lib import (
   create_md5,
@@ -419,3 +422,30 @@ def server_process_start(server_config: Dict[str, Any]) -> None:
   )
   # 启动本地 mock 服务
   server.start_server()
+
+
+# 注册系统路由：/ping 健康检查 + /system/shutdown 关闭服务（仅接受本机回环 POST）
+def register_system_routes(
+    app: Flask,
+    server_name: str,
+    on_shutdown: Callable[[], None],
+    logger: logging.Logger,
+) -> None:
+  @app.route('/ping', methods=['GET'])
+  def ping() -> FlaskRouteResult:
+    return jsonify({'data': 'pong!'})
+
+  @app.route(f"{SYSTEM_ROUTE}/shutdown", methods=['POST'])
+  def server_shutdown() -> FlaskRouteResult:
+    # 关闭指令仅允许本机回环发起，拒绝局域网请求
+    if request.remote_addr != '127.0.0.1':
+      return jsonify({'error': 'forbidden'}), 403
+
+    @create_thread(daemon=True)
+    def delayed_shutdown() -> None:
+      logger.info(f'{server_name} 服务收到 shutdown 指令！正在关闭服务...')
+      time.sleep(0.5)
+      on_shutdown()
+
+    delayed_shutdown()
+    return jsonify({'data': 'shutting down'})

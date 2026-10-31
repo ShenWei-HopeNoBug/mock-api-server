@@ -94,7 +94,7 @@ uv run ruff check .                 # 保持归零
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| （待填） | | | |
+| 2026-11-01 | §3 全部落地 | `lib/server_lib.py` 新增 `register_system_routes`；`app_server` 绑定 `127.0.0.1` + 双地址端口探测 + `shutdown_local_server(ip='127.0.0.1')`；两服务系统路由收敛单点；`qt_win/app.py` 两处改 POST；`README` 新增「网络暴露面」；`CHANGELOG` Unreleased 补记；评审报告勾选 | `ruff check` 归零；test_client 实测 `GET /ping`→200、`GET shutdown`→405、回环 `POST`→200、LAN `POST`→403；四模块 import 冒烟通过 |
 
 ## 9. 方案修正
 
