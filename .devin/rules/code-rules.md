@@ -4,23 +4,35 @@ trigger: manual
 
 # 项目技术栈
 
-- python 3.13 + pyqt5 + sqlite3
+- python 3.13 + PySide6 6.10（Qt6，内嵌 WebEngine 内核 Chromium 134）+ sqlite3
+- 桌面端结构：`qt_win/` 为窗口逻辑层，`qt_ui/` 为界面层（`.ui` 源文件 + `pyside6-uic` 生成物 + 样式文件）
 
 # 代码规范
 
 ## 注释规则
 
-- 函数：描述下基本功能即可不用太长
-- 变量：比较重要的变量注释下
-- 比较长的注释用多行注释
+- 函数：函数上方用 `#` 单行注释简述功能（如 `# 启动mock服务`），不用太长；仅复杂逻辑用 docstring
+- 变量：含义无法从命名看出的重要变量注释用途/取值（如状态机枚举值）
+- 代码块分组可用 `'''...'''` 单行块注释（如 `'''按钮事件绑定'''`）
+- 注释说明「是什么/为什么」，不复述代码本身；统一用中文
 
 ## 类型定义规则
 
-- 新增或修改类型定义的时候要注意 python 版本，当前项目是 python3.13 版本，`int | float` 等新语法可用
-- 进行类型定义的时候尽量准确定义当前变量或参数的类型，比较复杂的 dict 之类的定义统一按命名空间抽象到对应类型文件中放
-  `app_types` 目录，如果已经有现成符合语义的类型定义就优先用现成的。
-- 没有明确要求的情况下，不要轻易改动原本已有的类型定义
+- 当前项目 python 3.13，`int | float`、`list[str]` 等新语法可用；写法风格跟随所在文件现状（存量代码多用 `Optional`/`List`）
+- 变量、参数、返回值的类型定义尽量准确；复杂 dict 统一抽象成 `TypedDict` 放进 `app_types/` 按业务域分文件（如 `mcp_server_types.py`），可选字段用 `total=False`，字段含义不直观时加行内注释
+- 已有符合语义的类型定义优先复用；没有明确要求不要改动已有类型定义
+
+## Qt / PySide6 使用约定
+
+- 信号/槽用 `Signal` / `Slot`（不是 `pyqtSignal` / `pyqtSlot`）；进入事件循环用 `exec()`（不是 `exec_()`）
+- `QAction`、`QShortcut`、`QKeySequence` 从 `PySide6.QtGui` 导入；菜单 `triggered` 信号直接 `.connect(callback)`，不支持 `triggered[QAction]` 下标语法
+- `QFileDialog` 静态方法（`getExistingDirectory` / `getOpenFileName` / `getOpenFileNames`）的目录参数名是 `dir`，不是 `directory`
+- `qt_ui/*/win_ui.py` 是 `pyside6-uic` 由 `.ui` 生成的文件，不要手改；改界面先改 `.ui` 再重新生成：`uv run pyside6-uic qt_ui/<目录>/win_ui.ui -o qt_ui/<目录>/win_ui.py`
+- 应用在 `main.py` 固定 `windowsvista` 样式：Qt6 默认 windows11 样式会跟随系统深色模式返回深色 palette，与自定义浅色样式表冲突导致白字/控件观感异常，改动前先确认意图
+- `multiprocessing.Process` 必须 `daemon=True`，否则退出阶段 multiprocessing atexit 会对存活子进程无限 join 导致窗口卡死
+- `QApplication.quit()` 会向所有顶层窗口派发关闭事件；`closeEvent` 中 `event.ignore()` 会取消整个退出流程，确认退出后放行需 `event.accept()`
 
 ## 新生成的代码
 
-- 新生成的代码没特别要求的情况下，函数要带符合 `注释规则` 规范的注释，变量和参数要带符合 `类型定义规则` 规范的类型定义
+- 没有特别要求时：函数/变量的注释遵循「注释规则」，类型标注遵循「类型定义规则」，Qt 写法遵循「Qt / PySide6 使用约定」
+- 缩进统一 2 空格，新文件带 `# -*- coding: utf-8 -*-` 头；命名与其余风格跟随所在文件既有写法
