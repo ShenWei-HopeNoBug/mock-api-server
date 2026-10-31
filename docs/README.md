@@ -32,6 +32,14 @@
 |---|---|---|---|
 | [logging-unification-plan](v0_1_5/logging/logging-unification-plan.md) | `lib/logger_lib` / `decorate` / 运行时 print | 基建加固 + 全量迁移，两 commit 拆分 | 已完成 |
 
+### pyside6/
+
+Qt 客户端升级：PyQt5（QtWebEngine 5.15.2 / Chromium 83）→ PySide6（Qt 6.10 / Chromium 134）。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [pyside6-migration-plan](v0_1_5/pyside6/pyside6-migration-plan.md) | Qt 客户端全量 | 依赖换绑 + 17 文件手改 + 8 个 win_ui.py 重生成，含回归矩阵与回滚策略 | 待实施 |
+
 ## 历史方案存档
 
 ### v0_1_3/
