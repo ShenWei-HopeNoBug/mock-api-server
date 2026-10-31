@@ -10,7 +10,9 @@ try:
 except ImportError:
   MITMPROXY_LOG = True
   MCP_LOG = True
-  VERSION = 'v0.0.0'
+  # 开发模式下版本号与窗口标题口径一致，取自 pyproject.toml
+  from config.globals import version
+  VERSION = version
 
 
 def _resource_path(relative: str) -> str:
