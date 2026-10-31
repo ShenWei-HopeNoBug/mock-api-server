@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import hashlib
 import os
-import sys
 from typing import Optional
 
 from lib.decorate import error_catch
@@ -51,7 +50,3 @@ def diff_file(source_path: str, target_path: str) -> bool:
   target_hash = create_file_hash(target_path)
 
   return source_hash != target_hash
-
-
-if __name__ == "__main__":
-  sys.exit(0)

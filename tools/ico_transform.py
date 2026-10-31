@@ -6,7 +6,7 @@ from PIL import Image
 
 
 def main():
-  from_path = '../app-icon.png'
+  from_path = './app-icon.png'
   save_path = '../assets/app.ico'
 
   abs_from_path = os.path.abspath(from_path)

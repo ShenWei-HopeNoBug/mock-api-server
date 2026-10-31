@@ -190,7 +190,7 @@ def get_download_ready_assets(
 
 # 写入下载日志
 @error_catch(error_msg='写入下载日志失败')
-def white_download_log(
+def write_download_log(
     work_dir: str = '.',
     download_log: Optional[List[Dict[str, Any]]] = None,
     log_name: str = 'log'
@@ -343,8 +343,8 @@ def download_server_static(
   log_name = create_timestamp()
 
   # 写入日志
-  def white_log():
-    white_download_log(
+  def write_log():
+    write_download_log(
       work_dir=work_dir,
       download_log=download_log,
       log_name=log_name,
@@ -407,7 +407,7 @@ def download_server_static(
           "success": False,
           "message": f"下载失败! STATUS_CODE:{response.status_code}",
         })
-        white_log()
+        write_log()
         continue
 
       # 更新下载详情
@@ -466,6 +466,6 @@ def download_server_static(
     finally:
       DOWNLOAD_LOGGER.info('*' * 29)
 
-    white_log()
+    write_log()
 
   DOWNLOAD_LOGGER.info('下载静态资源完毕！')

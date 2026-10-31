@@ -181,6 +181,6 @@
 - [x] 安全面收敛（绑定地址 / shutdown 鉴权）— `docs/v0_1_5/security/security-hardening-plan.md`；下载校验另行立项
 - [x] 日志统一（消灭裸 print / error_catch 带堆栈）— `01d35d5` + 本次提交
 - [ ] 明确 bug 修复（下载日志 / basename 碰撞 / schema 迁移事务 / 死分支）
-- [ ] 死代码清理（backup_lib / file_lib / hash_lib / resources）
+- [x] 死代码清理（backup_lib 删除；file_lib / hash_lib 保留仅删测试代码）— `docs/v0_1_5/cleanup/dead-code-cleanup-plan.md`；`resources/.mitmproxy-ca.7z` 保留
 - [x] 工程文件补齐（LICENSE / CHANGELOG / lint 配置）— `3e73ff0`
 - [x] 文档对齐（README / code-rules）— `fc26535`（随 uv 迁移一并修订）

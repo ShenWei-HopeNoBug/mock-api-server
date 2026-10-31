@@ -3,6 +3,8 @@ import hashlib
 import os
 from typing import Optional
 
+from lib.logger_lib import APP_LOGGER
+
 
 def get_file_hash(file_path: str, hash_algorithm: str = 'md5') -> Optional[str]:
   """
@@ -32,17 +34,5 @@ def get_file_hash(file_path: str, hash_algorithm: str = 'md5') -> Optional[str]:
     return hash_obj.hexdigest()
 
   except (IOError, ValueError) as e:
-    print(f"生成文件哈希时出错: {e}")
+    APP_LOGGER.error(f'生成文件哈希时出错: {e}', exc_info=True)
     return None
-
-
-# 使用示例
-if __name__ == "__main__":
-  # 示例：计算文件的 SHA-256 哈希
-  file_path = r"B:\project\pycharm\mock-api-server\server\data\static.json"  # 替换为你的文件路径
-  hash_str = get_file_hash(file_path)
-
-  if hash_str:
-    print(f"文件 {file_path} 的哈希值为: \n{hash_str}")
-  else:
-    print(f"无法生成文件 {file_path} 的哈希值")

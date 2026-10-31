@@ -345,12 +345,6 @@ class StaticFileHandler:
     mime_type: Optional[str] = mimetypes.guess_type(file_path)[0]
     return mime_type is not None and mime_type.startswith('image/')
 
-  @staticmethod
-  def _is_video(file_path: str) -> bool:
-    """判断文件 MIME 类型是否为视频"""
-    mime_type: Optional[str] = mimetypes.guess_type(file_path)[0]
-    return mime_type is not None and mime_type.startswith('video/')
-
   def _build_cache_control(self, file_path: str) -> str:
     """根据文件类型生成 Cache-Control 值：图片走强缓存，其他走协商缓存"""
     if self._is_image(file_path):

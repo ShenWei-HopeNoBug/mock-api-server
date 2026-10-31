@@ -61,10 +61,10 @@ python -c "from qt_win.app import MainWindow"  # 冒烟
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| （待填） | | | |
+| 2026-11-01 | §3 全部落地（含修正） | 删 `lib/backup_lib.py`；`file_lib`/`hash_lib` 按 §8 修正保留、仅删 `__main__` 测试代码；`config/work_file.py` 摘除 `BACKUP_DIR` 常量与目录项；`white_`→`write_` 改名（3 处）；删 `STATIC_MATCH_CACHE_LIMIT`、`_is_video`；`app-icon.png` 移至 `tools/` 并同步 `ico_transform.py` `from_path`；磁盘 `test.py` 删除 | `ruff check` 归零；`MainWindow` import 冒烟通过；残留引用 grep 干净 |
 
 ## 8. 方案修正
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
-| （待填） | | |
+| 2026-11-01 | `lib/file_lib.py`、`lib/hash_lib.py` 由删除改为保留，仅清理文件尾部 `__main__` 测试代码（`file_lib` 连带移除 unused `import sys`） | 用户拍板：两文件暂不清理、留作备用 |

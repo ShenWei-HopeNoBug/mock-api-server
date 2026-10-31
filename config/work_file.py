@@ -42,9 +42,6 @@ DOWNLOAD_DIR = r'/download'
 # 导出目录
 OUTPUT_DIR = r'/output'
 
-# 备份目录
-BACKUP_DIR = r'/backup'
-
 # -------------------------------------------------------------
 # 系统文件字典
 SYSTEM_FILE_DICT = {
@@ -77,10 +74,6 @@ WORK_DIR_DICT = {
   # 导出目录
   "OUTPUT_DIR": {
     "path": OUTPUT_DIR
-  },
-  # 备份目录
-  "BACKUP_DIR": {
-    "path": BACKUP_DIR
   }
 }
 

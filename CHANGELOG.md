@@ -18,6 +18,13 @@
 - 日志统一：运行时 `print` 全部迁移至分域 logger（APP/MOCK/STATIC/CATCH/MCP/APPSRV/DB/DOWNLOAD），`error_catch` 记录完整堆栈，werkzeug access 日志降级
 - 安全面收敛：`app_server` 绑定地址由 `0.0.0.0` 收敛至 `127.0.0.1`；`/system/shutdown` 改为 `POST` 并仅接受本机回环来源；两服务系统路由收敛为 `register_system_routes` 共享注册
 - `README.md` 新增「网络暴露面」节，说明各服务绑定地址与 LAN 可达范围
+- `white_download_log`/`white_log` 拼写修正为 `write_download_log`/`write_log`
+- `app-icon.png` 移至 `tools/`（作为 `ico_transform.py` 输入源）
+- 清理 `lib/file_lib.py`/`lib/hash_lib.py` 尾部 `__main__` 测试代码
+
+### Removed
+
+- 死代码清理：删除 `lib/backup_lib.py`；工作目录不再创建 `server/backup/`；删除未使用的 `STATIC_MATCH_CACHE_LIMIT` 常量与 `_is_video` 方法
 
 ### Fixed
 
