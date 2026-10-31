@@ -153,7 +153,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     directory = QFileDialog.getExistingDirectory(
       self,
       caption='选择导出目录',
-      directory=r'./',
+      dir=r'./',
     )
 
     if directory:
@@ -172,7 +172,7 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
     result = QFileDialog.getOpenFileNames(
       self,
       caption='选择下载日志',
-      directory=directory,
+      dir=directory,
       filter='下载日志文件 (*.json)',
     )
     file_list = result[0]

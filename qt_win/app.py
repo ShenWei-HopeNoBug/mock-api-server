@@ -338,7 +338,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     directory = QFileDialog.getExistingDirectory(
       self,
       caption='选择工作目录',
-      directory=r'./',
+      dir=r'./',
     )
     if directory and self.check_and_create_work_files(directory):
       # 更换工作目录后，检查目录文件
