@@ -3,8 +3,9 @@ import json
 import os
 from typing import Optional
 
-from PySide6.QtCore import QEvent, Qt, QUrl
+from PySide6.QtCore import QEvent, Qt, QTimer, QUrl
 from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QDialog, QStackedWidget, QVBoxLayout, QWidget
 
@@ -83,6 +84,9 @@ class MitmproxyDataEditDialog(QDialog):
 
     # 创建 QWebEngineView 实例
     webview = QWebEngineView()
+    # 隐藏期间 RWHV 仍按 widget 几何产帧，先撑到弹窗尺寸：
+    # 否则首帧按初始小尺寸产出，loadFinished 切栈时会先闪一帧「小画面→全屏」
+    webview.resize(self.contentsRect().size())
 
     # 禁用右键菜单
     webview.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -101,6 +105,27 @@ class MitmproxyDataEditDialog(QDialog):
 
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
+    # 底色与页面一致，避免隐藏→显示切换时 underlay 颜色差异
+    current_page.setBackgroundColor(Qt.white)
+    # Qt6 剪贴板双重门控：ClipboardReadWrite 授权供 navigator.clipboard.writeText，
+    # JavascriptCanAccessClipboard 供前端 execCommand('copy') 回退路径
+    webview.settings().setAttribute(
+      QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard,
+      True,
+    )
+
+    def _on_feature_permission_requested(
+      security_origin: QUrl,
+      feature: QWebEnginePage.Feature,
+    ) -> None:
+      if feature == QWebEnginePage.Feature.ClipboardReadWrite:
+        current_page.setFeaturePermission(
+          security_origin,
+          feature,
+          QWebEnginePage.PermissionPolicy.PermissionGrantedByUser,
+        )
+
+    current_page.featurePermissionRequested.connect(_on_feature_permission_requested)
 
     # 离线页面路径
     web_route = '#/outputManager'
@@ -303,6 +328,11 @@ class MitmproxyDataEditDialog(QDialog):
     '/variant/copy': _handle_copy_variant,
     '/variant/set_exclusive_enabled': _handle_set_variant_exclusive_enabled,
   }
+
+  def showEvent(self, event: QEvent) -> None:
+    super().showEvent(event)
+    # 栈内隐藏期间仍标记页面可见：webview 持续产帧，loadFinished 切换时无首帧空窗黑闪
+    QTimer.singleShot(0, lambda: self.webview.page().setVisible(True))
 
   def closeEvent(self, event: QEvent) -> None:
     if self.loading_widget is not None:
