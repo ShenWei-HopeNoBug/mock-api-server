@@ -8,6 +8,14 @@
 
 当前版本工作目录，按功能域分设子目录。
 
+### cleanup/
+
+死代码清理：backup_lib/file_lib/hash_lib 删除、`BACKUP_DIR` 摘除、`white_` 命名修正与散件清理。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [dead-code-cleanup-plan](v0_1_5/cleanup/dead-code-cleanup-plan.md) | `lib/` 死代码 / `config/work_file.py` / 命名修正 | 三文件删除 + BACKUP_DIR 摘除 + 命名与散件，单 commit | 待实施 |
+
 ### dependency/
 
 依赖管理整改：`requirements.txt` 单源化 → uv 迁移两步走。
@@ -39,6 +47,14 @@ Qt 客户端升级：PyQt5（QtWebEngine 5.15.2 / Chromium 83）→ PySide6（Qt
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
 | [pyside6-migration-plan](v0_1_5/pyside6/pyside6-migration-plan.md) | Qt 客户端全量 | 依赖换绑 + 17 文件手改 + 8 个 win_ui.py 重生成，含回归矩阵与回滚策略 | 待实施 |
+
+### security/
+
+安全面收敛：app_server 收 `127.0.0.1`、`/system/shutdown` POST + 回环校验、LAN 暴露面文档。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [security-hardening-plan](v0_1_5/security/security-hardening-plan.md) | `module/app_server` / `module/mock_server` / `lib/server_lib` / `qt_win/app.py` / `README.md` | 绑定收敛最小集 + shutdown 加固，单 commit | 待实施 |
 
 ## 历史方案存档
 
