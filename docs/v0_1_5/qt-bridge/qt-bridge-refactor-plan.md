@@ -282,7 +282,7 @@ Phase 2：
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| （待填） | | | |
+| 2026-11-04 | Phase 1 全量实施（§4.1-4.6 + web 端 §4.3） | 代码落地，`ruff check` 通过，`_unpack_result`/`_mcp_result` 断言冒烟通过 | ① `lib/bridge_lib.py` 新建（仅解包函数）；② 两弹窗 `_request` 各 +4 行接入；③ web 端 `dataManager.d.ts` 瘦身、`VariantEditorDialog` 删 `res?.success` 守卫；④ `lib/db/utils.py` 增 `_ok`/`_fail`，api_data 40 处 / variants 30 处 / static_data 4 处字面量经 AST 脚本机械转换后脚本已删；⑤ `db_types.py` 改继承结构；⑥ `mcp_types.py` 新建，8 处工具返回经 `_mcp_result` 包装；⑦ `insert_test_db_data.py` 改 `status_code` 判定；⑧ `QT_BRIDGE.md` 增「状态语义」节并同步清单/索引。MCP 包装点实为 8 处（非方案预估 ~15）；`app_server.py`/`download_lib.py`/`app_lib.py` 的 `success` 属独立协议，核实与 OperationResult 无关，未动 |
 
 ## 11. 方案修正
 

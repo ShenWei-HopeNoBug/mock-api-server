@@ -7,13 +7,12 @@ from app_types.db_types import BatchOperationResult, StaticData
 from config.enum.BIZ_CODE import (
   BIZ_DATA_EMPTY,
   BIZ_DB_ERROR,
-  BIZ_SUCCESS,
   BIZ_UNKNOWN_ERROR,
 )
 from lib.logger_lib import DB_LOGGER
 from lib.utils_lib import generate_uuid
 
-from .utils import _ensure_open
+from .utils import _ensure_open, _fail, _ok
 
 
 class StaticDataMixin:
@@ -43,7 +42,7 @@ class StaticDataMixin:
       DB_LOGGER.info('StaticDataMixin schema 迁移: v3 → v4, static_data 新增 operator 字段')
 
   # 批量写静态资源到 DB
-  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "批量插入失败", "affected_count": 0})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "批量插入失败", affected_count=0))
   def batch_insert_static(self, urls: List[str]) -> BatchOperationResult:
     """
     批量写入静态资源 URL，写入后触发 PASSIVE checkpoint
@@ -52,7 +51,7 @@ class StaticDataMixin:
     返回成功状态和实际插入的记录数。
     """
     if not urls:
-      return {"success": False, "status_code": BIZ_DATA_EMPTY, "status_msg": "数据为空", "affected_count": 0}
+      return _fail(BIZ_DATA_EMPTY, "数据为空", affected_count=0)
 
     insert_sql = 'INSERT INTO static_data (id, url, type, operator) VALUES (?, ?, ?, ?)'
     insert_data = []
@@ -66,9 +65,9 @@ class StaticDataMixin:
       with self._transaction() as conn:
         conn.executemany(insert_sql, insert_data)
       DB_LOGGER.info(f'MockDB batch_insert_static 写入 {len(insert_data)}/{len(urls)} 条')
-      return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功", "affected_count": len(insert_data)}
+      return _ok(affected_count=len(insert_data))
     except Exception as e:
-      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"批量插入失败: {str(e)}", "affected_count": 0}
+      return _fail(BIZ_DB_ERROR, f"批量插入失败: {str(e)}", affected_count=0)
     finally:
       try:
         self._wal_checkpoint_passive()

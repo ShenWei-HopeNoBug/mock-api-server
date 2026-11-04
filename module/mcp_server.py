@@ -2,7 +2,7 @@
 import asyncio
 from multiprocessing import Process
 from multiprocessing.synchronize import Event as EventType
-from typing import Annotated, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 import uvicorn
 from mcp.server import MCPServer
@@ -18,19 +18,26 @@ from app_types.db_types import (
   ApiResponseVariantRecord,
   ApiResponseVariantSummary,
   ApiSummary,
-  OperationResult,
-  OperationResultWithOptionalId,
   PaginatedApiList,
   PaginatedVariantList,
   VariantQuery,
 )
 from app_types.mcp_server_types import McpServerRunConfig
+from app_types.mcp_types import McpOperationResult, McpOperationResultWithOptionalId
+from config.enum.BIZ_CODE import BIZ_SUCCESS
 from lib.db import MockDBCache
 from lib.logger_lib import MCP_LOGGER
 
 # -------------------
 # MCP 服务封装
 # -------------------
+
+def _mcp_result(result: Dict[str, Any]) -> Dict[str, Any]:
+  """MCP 工具返回适配：DB OperationResult 在边界由 status_code 派生 success；非结果形态原样返回"""
+  if not isinstance(result.get('status_code'), int):
+    return dict(result)
+  return {'success': result['status_code'] == BIZ_SUCCESS, **result}
+
 
 class McpServer:
   def __init__(
@@ -206,7 +213,7 @@ class McpServer:
         timeout: Annotated[Optional[int], "超时时间（毫秒），0 表示不限制"] = None,
         request_content_type: Annotated[Optional[
           str], "新的请求 content-type 枚举值，可选值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'；GET 请求固定为 'NONE'"] = None,
-    ) -> OperationResult:
+    ) -> McpOperationResult:
       """
       修改指定 Mock API 的配置（字段级合并，仅更新传入的字段）。
 
@@ -245,13 +252,13 @@ class McpServer:
       if request_content_type is not None:
         record['request_content_type'] = request_content_type
       db = MockDBCache.get(self.work_dir)
-      return db.update_api(record)
+      return _mcp_result(db.update_api(record))
 
     self.mcp.add_tool(update_mock_api)
 
     def delete_mock_api(
         api_id: Annotated[str, "要删除的 API 记录 ID（必填），可通过 list_mock_apis 获取"],
-    ) -> OperationResult:
+    ) -> McpOperationResult:
       """
       删除指定的 Mock API 及其所有响应变体。
 
@@ -268,13 +275,13 @@ class McpServer:
         {"success": bool} 表示删除成功或失败。
       """
       db = MockDBCache.get(self.work_dir)
-      return db.delete_api(api_id)
+      return _mcp_result(db.delete_api(api_id))
 
     self.mcp.add_tool(delete_mock_api)
 
     def copy_mock_api(
         api_id: Annotated[str, "要复制的 API 记录 ID（必填），可通过 list_mock_apis 获取"],
-    ) -> OperationResultWithOptionalId:
+    ) -> McpOperationResultWithOptionalId:
       """
       复制一个 Mock API（不含响应变体）。
 
@@ -298,7 +305,7 @@ class McpServer:
         - status_msg (str): 结果描述
       """
       db = MockDBCache.get(self.work_dir)
-      return db.copy_api(api_id, operator='MCP', api_type='MCP')
+      return _mcp_result(db.copy_api(api_id, operator='MCP', api_type='MCP'))
 
     self.mcp.add_tool(copy_mock_api)
 
@@ -311,7 +318,7 @@ class McpServer:
         timeout: Annotated[int, "超时时间（毫秒），0 表示不限制"] = 0,
         request_content_type: Annotated[
           str, "请求 content-type 枚举值，可选值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'；GET 请求固定为 'NONE'，默认 'NONE'"] = 'NONE',
-    ) -> OperationResultWithOptionalId:
+    ) -> McpOperationResultWithOptionalId:
       """
       创建一个新的 Mock API 路由。
 
@@ -350,7 +357,7 @@ class McpServer:
         'request_content_type': request_content_type,
       }
       db = MockDBCache.get(self.work_dir)
-      return db.insert_api(record)
+      return _mcp_result(db.insert_api(record))
 
     self.mcp.add_tool(create_mock_api)
 
@@ -445,7 +452,7 @@ class McpServer:
         name: Annotated[Optional[str], "变体名称，如 '成功响应'/'错误响应'/'超时响应'"] = None,
         enabled: Annotated[bool, "是否启用，True 启用 False 禁用"] = True,
         timeout: Annotated[int, "超时时间（毫秒），0 表示不限制"] = 0,
-    ) -> OperationResultWithOptionalId:
+    ) -> McpOperationResultWithOptionalId:
       """
       为指定 Mock API 创建一个新的响应变体。
 
@@ -482,7 +489,7 @@ class McpServer:
       if name is not None:
         record['name'] = name
       db = MockDBCache.get(self.work_dir)
-      return db.insert_variant(record)
+      return _mcp_result(db.insert_variant(record))
 
     self.mcp.add_tool(create_response_variant)
 
@@ -492,7 +499,7 @@ class McpServer:
         response: Annotated[Optional[str], "新的响应体，JSON 字符串"] = None,
         enabled: Annotated[Optional[bool], "是否启用，True 启用 False 禁用"] = None,
         timeout: Annotated[Optional[int], "超时时间（毫秒），0 表示不限制"] = None,
-    ) -> OperationResult:
+    ) -> McpOperationResult:
       """
       修改指定响应变体的配置（字段级合并，仅更新传入的字段）。
 
@@ -523,13 +530,13 @@ class McpServer:
       if timeout is not None:
         record['timeout'] = timeout
       db = MockDBCache.get(self.work_dir)
-      return db.update_variant(record)
+      return _mcp_result(db.update_variant(record))
 
     self.mcp.add_tool(update_response_variant)
 
     def delete_response_variant(
         variant_id: Annotated[str, "要删除的变体 ID（必填），可通过 list_response_variants 获取"],
-    ) -> OperationResult:
+    ) -> McpOperationResult:
       """
       删除指定的响应变体。
 
@@ -546,14 +553,14 @@ class McpServer:
         {"success": bool} 表示删除成功或失败。
       """
       db = MockDBCache.get(self.work_dir)
-      return db.delete_variant(variant_id)
+      return _mcp_result(db.delete_variant(variant_id))
 
     self.mcp.add_tool(delete_response_variant)
 
     def copy_response_variant(
         variant_id: Annotated[str, "源变体 ID（必填），可通过 list_response_variants 获取"],
         target_api_id: Annotated[str, "目标 API 记录的 ID（必填），源变体将被复制并绑定到此 API"],
-    ) -> OperationResultWithOptionalId:
+    ) -> McpOperationResultWithOptionalId:
       """
       复制一个响应变体到指定的 API 上。
 
@@ -576,7 +583,7 @@ class McpServer:
         - status_msg (str): 结果描述
       """
       db = MockDBCache.get(self.work_dir)
-      return db.copy_variant(variant_id, target_api_id, operator='MCP', variant_type='MCP')
+      return _mcp_result(db.copy_variant(variant_id, target_api_id, operator='MCP', variant_type='MCP'))
 
     self.mcp.add_tool(copy_response_variant)
 

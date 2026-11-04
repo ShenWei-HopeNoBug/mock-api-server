@@ -2,10 +2,21 @@
 import copy
 import functools
 import json
-from typing import Any, Callable, List
+from typing import Any, Callable, Dict, List
 
+from config.enum.BIZ_CODE import BIZ_SUCCESS
 from lib.logger_lib import DB_LOGGER
 from lib.utils_lib import JsonFormat
+
+
+def _ok(msg: str = '成功', **extra: Any) -> Dict[str, Any]:
+  """构造成功 OperationResult，extra 承载业务字段（如 id/affected_count）"""
+  return {"status_code": BIZ_SUCCESS, "status_msg": msg, **extra}
+
+
+def _fail(code: int, msg: str, **extra: Any) -> Dict[str, Any]:
+  """构造失败 OperationResult，extra 承载业务字段（如 id=None/affected_count=0）"""
+  return {"status_code": code, "status_msg": msg, **extra}
 
 
 def _normalize_response_variant_ids(value: Any) -> str:

@@ -16,7 +16,6 @@ from config.enum.BIZ_CODE import (
   BIZ_DATA_NOT_FOUND,
   BIZ_DB_ERROR,
   BIZ_PARAM_MISSING,
-  BIZ_SUCCESS,
   BIZ_UNKNOWN_ERROR,
 )
 from lib.logger_lib import DB_LOGGER
@@ -24,8 +23,10 @@ from lib.utils_lib import JsonFormat, generate_uuid
 
 from .utils import (
   _ensure_open,
+  _fail,
   _normalize_enabled,
   _normalize_response_variant_ids,
+  _ok,
   _parse_enabled,
   _parse_response_variant_ids,
 )
@@ -78,15 +79,15 @@ class ApiResponseVariantMixin:
       self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN type TEXT NOT NULL DEFAULT 'USER'")
       DB_LOGGER.info('ApiResponseVariantMixin schema 迁移: v4 → v5, api_response_variants 新增 type 字段')
 
-  @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "插入变体失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "插入变体失败", id=None))
   def insert_variant(self, record: ApiResponseVariantInsertRecord) -> OperationResultWithOptionalId:
-    """新增一条 response 变体，并自动追加到所属 api_data 的变体列表，成功返回 {"success": True, "id": "uuid", "status_code": 0, "status_msg": "成功"}"""
+    """新增一条 response 变体，并自动追加到所属 api_data 的变体列表，成功返回 {"id": "uuid", "status_code": 0, "status_msg": "成功"}"""
     data = {**DATABASE.API_RESPONSE_VARIANT_INSERT_DEFAULTS, **record}
     variant_id = generate_uuid()
     api_data_id = data.get('api_data_id')
     if not api_data_id:
       DB_LOGGER.warning('ApiResponseVariantMixin insert_variant 缺少 api_data_id')
-      return {"success": False, "id": None, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: api_data_id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: api_data_id", id=None)
 
     data['response'] = JsonFormat.format_json_string(data['response'])
     data['enabled'] = _normalize_enabled(data.get('enabled'))
@@ -97,7 +98,7 @@ class ApiResponseVariantMixin:
         # 确认所属 api_data 存在，避免产生孤儿变体
         row = conn.execute('SELECT response_variant_ids FROM api_data WHERE id=?', (api_data_id,)).fetchone()
         if row is None:
-          return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"关联的 API 数据不存在: {api_data_id}"}
+          return _fail(BIZ_DATA_NOT_FOUND, f"关联的 API 数据不存在: {api_data_id}", id=None)
         conn.execute(
           'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout, operator, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           (variant_id, api_data_id, data.get('name', ''), data['response'], data['enabled'], data['timeout'], data.get('operator', ''), data.get('type', 'USER')),
@@ -114,16 +115,16 @@ class ApiResponseVariantMixin:
             ''',
             (_normalize_response_variant_ids(variant_ids), api_data_id),
           )
-      return {"success": True, "id": variant_id, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+      return _ok(id=variant_id)
     except Exception as e:
-      return {"success": False, "id": None, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}", id=None)
 
-  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "更新变体失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "更新变体失败"))
   def update_variant(self, record: ApiResponseVariantRecord) -> OperationResult:
-    """按 id 更新变体（字段级合并），不允许修改所属 api_data_id，失败返回 {"success": False, "status_code": 具体错误码, "status_msg": "具体错误信息"}"""
+    """按 id 更新变体（字段级合并），不允许修改所属 api_data_id，失败返回 {"status_code": 具体错误码, "status_msg": "具体错误信息"}"""
     variant_id = record.get('id')
     if not variant_id:
-      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: id")
 
     with self._lock:
       row = self._conn.execute(
@@ -131,7 +132,7 @@ class ApiResponseVariantMixin:
         (variant_id,),
       ).fetchone()
     if row is None:
-      return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {variant_id}"}
+      return _fail(BIZ_DATA_NOT_FOUND, f"记录不存在: {variant_id}")
 
     old = {
       'name': row[0],
@@ -160,15 +161,15 @@ class ApiResponseVariantMixin:
              WHERE id = ?''',
           (merged['name'], merged['response'], merged['enabled'], merged['timeout'], merged.get('operator', ''), variant_id),
         )
-        return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+        return _ok()
     except Exception as e:
-      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}")
 
-  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "删除变体失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "删除变体失败"))
   def delete_variant(self, variant_id: str) -> OperationResult:
-    """按 id 删除变体，并同步从 api_data.response_variant_ids 中移除，失败返回 {"success": False, "status_code": 具体错误码, "status_msg": "具体错误信息"}"""
+    """按 id 删除变体，并同步从 api_data.response_variant_ids 中移除，失败返回 {"status_code": 具体错误码, "status_msg": "具体错误信息"}"""
     if not variant_id:
-      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: id")
 
     with self._lock:
       row = self._conn.execute(
@@ -176,7 +177,7 @@ class ApiResponseVariantMixin:
         (variant_id,),
       ).fetchone()
     if row is None:
-      return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {variant_id}"}
+      return _fail(BIZ_DATA_NOT_FOUND, f"记录不存在: {variant_id}")
     api_data_id = row[0]
 
     try:
@@ -195,9 +196,9 @@ class ApiResponseVariantMixin:
               ''',
               (_normalize_response_variant_ids(variant_ids), api_data_id),
             )
-      return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+      return _ok()
     except Exception as e:
-      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}")
 
   @_ensure_open(default=None)
   def get_variant_by_id(self, variant_id: str) -> Optional[ApiResponseVariant]:
@@ -339,7 +340,7 @@ class ApiResponseVariantMixin:
       })
     return result
 
-  @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "复制变体失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "复制变体失败", id=None))
   def copy_variant(
       self,
       variant_id: str,
@@ -357,10 +358,10 @@ class ApiResponseVariantMixin:
     operator: 当前操作者（如 'USER' / 'MCP'），作为副本的 operator 值
     variant_type: 当前操作者身份（如 'USER' / 'MCP'），作为副本的 type 值（创建后不可变更）
 
-    返回：成功返回 {"success": True, "id": "新变体ID", "status_code": 0, "status_msg": "成功"}，失败返回 {"success": False, "id": None, "status_code": 具体错误码, "status_msg": "具体错误信息"}
+    返回：成功返回 {"id": "新变体ID", "status_code": 0, "status_msg": "成功"}，失败返回 {"id": None, "status_code": 具体错误码, "status_msg": "具体错误信息"}
     """
     if not variant_id or not api_data_id:
-      return {"success": False, "id": None, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: variant_id 或 api_data_id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: variant_id 或 api_data_id", id=None)
 
     with self._lock:
       # 只取需要复制的业务字段，不取 operator/type（副本用当前操作者值）
@@ -369,7 +370,7 @@ class ApiResponseVariantMixin:
         (variant_id,),
       ).fetchone()
     if row is None:
-      return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"源变体不存在: {variant_id}"}
+      return _fail(BIZ_DATA_NOT_FOUND, f"源变体不存在: {variant_id}", id=None)
 
     name, response, timeout = row
     new_variant_id = generate_uuid()
@@ -381,7 +382,7 @@ class ApiResponseVariantMixin:
           'SELECT response_variant_ids FROM api_data WHERE id=?', (api_data_id,)
         ).fetchone()
         if target_row is None:
-          return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"目标 API 数据不存在: {api_data_id}"}
+          return _fail(BIZ_DATA_NOT_FOUND, f"目标 API 数据不存在: {api_data_id}", id=None)
 
         conn.execute(
           'INSERT INTO api_response_variants (id, api_data_id, name, response, enabled, timeout, operator, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -397,15 +398,15 @@ class ApiResponseVariantMixin:
           ''',
           (_normalize_response_variant_ids(variant_ids), api_data_id),
         )
-      return {"success": True, "id": new_variant_id, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+      return _ok(id=new_variant_id)
     except Exception as e:
-      return {"success": False, "id": None, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}", id=None)
 
-  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "设为唯一启用失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "设为唯一启用失败"))
   def set_variant_exclusive_enabled(self, variant_id: str) -> OperationResult:
-    """将指定变体设为启用，同时禁用同一 api_data_id 下的所有其他变体，失败返回 {"success": False, "status_code": 具体错误码, "status_msg": "具体错误信息"}"""
+    """将指定变体设为启用，同时禁用同一 api_data_id 下的所有其他变体，失败返回 {"status_code": 具体错误码, "status_msg": "具体错误信息"}"""
     if not variant_id:
-      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: id")
 
     with self._lock:
       row = self._conn.execute(
@@ -413,7 +414,7 @@ class ApiResponseVariantMixin:
         (variant_id,),
       ).fetchone()
     if row is None:
-      return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {variant_id}"}
+      return _fail(BIZ_DATA_NOT_FOUND, f"记录不存在: {variant_id}")
     api_data_id = row[0]
 
     try:
@@ -432,15 +433,15 @@ class ApiResponseVariantMixin:
              WHERE id=?''',
           (variant_id,),
         )
-      return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+      return _ok()
     except Exception as e:
-      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}")
 
-  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "绑定变体失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "绑定变体失败"))
   def bind_variants_to_api(self, api_data_id: str, variant_ids: List[str]) -> OperationResult:
-    """直接替换 api_data 的变体 ID 绑定列表，失败返回 {"success": False, "status_code": 具体错误码, "status_msg": "具体错误信息"}"""
+    """直接替换 api_data 的变体 ID 绑定列表，失败返回 {"status_code": 具体错误码, "status_msg": "具体错误信息"}"""
     if not api_data_id:
-      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: api_data_id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: api_data_id")
     normalized = _normalize_response_variant_ids(variant_ids)
     try:
       with self._transaction() as conn:
@@ -452,6 +453,6 @@ class ApiResponseVariantMixin:
           ''',
           (normalized, api_data_id),
         )
-        return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+        return _ok()
     except Exception as e:
-      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}")

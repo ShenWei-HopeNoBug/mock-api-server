@@ -4,6 +4,7 @@ import sys
 from typing import List
 
 from app_types.db_types import ApiRecord
+from config.enum.BIZ_CODE import BIZ_SUCCESS
 from lib.db import MockDBCache
 
 test_api_records: List[ApiRecord] = [
@@ -63,8 +64,9 @@ test_api_records: List[ApiRecord] = [
 def main():
   db_path = './server'
   mock_db = MockDBCache.get(work_dir=db_path)
-  success = mock_db.batch_insert_api(test_api_records)
-  print(f'测试数据插入 {"成功" if success else "失败"}，共 {len(test_api_records)} 条')
+  result = mock_db.batch_insert_api(test_api_records)
+  success = result['status_code'] == BIZ_SUCCESS
+  print(f'测试数据插入 {"成功" if success else "失败"}，共 {result["affected_count"]} 条')
   MockDBCache.close_all()
 
 

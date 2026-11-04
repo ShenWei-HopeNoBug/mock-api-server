@@ -20,7 +20,6 @@ from config.enum.BIZ_CODE import (
   BIZ_DB_ERROR,
   BIZ_PARAM_INVALID,
   BIZ_PARAM_MISSING,
-  BIZ_SUCCESS,
   BIZ_UNKNOWN_ERROR,
 )
 from config.enum.DATABASE import VALID_HTTP_METHODS, VALID_REQUEST_CONTENT_TYPES
@@ -29,8 +28,10 @@ from lib.utils_lib import JsonFormat, generate_uuid
 
 from .utils import (
   _ensure_open,
+  _fail,
   _normalize_enabled,
   _normalize_response_variant_ids,
+  _ok,
   _parse_enabled,
   _parse_response_variant_ids,
 )
@@ -81,9 +82,9 @@ class ApiDataMixin:
       DB_LOGGER.info('ApiDataMixin schema 迁移: v3 → v4, api_data 新增 operator 字段')
 
   # 新增插入（纯 INSERT，不去重），返回是否成功
-  @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "插入失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "插入失败", id=None))
   def insert_api(self, record: ApiRecord) -> OperationResultWithOptionalId:
-    """插入一条 API 数据，成功返回 {"success": True, "id": "uuid", "status_code": 0, "status_msg": "成功"}"""
+    """插入一条 API 数据，成功返回 {"id": "uuid", "status_code": 0, "status_msg": "成功"}"""
     api_id = generate_uuid()
     data = {**DATABASE.API_INSERT_DEFAULTS, **record}
     data['params'] = JsonFormat.format_json_string(data['params'])
@@ -92,11 +93,11 @@ class ApiDataMixin:
 
     # 参数校验
     if not data.get('url'):
-      return {"success": False, "id": None, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: url"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: url", id=None)
     if data['method'] not in VALID_HTTP_METHODS:
-      return {"success": False, "id": None, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 HTTP 方法: {data['method']}，仅支持 {VALID_HTTP_METHODS}"}
+      return _fail(BIZ_PARAM_INVALID, f"不支持的 HTTP 方法: {data['method']}，仅支持 {VALID_HTTP_METHODS}", id=None)
     if data['request_content_type'] not in VALID_REQUEST_CONTENT_TYPES:
-      return {"success": False, "id": None, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 request_content_type: {data['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}"}
+      return _fail(BIZ_PARAM_INVALID, f"不支持的 request_content_type: {data['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}", id=None)
     # GET 请求固定 request_content_type 为 NONE
     if data['method'] == 'GET':
       data['request_content_type'] = 'NONE'
@@ -109,13 +110,13 @@ class ApiDataMixin:
            data['response_variant_ids'], data['enabled'], data.get('timeout', 0),
            data.get('request_content_type', 'NONE'), data.get('operator', '')),
         )
-      return {"success": True, "id": api_id, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+      return _ok(id=api_id)
     except Exception as e:
-      return {"success": False, "id": None, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}", id=None)
 
   # 批量写入 API 数据到 DB
   @_ensure_open(
-    default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "批量插入失败", "affected_count": 0})
+    default=_fail(BIZ_UNKNOWN_ERROR, "批量插入失败", affected_count=0))
   def batch_insert_api(self, records: List[ApiRecord]) -> BatchOperationResult:
     """
     批量插入 API 数据，写入后触发 PASSIVE checkpoint
@@ -125,7 +126,7 @@ class ApiDataMixin:
     返回成功状态和影响的记录数。
     """
     if not records:
-      return {"success": False, "status_code": BIZ_DATA_EMPTY, "status_msg": "数据为空", "affected_count": 0}
+      return _fail(BIZ_DATA_EMPTY, "数据为空", affected_count=0)
 
     insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     insert_data = []
@@ -138,9 +139,9 @@ class ApiDataMixin:
       data['enabled'] = _normalize_enabled(data.get('enabled'))
       # 校验 method 和 request_content_type
       if data['method'] not in VALID_HTTP_METHODS:
-        return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 HTTP 方法: {data['method']}，仅支持 {VALID_HTTP_METHODS}", "affected_count": 0}
+        return _fail(BIZ_PARAM_INVALID, f"不支持的 HTTP 方法: {data['method']}，仅支持 {VALID_HTTP_METHODS}", affected_count=0)
       if data['request_content_type'] not in VALID_REQUEST_CONTENT_TYPES:
-        return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 request_content_type: {data['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}", "affected_count": 0}
+        return _fail(BIZ_PARAM_INVALID, f"不支持的 request_content_type: {data['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}", affected_count=0)
       # GET 请求固定 request_content_type 为 NONE
       if data['method'] == 'GET':
         data['request_content_type'] = 'NONE'
@@ -153,12 +154,9 @@ class ApiDataMixin:
       with self._transaction() as conn:
         conn.executemany(insert_sql, insert_data)
       DB_LOGGER.info(f'MockDB batch_insert_api 写入 {len(records)} 条')
-      return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功", "affected_count": len(insert_data)}
+      return _ok(affected_count=len(insert_data))
     except Exception as e:
-      return {"success": False,
-              "status_code": BIZ_DB_ERROR,
-              "status_msg": f"批量插入失败: {str(e)}",
-              "affected_count": 0}
+      return _fail(BIZ_DB_ERROR, f"批量插入失败: {str(e)}", affected_count=0)
     finally:
       try:
         self._wal_checkpoint_passive()
@@ -338,17 +336,17 @@ class ApiDataMixin:
     return result
 
   # 按 id 更新 api 数据（字段级合并）
-  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "更新失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "更新失败"))
   def update_api(self, record: ApiRecord) -> OperationResult:
     """
     按 id 更新 API 数据，字段级合并
 
-    前端只传修改的字段时旧值保留，记录不存在时返回 {"success": False, "status_code": -30001, "status_msg": "记录不存在"}。
-    成功返回 {"success": True, "status_code": 0, "status_msg": "成功"}。
+    前端只传修改的字段时旧值保留，记录不存在时返回 {"status_code": -30001, "status_msg": "记录不存在"}。
+    成功返回 {"status_code": 0, "status_msg": "成功"}。
     """
     api_id = record.get('id')
     if not api_id:
-      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: id")
 
     # 1. 事务外查询旧记录，不存在则直接返回，避免空事务
     with self._lock:
@@ -357,7 +355,7 @@ class ApiDataMixin:
         (api_id,),
       ).fetchone()
     if row is None:
-      return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {api_id}"}
+      return _fail(BIZ_DATA_NOT_FOUND, f"记录不存在: {api_id}")
 
     try:
       with self._transaction() as conn:
@@ -382,9 +380,9 @@ class ApiDataMixin:
 
         # 校验合并后的 method 和 request_content_type
         if merged['method'] not in VALID_HTTP_METHODS:
-          return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 HTTP 方法: {merged['method']}，仅支持 {VALID_HTTP_METHODS}"}
+          return _fail(BIZ_PARAM_INVALID, f"不支持的 HTTP 方法: {merged['method']}，仅支持 {VALID_HTTP_METHODS}")
         if merged['request_content_type'] not in VALID_REQUEST_CONTENT_TYPES:
-          return {"success": False, "status_code": BIZ_PARAM_INVALID, "status_msg": f"不支持的 request_content_type: {merged['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}"}
+          return _fail(BIZ_PARAM_INVALID, f"不支持的 request_content_type: {merged['request_content_type']}，仅支持 {VALID_REQUEST_CONTENT_TYPES}")
         # GET 请求固定 request_content_type 为 NONE
         if merged['method'] == 'GET':
           merged['request_content_type'] = 'NONE'
@@ -408,23 +406,23 @@ class ApiDataMixin:
            merged.get('timeout', 0), merged.get('request_content_type', 'NONE'), merged.get('operator', ''), api_id),
         )
         if cursor.rowcount == 0:
-          return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {api_id}"}
-        return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+          return _fail(BIZ_DATA_NOT_FOUND, f"记录不存在: {api_id}")
+        return _ok()
     except Exception as e:
-      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}")
 
   # 重新排序 api_data 绑定的 response_variant_ids
-  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "排序失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "排序失败"))
   def reorder_response_variant_ids(self, api_data_id: str, variant_ids: List[str]) -> OperationResult:
     """
     重新排序 api_data 的 response_variant_ids，返回是否修改成功
 
     校验传入的 variant_ids 与当前绑定的 id 列表元素完全一致（仅顺序不同），
-    不一致直接返回 {"success": False, "status_code": -30004, "status_msg": "变体 ID 列表与当前绑定不一致"}。
-    成功更新后返回 {"success": True, "status_code": 0, "status_msg": "成功"}。
+    不一致直接返回 {"status_code": -30004, "status_msg": "变体 ID 列表与当前绑定不一致"}。
+    成功更新后返回 {"status_code": 0, "status_msg": "成功"}。
     """
     if not api_data_id:
-      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: api_data_id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: api_data_id")
 
     # 事务外查询当前绑定的 variant_ids
     with self._lock:
@@ -433,13 +431,13 @@ class ApiDataMixin:
         (api_data_id,),
       ).fetchone()
     if row is None:
-      return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {api_data_id}"}
+      return _fail(BIZ_DATA_NOT_FOUND, f"记录不存在: {api_data_id}")
 
     current_ids = _parse_response_variant_ids(row[0])
 
     # 校验：传入的 id 列表与当前绑定的 id 列表元素完全一致（仅顺序不同）
     if len(variant_ids) != len(current_ids) or set(variant_ids) != set(current_ids):
-      return {"success": False, "status_code": BIZ_CONSTRAINT_VIOLATION, "status_msg": "变体 ID 列表与当前绑定不一致"}
+      return _fail(BIZ_CONSTRAINT_VIOLATION, "变体 ID 列表与当前绑定不一致")
 
     try:
       with self._transaction() as conn:
@@ -451,29 +449,29 @@ class ApiDataMixin:
           ''',
           (_normalize_response_variant_ids(variant_ids), api_data_id),
         )
-        return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+        return _ok()
     except Exception as e:
-      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}")
 
   # 按 id 删除 api 数据
-  @_ensure_open(default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "删除失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "删除失败"))
   def delete_api(self, api_id: str) -> OperationResult:
-    """按 id 删除 API 数据，同时级联删除其 response 变体，记录不存在时返回 {"success": False, "status_code": -30001, "status_msg": "记录不存在"}"""
+    """按 id 删除 API 数据，同时级联删除其 response 变体，记录不存在时返回 {"status_code": -30001, "status_msg": "记录不存在"}"""
     if not api_id:
-      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: id")
     try:
       with self._transaction() as conn:
         conn.execute('DELETE FROM api_response_variants WHERE api_data_id=?', (api_id,))
         cursor = conn.execute('DELETE FROM api_data WHERE id=?', (api_id,))
         if cursor.rowcount == 0:
-          return {"success": False, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"记录不存在: {api_id}"}
-        return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+          return _fail(BIZ_DATA_NOT_FOUND, f"记录不存在: {api_id}")
+        return _ok()
     except Exception as e:
-      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}")
 
   # 批量删除 api 数据（按 ApiQuery 筛选条件，与 get_api_list_page 一致）
   @_ensure_open(
-    default={"success": False, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "批量删除失败", "affected_count": 0})
+    default=_fail(BIZ_UNKNOWN_ERROR, "批量删除失败", affected_count=0))
   def batch_delete_api(self, query: ApiQuery) -> BatchOperationResult:
     """
     批量删除 API 数据，筛选条件与 get_api_list_page 完全一致
@@ -485,8 +483,7 @@ class ApiDataMixin:
     where_sql, sql_params = self._build_api_where(query)
     if not where_sql:
       DB_LOGGER.warning('MockDB batch_delete_api 拒绝执行：未提供有效筛选条件')
-      return {"success": False, "status_code": BIZ_PARAM_MISSING, "status_msg": "未提供有效筛选条件，拒绝执行",
-              "affected_count": 0}
+      return _fail(BIZ_PARAM_MISSING, "未提供有效筛选条件，拒绝执行", affected_count=0)
 
     try:
       with self._transaction() as conn:
@@ -498,13 +495,12 @@ class ApiDataMixin:
           conn.execute(f'DELETE FROM api_response_variants WHERE api_data_id IN ({placeholders})', api_ids)
         cursor = conn.execute(f'DELETE FROM api_data{where_sql}', tuple(sql_params))
       DB_LOGGER.info(f'MockDB batch_delete_api 删除 {cursor.rowcount} 条')
-      return {"success": True, "status_code": BIZ_SUCCESS, "status_msg": "成功", "affected_count": cursor.rowcount}
+      return _ok(affected_count=cursor.rowcount)
     except Exception as e:
-      return {"success": False, "status_code": BIZ_DB_ERROR, "status_msg": f"批量删除失败: {str(e)}",
-              "affected_count": 0}
+      return _fail(BIZ_DB_ERROR, f"批量删除失败: {str(e)}", affected_count=0)
 
   # 复制一条 API 数据（不含变体），副本 type 和 operator 取当前操作者值，enabled 固定禁用
-  @_ensure_open(default={"success": False, "id": None, "status_code": BIZ_UNKNOWN_ERROR, "status_msg": "复制失败"})
+  @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "复制失败", id=None))
   def copy_api(
       self,
       api_id: str,
@@ -522,10 +518,10 @@ class ApiDataMixin:
     operator: 当前操作者（如 'USER' / 'MCP'），作为副本的 operator 值
     api_type: 当前操作者身份（如 'USER' / 'MCP'），作为副本的 type 值（创建后不可变更）
 
-    返回：成功返回 {"success": True, "id": "新API_ID", "status_code": 0, "status_msg": "成功"}，失败返回 {"success": False, "id": None, "status_code": 具体错误码, "status_msg": "具体错误信息"}
+    返回：成功返回 {"id": "新API_ID", "status_code": 0, "status_msg": "成功"}，失败返回 {"id": None, "status_code": 具体错误码, "status_msg": "具体错误信息"}
     """
     if not api_id:
-      return {"success": False, "id": None, "status_code": BIZ_PARAM_MISSING, "status_msg": "缺少必填参数: api_id"}
+      return _fail(BIZ_PARAM_MISSING, "缺少必填参数: api_id", id=None)
 
     with self._lock:
       # 只取需要复制的业务字段，不取 type/operator/enabled（副本用当前操作者值，enabled 固定禁用）
@@ -534,7 +530,7 @@ class ApiDataMixin:
         (api_id,),
       ).fetchone()
     if row is None:
-      return {"success": False, "id": None, "status_code": BIZ_DATA_NOT_FOUND, "status_msg": f"源 API 数据不存在: {api_id}"}
+      return _fail(BIZ_DATA_NOT_FOUND, f"源 API 数据不存在: {api_id}", id=None)
 
     url, method, params, response, timeout, request_content_type = row
     new_api_id = generate_uuid()
@@ -547,6 +543,6 @@ class ApiDataMixin:
            JsonFormat.format_json_string(params), response, '[]',
            False, timeout, request_content_type, operator),
         )
-      return {"success": True, "id": new_api_id, "status_code": BIZ_SUCCESS, "status_msg": "成功"}
+      return _ok(id=new_api_id)
     except Exception as e:
-      return {"success": False, "id": None, "status_code": BIZ_DB_ERROR, "status_msg": f"数据库操作失败: {str(e)}"}
+      return _fail(BIZ_DB_ERROR, f"数据库操作失败: {str(e)}", id=None)

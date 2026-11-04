@@ -122,7 +122,14 @@ index.html: <script src="qrc:/qtwebchannel/qwebchannel.js">
 | `action_id` | `string` | 是 | 与请求一一对应，用于匹配 pending 请求 |
 | `status_code` | `number` | 是 | 业务状态码，`0` 成功；非 `0` 失败 → `RESPONSE_ERROR`（见「错误体系」） |
 | `status_msg` | `string` | 否 | 失败原因，作为 reject 的 error message |
-| `data` | `any` | 是 | 业务数据载荷 |
+| `data` | `any` | 是 | 业务数据载荷，见「状态语义」 |
+
+#### 状态语义（v0_1_5 起）
+
+- **信封 `status_code` 是成败的唯一权威**：`0` 成功，非 `0` 失败（`BIZ_CODE`）；`data` 不再承载 `success` / `status_code` / `status_msg`。
+- Qt 端经 `lib/bridge_lib._unpack_result` 统一解包：handler 返回 DB `OperationResult` 时，状态三元组上提为信封字段、剥离出载荷；失败时 `data` 固定为 `null`，成功时 `data` 只含业务字段（剥空则为 `null`）。
+- **载荷键名契约**：`data` 对象禁止使用 `success` / `status_code` / `status_msg` 三个键名（会被误识别为状态层）；`affected_count`、`id` 等业务字段不受此限。
+- **MCP 边界例外**：`module/mcp_server.py` 工具返回值在 MCP 适配层由 `status_code` 派生 `success` 布尔（LLM 可读性），该字段只存在于 MCP 响应，不回写 DB、不进 Qt 信封。
 
 ### `action_id` 语义
 
@@ -156,7 +163,8 @@ send_js2qt_msg → js2qt_signal → dialog.receive(message)      # @create_threa
     'request' → _request(incoming)
       → _REQUEST_HANDLERS.get(name)
       → handler(self, params)                                # 只读 params
-        → 返回 result → send_response(result)                # status_code=0
+        → 返回 result → _unpack_result(result)               # OperationResult 状态上提
+          → send_response(data, code, msg)
         → 抛异常 → resolve_biz_error(e) → send_response(None, code, msg)
 send_response → build_qt_response → send_qt2js_dict_msg      # @create_thread → qt2js_signal
 ```
@@ -240,23 +248,23 @@ receive → type === 'event' → _event(incoming)
 
 请求参数 / 返回数据的类型定义见 Web 端 `types/qt/dataManager.d.ts`、Qt 端 `app_types/app_gui_types.py` 与 `app_types/db_types.py`。
 
-| name | params 要点 | 返回 data | 说明 |
+| name | params 要点 | 返回 data（成功时；失败固定 `null`） | 说明 |
 |---|---|---|---|
 | `/mock_data/list` | `type`、`page_num`、`page_size`、url/params/response/method/request_content_type/enabled/时间段/operator 筛选 | `{ list, total, page_num, page_size }` | 分页查询 Mock 接口 |
 | `/mock_data/detail` | `id` | `ApiDataDetail \| null` | 接口详情 |
-| `/mock_data/create` | 接口字段 | `{ success, status_code, status_msg, id? }` | 新增 |
-| `/mock_data/update` | 接口字段 | `OperationResult` | 更新 |
-| `/mock_data/delete` | `id` | `OperationResult` | 删除 |
-| `/mock_data/batch_delete` | 同 list 筛选字段 | `BatchOperationResult`（含 `affected_count`） | 按条件批量删除 |
-| `/mock_data/copy` | `id` | `OperationResult`（含新 `id`） | 复制 |
-| `/variant/create` | 变体字段 | `OperationResult`（含 `id`） | 新增响应变体 |
-| `/variant/update` | 变体字段 | `OperationResult` | 更新变体 |
-| `/variant/delete` | `id` | `OperationResult` | 删除变体 |
-| `/variant/reorder` | `api_data_id`、`variant_ids` | `OperationResult` | 变体排序 |
-| `/variant/copy` | `id`、`api_data_id` | `OperationResult`（含新 `id`） | 复制变体 |
-| `/variant/set_exclusive_enabled` | `id` | `OperationResult` | 设为唯一启用变体 |
+| `/mock_data/create` | 接口字段 | `{ id }` | 新增 |
+| `/mock_data/update` | 接口字段 | `null` | 更新 |
+| `/mock_data/delete` | `id` | `null` | 删除 |
+| `/mock_data/batch_delete` | 同 list 筛选字段 | `{ affected_count }` | 按条件批量删除 |
+| `/mock_data/copy` | `id` | `{ id }`（新记录） | 复制 |
+| `/variant/create` | 变体字段 | `{ id }` | 新增响应变体 |
+| `/variant/update` | 变体字段 | `null` | 更新变体 |
+| `/variant/delete` | `id` | `null` | 删除变体 |
+| `/variant/reorder` | `api_data_id`、`variant_ids` | `null` | 变体排序 |
+| `/variant/copy` | `id`、`api_data_id` | `{ id }`（新变体） | 复制变体 |
+| `/variant/set_exclusive_enabled` | `id` | `null` | 设为唯一启用变体 |
 
-> 注意：`data` 载荷内部可能再含一层 `success` / `status_code` / `status_msg`（DB 层 `OperationResult`），与消息信封的 `status_code` 是两级状态——信封码表示分发/异常级结果，载荷内码表示业务操作结果。
+> 注意：`data` 为纯业务载荷，成败只看信封 `status_code`（见「状态语义」）；DB 层 `OperationResult` 的 `status_code`/`status_msg` 已由 `_unpack_result` 上提，不再透传到载荷内。
 
 ### `downloadProxy` 通道（下载代理配置）
 
@@ -346,7 +354,7 @@ requestManager.destroy()        # 清理 pendingMap，pending 以 DESTROYED 拒�
 
 1. **命名**：request 用 `/namespace/action`（如 `/mock_data/create`）；event 用 `domain.action_name`（如 `download_proxy.close_requested`）
 2. **参数**：request 参数放 `params`；`data` 为保留字段暂不使用
-3. **回包**：handler 返回值直接作为 response 的 `data`；失败走异常 → `resolve_biz_error`，不要自行构造错误回包
+3. **回包**：handler 返回值经 `_unpack_result` 解包——`OperationResult` 的状态三元组上提为信封 `status_code`/`status_msg`，其余字段作为 `data`；失败走异常 → `resolve_biz_error`，不要在 `data` 内自行携带状态字段
 4. **未知名**：新弹窗应对未知 request name 回包 `BIZ_PARAM_INVALID`（对齐 `DownloadProxyConfigDialog` 行为），避免前端只能靠超时兜底
 5. **事件**：新增 event 需在弹窗实现 `_event` 分支与 `_EVENT_HANDLERS`（当前仅 `DownloadProxyConfigDialog` 实现；`MitmproxyDataEditDialog` 会静默忽略 event）
 6. **类型同步**：Qt 端更新 `app_types/`，Web 端更新 `types/qt/*.d.ts` 与 `src/utils/bridge/type.d.ts`
@@ -362,7 +370,9 @@ requestManager.destroy()        # 清理 pendingMap，pending 以 DESTROYED 拒�
 | `lib/TInteractObject.py` | 通信对象 `TInteractObj`：信号/槽 + `build_qt_response` |
 | `app_types/qt_bridge_types.py` | 协议消息 TypedDict：`QtBridgeRequest` / `QtBridgeEvent` / `QtResponsePayload` |
 | `lib/biz_error_lib.py` | 异常 → `status_code`/`status_msg` 映射 |
+| `lib/bridge_lib.py` | `_unpack_result`：`OperationResult` 状态三元组上提信封 |
 | `config/enum/BIZ_CODE.py` | 业务状态码常量 |
+| `app_types/mcp_types.py` | MCP 工具返回类型（`success` 由 `status_code` 派生） |
 | `qt_win/mitmproxy_data_edit_dialog.py` | `dataManager` 通道弹窗 |
 | `qt_win/download_proxy_config_dialog.py` | `downloadProxy` 通道弹窗 |
 

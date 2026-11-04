@@ -232,46 +232,37 @@ class OperationResult(TypedDict):
   """
   数据库操作结果基础类型
 
-  用于统一返回操作是否成功的状态及消息。
+  status_code 为成败唯一权威（0=成功，非 0=BIZ_CODE 错误码），
+  不再携带冗余的 success 布尔字段。
   """
-  success: bool
   status_code: int  # 状态码：0 表示成功，非 0 表示失败（使用 BIZ_CODE）
   status_msg: str   # 操作结果消息：成功时返回 "成功"，失败时返回具体错误信息
 
 
-class OperationResultWithId(TypedDict):
+class OperationResultWithId(OperationResult):
   """
   带记录 ID 的数据库操作结果
 
   用于需要返回新创建/操作记录 ID 的操作，如 insert、copy 等。
   """
-  success: bool
   id: str
-  status_code: int  # 状态码：0 表示成功，非 0 表示失败
-  status_msg: str   # 操作结果消息
 
 
-class OperationResultWithOptionalId(TypedDict, total=False):
+class OperationResultWithOptionalId(OperationResult, total=False):
   """
   带可选记录 ID 的数据库操作结果
 
   用于操作成功时可能返回记录 ID，失败时不返回 ID 的操作。
   """
-  success: bool
   id: Optional[str]
-  status_code: int  # 状态码：0 表示成功，非 0 表示失败
-  status_msg: str   # 操作结果消息
 
 
-class BatchOperationResult(TypedDict):
+class BatchOperationResult(OperationResult):
   """
   批量操作结果类型
 
   用于批量插入、批量删除等操作，返回操作成功状态及影响记录数等信息。
   """
-  success: bool
-  status_code: int  # 状态码：0 表示成功，非 0 表示失败
-  status_msg: str   # 操作结果消息
   affected_count: int  # 影响的记录数
 
 
