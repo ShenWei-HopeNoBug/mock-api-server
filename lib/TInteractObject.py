@@ -18,12 +18,11 @@ class TInteractObj(QObject):
   def send_js2qt_msg(self, message: str) -> None:
     self.js2qt_signal.emit(message)
 
-  @Slot(str)
+  # Qt→JS 方向的两个方法均为 Python 内部 helper（JS 只调 send_js2qt_msg），
+  # 不加 @Slot 以收缩 QWebChannel 对 JS 的暴露面
   def send_qt2js_msg(self, message: str) -> None:
     self.qt2js_signal.emit(message)
 
-  # TODO(qt-bridge): @Slot(str) 与 QtResponsePayload dict 参数声明不一致，待评估修正
-  @Slot(str)
   def send_qt2js_dict_msg(self, data: QtResponsePayload) -> None:
     if not isinstance(data, dict):
       return
