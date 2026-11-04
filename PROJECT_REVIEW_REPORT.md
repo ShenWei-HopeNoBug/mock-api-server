@@ -184,3 +184,70 @@
 - [x] 死代码清理（backup_lib 删除；file_lib / hash_lib 保留仅删测试代码）— `docs/v0_1_5/cleanup/dead-code-cleanup-plan.md`；`resources/.mitmproxy-ca.7z` 保留
 - [x] 工程文件补齐（LICENSE / CHANGELOG / lint 配置）— `3e73ff0`
 - [x] 文档对齐（README / code-rules）— `fc26535`（随 uv 迁移一并修订）
+
+---
+
+## 复查记录：2026-11-04（第二次复查）
+
+> 复查范围：全量代码 + 首次报告逐项核验（含 PySide6 迁移、Qt Bridge 统一等报告后变更）
+> 结论：勾选项目均已验证落地；未勾选项（测试/CI、§8 明确 bug）基本未动；另发现 5 个报告遗漏或新引入的问题。
+
+### ✅ 已解决（本次验证通过）
+
+| 首次报告条目 | 验证结果 |
+|---|---|
+| §2 依赖管理混乱 | `requirements.txt`/`package.txt` 双文件已移除，迁移 `pyproject.toml` + `uv.lock` 单源；PyQtWebEngine 问题随 PySide6 迁移消解；版本号改读 pyproject（`config/globals.py`） |
+| §3 安全面（部分） | `app_server` 已绑 `127.0.0.1`；`/system/shutdown` 改 POST + 回环校验并收敛为 `register_system_routes` 共享注册（`lib/server_lib.py:428`）；README 新增「网络暴露面」声明 |
+| §4/§7 print 与日志 | 运行时代码裸 `print` 已清零（残留仅脚本类 `build.py`/`tools/` 与 `__main__` 调试块）；分域 logger + `exc_info=True` 带堆栈；`-w` 下 `sys.stderr=None` 防护（`logger_lib.py:13-22`）；werkzeug access 日志降噪 |
+| §11 死代码 | `backup_lib` 删除、`STATIC_MATCH_CACHE_LIMIT`/`_is_video` 删除、`white_`→`write_` 改名、`test.py` 移除、`app-icon.png` 归 `tools/`、`resources/.mitmproxy-ca.7z` 已入库 |
+| §12 工程文件 | LICENSE / CHANGELOG / ruff 配置 / `.gitignore` 重写均已落地 |
+| §5 文档矛盾 | README 已写 Python 3.13+ / Windows 10+ / uv；code-rules 已更新 PySide6 约定 |
+| 报告外新增工作 | PySide6 6.10.3 迁移完成；Qt Bridge 信封/分发层统一（`bridge_lib.py`）；进程管理改进——ready/stop Event、join+terminate 兜底、退出清理流程、mock/mcp 进程句柄保留、webview 闪屏修复 |
+
+### ❌ 仍存留（首次报告未关闭项）
+
+**🔴 §8 明确 bug——四个全部原样未修：**
+
+| Bug | 位置 | 说明 |
+|---|---|---|
+| 下载失败日志记 `success: True` | `lib/download_lib.py:452,463` | 两个 except 分支仍写 True，`get_output_data_list`(:54-59) 按 success 过滤语义仍错，靠 `os.path.exists` 兜底未出大错 |
+| basename 扁平化碰撞 | `static_file_lib.py:53,161`、`download_lib.py:374` | 不同源站同名文件互相覆盖/串命中；`output_static_files`(:94) 导出同名覆盖同理 |
+| `_should_use_throttled` 死分支 | `static_file_lib.py:117-121` | `if self._is_image(...): return True; return True` 原样 |
+| schema 迁移无事务 | `base.py:58-71`、`mock_db.py:26-31`、`api_data.py:66-82`、`static_data.py:33-42` | 裸 `self._conn.execute(ALTER)`，`user_version` 最后才推进；中途失败 → 下次启动重跑已成功 ALTER → `duplicate column` 崩溃循环 |
+
+**🟡 可靠性/安全残留：**
+
+- §1 零测试、零 CI 未变；pytest 虽进 dev 依赖但无测试文件；
+- 下载仍无校验：无 scheme 白名单、无大小上限、`response.content` 全量进内存（`download_lib.py:398,418`）；
+- 配置 JSON 无损坏回退（`mock_server.py:110-111`、`request_catch.py:87-88` 裸 `json.loads`）；`ConfigFileManager` 仍无锁、非原子写、`get→None`/`set→False` 静默兜底（`utils_lib.py:261-284`）；
+- `mock_api_map` 仅启动时构建（`mock_server.py:206`），改 mock 数据需重启服务，README 仍未说明；
+- N+1：`get_mock_api_data_list` 仍 3 次分类型全表查询（`app_lib.py:218-233`）+ `create_api_map` 每行一次 `get_variants_by_api_id`（`mock_server.py:184`）；
+- 就绪等待仍 `time.sleep(1)` + `/ping` 轮询（`app_server.py:103`、`qt_win/app.py:706,735,781`；日志刷屏已降噪）；
+- `create_thread` 仍丢句柄/异常（`decorate.py:97-102`）；子进程拉起后无存活监控，崩溃后 UI 仍显示 RUNNING；
+- `select_work_dir` 仍不 close 旧 DB（`qt_win/app.py:337-350`）；`shutdown_local_server` 仍按端口 terminate（`utils_lib.py:450-457`，安全文档已声明接受）；
+- CORS 仍 `origins:"*"`（`mock_server.py:219,253`），已收窄至仅静态路由；
+- 正则未转义问题原样：`is_url_match`/`get_static_match_regexp`（`utils_lib.py:370-375`、`download_lib.py:115`）；LIKE 未转义 `%`/`_`（`api_data.py:224-230`、`variants.py:289-294`）；
+- `get_ip_address` 仍 `gethostbyname(gethostname())`（`utils_lib.py:60-65`）；`_get_api_match_meta` 隐式 fallback 最后插入项（`server_lib.py:350-360`）；
+- `is_app_running` 失败静默返回 True（`app_lib.py:57`）；Werkzeug dev server 仍作运行时（本地工具可接受）；
+- §13 构建：`build.py` 正则改写 spec 跳过 COLLECT 仍在（`:46-83`）；`appServer/` 产物仍不进 `--add-data`；仍无签名/checksum；
+- §15 功能短板：`VALID_HTTP_METHODS=('GET','POST')` 未扩展；响应仍固定 `jsonify`+200；
+- README 仍未提 `appServer/` 前端产物依赖（`.gitignore` 排除 `/appServer/*`，干净克隆后 WebView 弹窗无内容）；`insert_test_db_data.py` 仍留根目录；
+- `qt_ui/*/win_ui.py` 生成物仍入库——已被 code-rules 文档化为约定（改 `.ui` 后 `pyside6-uic` 重新生成），降级为可接受项。
+
+### 🆕 新发现/新引入问题（首次报告之外）
+
+| # | 问题 | 位置 | 说明 |
+|---|---|---|---|
+| 1 | mitmproxy 启动失败误报 RUNNING | `qt_win/app.py:594-597` | `ready_event` 10s 超时仅记 warning 即 `emit('RUNNING')`；子进程早夭（配置损坏/端口冲突）时 UI 显示运行中 |
+| 2 | 端口占用探测不一致 | `qt_win/app.py:566,683,765` vs `app_server.py:91-92` | 三个启动入口只查 `0.0.0.0`；app_server 已双地址探测。127.0.0.1-only 占用漏检，叠加问题 1 直接误报 RUNNING |
+| 3 | 自定规则与代码矛盾 | `.devin/rules/code-rules.md` vs `qt_win/app.py:698`、`asyncio_mitmproxy_server.py:91`、`mcp_server.py:707` | 规则写"`Process` 必须 `daemon=True`"，4 处 Process 仅 `app_server.py:81` 落实；要么规则要么代码需修正（抓包进程保活刷数据 vs 退出 atexit join 卡死的取舍需写清） |
+| 4 | 多进程共写同一日志文件 | `lib/logger_lib.py:25-43` | GUI + 3 子进程各自持 `RotatingFileHandler(logs/app.log)`，Windows 上轮转时他进程持句柄 → rename 失败 → logging 内部报错/丢日志 |
+| 5 | BridgeDispatcher 每消息裸起线程 | `lib/bridge_lib.py:118` | 无上限、非 daemon、无句柄，高频消息线程无界增长 |
+
+### 复查后建议优先级
+
+1. 修 `success:True` 日志 bug + schema 迁移包事务（会真实咬人）；
+2. 修 mitmproxy 超时误报 RUNNING（补 `is_alive()` 判断即可）；
+3. 补 pytest：`server_lib` 匹配/变体/Range、`static_file_lib`、db 层均为纯逻辑；
+4. 下载加 scheme 白名单 + `stream=True` 大小上限；
+5. 其余（basename 碰撞、配置原子写、N+1、正则/LIKE 转义、GET/POST-only 扩展、daemon 规则对齐）按独立立项推进。
