@@ -26,6 +26,7 @@ from config.enum.BIZ_CODE import (
 from config.work_file import DEFAULT_WORK_DIR, DOWNLOAD_CONFIG_PATH, WORK_FILE_DICT
 from lib.app_lib import is_app_server_running
 from lib.biz_error_lib import resolve_biz_error
+from lib.bridge_lib import _unpack_result
 from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APP_LOGGER
 from lib.TInteractObject import TInteractObj
@@ -233,7 +234,8 @@ class DownloadProxyConfigDialog(QDialog):
       send_response(None, status_code=status_code, status_msg=status_msg)
       return
 
-    send_response(result)
+    unpacked = _unpack_result(result)
+    send_response(unpacked.data, status_code=unpacked.status_code, status_msg=unpacked.status_msg)
 
   # 处理 web 发出的单向事件（无需回包）
   def _event(self, event: QtBridgeEvent) -> None:

@@ -39,6 +39,7 @@ from config.enum.BIZ_CODE import (
 )
 from lib.app_lib import is_app_server_running
 from lib.biz_error_lib import resolve_biz_error
+from lib.bridge_lib import _unpack_result
 from lib.db import MockDB, MockDBCache
 from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APP_LOGGER
@@ -207,7 +208,8 @@ class MitmproxyDataEditDialog(QDialog):
       send_response(None, status_code=status_code, status_msg=status_msg)
       return
 
-    send_response(result)
+    unpacked = _unpack_result(result)
+    send_response(unpacked.data, status_code=unpacked.status_code, status_msg=unpacked.status_msg)
 
   # --- 请求 handler：只关注业务逻辑，返回数据 ---
 
