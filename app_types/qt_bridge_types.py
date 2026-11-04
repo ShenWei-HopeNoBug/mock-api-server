@@ -2,7 +2,7 @@
 """
 Qt Bridge 通信协议相关类型定义
 """
-from typing import Any, Callable, Dict, Literal, Tuple, Type, TypedDict, Union
+from typing import Any, Callable, Dict, Literal, Tuple, Type, TypedDict, TypeVar, Union
 
 from app_types.global_types import JsonValue
 
@@ -31,7 +31,7 @@ QtBridgeIncomingMessage = Union[QtBridgeRequest, QtBridgeEvent]
 
 # Qt → JS 响应消息结构（对应 QT_BRIDGE.md 响应方向协议）
 class QtResponsePayload(TypedDict):
-  type: str           # 固定 "response"
+  type: Literal['response']
   name: str           # 请求名称
   action_id: str      # 与请求的 action_id 一一对应
   status_code: int    # 业务状态码，0=成功，非 0=失败（详见 config/enum/BIZ_CODE.py）
@@ -45,3 +45,17 @@ ExcStatusRule = Tuple[Type[Exception], int, Callable[[Exception], str]]
 
 # resolve_biz_error 的返回类型：(status_code, status_msg)
 BizStatus = Tuple[int, str]
+
+# ---- BridgeDispatcher 相关类型别名（lib/bridge_lib.py） ----
+
+# handler 的上下文对象类型（通常为持有 handler 的弹窗实例）
+CtxT = TypeVar('CtxT')
+
+# request handler：(ctx, params) → 任意可 JSON 序列化结果
+RequestHandler = Callable[[CtxT, Dict[str, Any]], Any]
+
+# event handler：(ctx, event) → None，单向事件无回包
+EventHandler = Callable[[CtxT, QtBridgeEvent], None]
+
+# 回包发送函数：由接入方提供（通常为 TInteractObj.send_qt2js_dict_msg）
+BridgeSendFn = Callable[[QtResponsePayload], None]

@@ -158,23 +158,30 @@ manager.fetch(name, params, { timeout, noMessage })
 ### Qt 端分发链路
 
 ```
-send_js2qt_msg → js2qt_signal → dialog.receive(message)      # @create_thread，工作线程
+send_js2qt_msg → js2qt_signal → BridgeDispatcher.dispatch(message)   # 内部开 worker 线程
   → json.loads → 按 type 分流
-    'request' → _request(incoming)
+    'request' → _handle_request(incoming)
+      → 校验 action_id 非空（缺失则记 warning 丢弃，无法回包）
+      → 校验 name 非空字符串（否则回包 BIZ_PARAM_INVALID）
+      → 校验 params 为对象或缺省（非对象回包 BIZ_PARAM_INVALID）
       → _REQUEST_HANDLERS.get(name)
-      → handler(self, params)                                # 只读 params
-        → 返回 result → _unpack_result(result)               # OperationResult 状态上提
+      → handler(ctx, params)                                   # ctx = 弹窗实例，只读 params
+        → 返回 result → _unpack_result(result)                 # OperationResult 状态上提
           → send_response(data, code, msg)
         → 抛异常 → resolve_biz_error(e) → send_response(None, code, msg)
-send_response → build_qt_response → send_qt2js_dict_msg      # @create_thread → qt2js_signal
+      → 请求完成记日志 [{tag}] {name} action_id code cost
+send_response → qt2js_signal                                   # worker 线程直接 emit
 ```
 
-**未知协议名的处理目前两端不一致**（新增协议时需注意）：
+分发由 `lib/bridge_lib.BridgeDispatcher` 统一实现，两弹窗以 `self._bridge` 强引用持有（bound method 被 GC 会断开信号连接）。统一行为：
 
-| 弹窗 | 未知 request name 行为 |
+| 场景 | 行为 |
 |---|---|
-| `MitmproxyDataEditDialog` | 静默丢弃，无回包 → JS 端只能等超时 |
-| `DownloadProxyConfigDialog` | 回包 `BIZ_PARAM_INVALID`（-20002），`status_msg` 为 `不支持的请求路径: {name}` |
+| 未知 request name | 回包 `BIZ_PARAM_INVALID`（-20002），`status_msg` 为 `不支持的请求路径: {name}` |
+| `action_id` 缺失/非法 | 记 warning 丢弃（无法回包，不执行 handler） |
+| `params` 非对象 | 回包 `BIZ_PARAM_INVALID`；缺省（`null`/缺字段）视为 `{}` |
+| 非法 JSON / 非对象消息 | 能从原文提取 `action_id` 则回包 `BIZ_PARAM_INVALID`，否则记 warning 丢弃 |
+| 未知 `type` | 记 warning 丢弃 |
 
 ### JS 端接收链路
 
@@ -230,15 +237,15 @@ sendEvent('download_proxy.close_requested', {
 ### Qt 端
 
 ```
-receive → type === 'event' → _event(incoming)
-  → 校验 name / action_id 为非空字符串
-  → _EVENT_HANDLERS.get(name)，未注册则忽略
+dispatch → type === 'event' → _handle_event(incoming)
+  → 校验 name / action_id 为非空字符串（否则记 warning 丢弃）
+  → _EVENT_HANDLERS.get(name)，未注册则记 warning 丢弃
   → 去重：key = (name, action_id)，命中则忽略
-  → handler(self, event)
-    → 抛异常 → 移除去重 key（允许同 action_id 重试）→ 异常继续上抛
+  → handler(ctx, event)
+    → 抛异常 → 移除去重 key（允许同 action_id 重试）→ 记 error 日志
 ```
 
-去重实现：每弹窗一个 `OrderedDict` LRU，容量 256；因 `receive` 在工作线程执行，检查与写入在 `_event_lock` 保护下完成。
+去重实现：`BridgeDispatcher` 内置 `OrderedDict` LRU，容量 256（`dedup_size` 可调）；因 dispatch 在 worker 线程执行，检查与写入在锁保护下完成。`MitmproxyDataEditDialog` 未注册 event handler，收到的 event 一律记 warning 丢弃。
 
 ---
 
@@ -309,17 +316,18 @@ reject 值为 `QtRequestError` 实例（`Error` 子类），含 `code` / `messag
 
 ### 异常 → status_code 映射（Qt 端）
 
-handler 抛出的异常经 `lib/biz_error_lib.resolve_biz_error` 按顺序 `isinstance` 匹配（`DEFAULT_EXC_STATUS_MAP`），未匹配兜底 `BIZ_UNKNOWN_ERROR`：
+handler 抛出的异常经 `lib/biz_error_lib.resolve_biz_error` 解析：`BizError` 优先识别（直接取其 `status_code`/`status_msg`，msg 为空回退「操作失败」），其余按顺序 `isinstance` 匹配（`DEFAULT_EXC_STATUS_MAP`），未匹配兜底 `BIZ_UNKNOWN_ERROR`：
 
 | 异常类型 | status_code | status_msg |
 |---|---|---|
+| `BizError` | `e.status_code` | `e.status_msg or '操作失败'` |
 | `KeyError` | `-20001` | `缺少必填参数: {e}` |
 | `ValueError` | `-20002` | `str(e)` |
 | `FileNotFoundError` | `-40001` | `str(e)` |
 | `PermissionError` | `-40002` | `str(e)` |
 | 其他 `Exception` | `-10001` | `str(e)` |
 
-弹窗可传入自定义映射表扩展：`_MY_MAP + DEFAULT_EXC_STATUS_MAP`。
+`BizError` 用于表达映射表无法覆盖的业务错误（如数据不存在、约束冲突），handler 内直接 `raise BizError(code, msg)`。自定义异常映射可经 `BridgeDispatcher` 构造参数 `extra_exc_map` 追加在默认表之前。
 
 ---
 
@@ -341,10 +349,10 @@ requestManager.destroy()        # 清理 pendingMap，pending 以 DESTROYED 拒�
 
 ### Qt 端线程模型
 
-- `receive()` 与 `send_qt2js_dict_msg()` 均带 `@create_thread`：**每条消息在独立工作线程处理/回发**，不阻塞 GUI
-- `receive` 另有 `@error_catch` 兜底，异常仅记日志
+- `BridgeDispatcher.dispatch()` 为每条消息开独立 worker 线程处理，回包在 worker 线程直接 emit `qt2js_signal`，不阻塞 GUI
+- dispatcher 顶层有异常兜底，仅记日志
 - 工作线程中的 UI 操作须通过 Signal 回主线程（如 `close_signal` → `dialog.close()`）
-- 事件去重表等共享状态在 `_event_lock` 保护下访问
+- 事件去重表等共享状态在 dispatcher 内部锁保护下访问
 
 ---
 
@@ -355,8 +363,8 @@ requestManager.destroy()        # 清理 pendingMap，pending 以 DESTROYED 拒�
 1. **命名**：request 用 `/namespace/action`（如 `/mock_data/create`）；event 用 `domain.action_name`（如 `download_proxy.close_requested`）
 2. **参数**：request 参数放 `params`；`data` 为保留字段暂不使用
 3. **回包**：handler 返回值经 `_unpack_result` 解包——`OperationResult` 的状态三元组上提为信封 `status_code`/`status_msg`，其余字段作为 `data`；失败走异常 → `resolve_biz_error`，不要在 `data` 内自行携带状态字段
-4. **未知名**：新弹窗应对未知 request name 回包 `BIZ_PARAM_INVALID`（对齐 `DownloadProxyConfigDialog` 行为），避免前端只能靠超时兜底
-5. **事件**：新增 event 需在弹窗实现 `_event` 分支与 `_EVENT_HANDLERS`（当前仅 `DownloadProxyConfigDialog` 实现；`MitmproxyDataEditDialog` 会静默忽略 event）
+4. **未知名**：未知 request name 由 `BridgeDispatcher` 统一回包 `BIZ_PARAM_INVALID`，弹窗接入即获得
+5. **事件**：新增 event 在弹窗 `_EVENT_HANDLERS` 表登记并传入 dispatcher 即可；未注册 event 记 warning 丢弃
 6. **类型同步**：Qt 端更新 `app_types/`，Web 端更新 `types/qt/*.d.ts` 与 `src/utils/bridge/type.d.ts`
 
 ---
@@ -369,8 +377,8 @@ requestManager.destroy()        # 清理 pendingMap，pending 以 DESTROYED 拒�
 |---|---|
 | `lib/TInteractObject.py` | 通信对象 `TInteractObj`：信号/槽 + `build_qt_response` |
 | `app_types/qt_bridge_types.py` | 协议消息 TypedDict：`QtBridgeRequest` / `QtBridgeEvent` / `QtResponsePayload` |
-| `lib/biz_error_lib.py` | 异常 → `status_code`/`status_msg` 映射 |
-| `lib/bridge_lib.py` | `_unpack_result`：`OperationResult` 状态三元组上提信封 |
+| `lib/biz_error_lib.py` | `BizError` 与异常 → `status_code`/`status_msg` 映射 |
+| `lib/bridge_lib.py` | `_unpack_result` 状态上提 + `BridgeDispatcher` 统一分发器 |
 | `config/enum/BIZ_CODE.py` | 业务状态码常量 |
 | `app_types/mcp_types.py` | MCP 工具返回类型（`success` 由 `status_code` 派生） |
 | `qt_win/mitmproxy_data_edit_dialog.py` | `dataManager` 通道弹窗 |

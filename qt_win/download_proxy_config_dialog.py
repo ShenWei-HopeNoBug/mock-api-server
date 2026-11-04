@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 import copy
-import json
 import os
-from collections import OrderedDict
-from threading import Lock
-from typing import List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from PySide6.QtCore import QEvent, Qt, QTimer, QUrl, Signal
 from PySide6.QtWebChannel import QWebChannel
@@ -18,16 +15,10 @@ from app_types.download_types import (
   GetDownloadProxyListResult,
   UpdateDownloadProxyParams,
 )
-from app_types.qt_bridge_types import QtBridgeEvent, QtBridgeIncomingMessage, QtBridgeRequest
-from config.enum.BIZ_CODE import (
-  BIZ_PARAM_INVALID,
-  BIZ_SUCCESS,
-)
+from app_types.qt_bridge_types import EventHandler, QtBridgeEvent, RequestHandler
 from config.work_file import DEFAULT_WORK_DIR, DOWNLOAD_CONFIG_PATH, WORK_FILE_DICT
 from lib.app_lib import is_app_server_running
-from lib.biz_error_lib import resolve_biz_error
-from lib.bridge_lib import _unpack_result
-from lib.decorate import create_thread, error_catch
+from lib.bridge_lib import BridgeDispatcher
 from lib.logger_lib import APP_LOGGER
 from lib.TInteractObject import TInteractObj
 from lib.utils_lib import ConfigFileManager
@@ -62,8 +53,8 @@ class DownloadProxyConfigDialog(QDialog):
     self.download_config_manager: ConfigFileManager = download_config_manager
     self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
     self._devtools_view: Optional[QWebEngineView] = None
-    self._seen_event_ids = OrderedDict()
-    self._event_lock = Lock()
+    # 强引用持有 dispatcher：bound method 若被 GC 会断开信号连接，前端请求全部超时
+    self._bridge: Optional[BridgeDispatcher[DownloadProxyConfigDialog]] = None
 
     self.init()
 
@@ -80,9 +71,6 @@ class DownloadProxyConfigDialog(QDialog):
     # 定位到屏幕中心
     self.setGeometry(x0, y0, width, height)
 
-    def receive(message: str):
-      self.receive(message)
-
     # 创建 QWebEngineView 实例
     webview = QWebEngineView()
     # 隐藏期间 RWHV 仍按 widget 几何产帧，先撑到弹窗尺寸：
@@ -95,7 +83,14 @@ class DownloadProxyConfigDialog(QDialog):
 
     current_page = webview.page()
     interact_obj = TInteractObj()
-    interact_obj.js2qt_signal.connect(receive)
+    self._bridge = BridgeDispatcher(
+      send=interact_obj.send_qt2js_dict_msg,
+      request_handlers=self._REQUEST_HANDLERS,
+      event_handlers=self._EVENT_HANDLERS,
+      handler_context=self,
+      tag='downloadProxy',
+    )
+    interact_obj.js2qt_signal.connect(self._bridge.dispatch)
     web_channel = QWebChannel(current_page)
     # 注册信号传递对象
     web_channel.registerObject('downloadProxy', interact_obj)
@@ -188,85 +183,6 @@ class DownloadProxyConfigDialog(QDialog):
       self._devtools_view.close()
     event.accept()
 
-  @create_thread
-  def send_qt2js_dict_msg(self, data: dict) -> None:
-    self.interact_obj.send_qt2js_dict_msg(data)
-
-  @create_thread
-  @error_catch(error_msg='处理web接受信息异常')
-  def receive(self, message: str) -> None:
-    incoming: QtBridgeIncomingMessage = json.loads(message)
-    if incoming.get('type') == 'request':
-      self._request(incoming)
-    elif incoming.get('type') == 'event':
-      self._event(incoming)
-
-  def _request(self, event: QtBridgeRequest) -> None:
-    if event.get('type') != 'request':
-      return
-
-    name = event.get('name', '')
-    action_id = event.get('action_id', '')
-    params = event.get('params', {})
-
-    def send_response(
-        data: any = None,
-        status_code: int = BIZ_SUCCESS,
-        status_msg: str = '',
-    ) -> None:
-      self.send_qt2js_dict_msg(
-        TInteractObj.build_qt_response(name, action_id, data, status_code, status_msg)
-      )
-
-    handler = self._REQUEST_HANDLERS.get(name)
-    if handler is None:
-      send_response(
-        None,
-        status_code=BIZ_PARAM_INVALID,
-        status_msg=f'不支持的请求路径: {name}',
-      )
-      return
-
-    try:
-      result = handler(self, params)
-    except Exception as e:
-      status_code, status_msg = resolve_biz_error(e)
-      send_response(None, status_code=status_code, status_msg=status_msg)
-      return
-
-    unpacked = _unpack_result(result)
-    send_response(unpacked.data, status_code=unpacked.status_code, status_msg=unpacked.status_msg)
-
-  # 处理 web 发出的单向事件（无需回包）
-  def _event(self, event: QtBridgeEvent) -> None:
-    # 忽略类型不匹配或缺少去重标识的消息
-    if event.get('type') != 'event':
-      return
-    name = event.get('name')
-    action_id = event.get('action_id')
-    if not isinstance(name, str) or not isinstance(action_id, str) or not action_id:
-      return
-    handler = self._EVENT_HANDLERS.get(name)
-    if handler is None:
-      return
-
-    # receive 在独立线程执行，检查与记录需加锁；只保留最近 256 个事件标识
-    key = (name, action_id)
-    with self._event_lock:
-      if key in self._seen_event_ids:
-        return
-      self._seen_event_ids[key] = None
-      if len(self._seen_event_ids) > 256:
-        self._seen_event_ids.popitem(last=False)
-
-    try:
-      handler(self, event)
-    except Exception:
-      # 处理失败不计入已完成事件，允许相同 action_id 重试
-      with self._event_lock:
-        self._seen_event_ids.pop(key, None)
-      raise
-
   def _handle_close_requested(self, _event: QtBridgeEvent) -> None:
     self.close_signal.emit()
 
@@ -287,12 +203,12 @@ class DownloadProxyConfigDialog(QDialog):
     if not self.download_config_manager.set('download_proxy_list', download_proxy_list):
       raise RuntimeError('下载代理配置保存失败，请查看应用日志')
 
-  _REQUEST_HANDLERS = {
+  _REQUEST_HANDLERS: ClassVar[Dict[str, RequestHandler['DownloadProxyConfigDialog']]] = {
     '/download_proxy/list': _handle_get_download_proxy_list,
     '/download_proxy/update': _handle_update_download_proxy,
   }
 
   # 事件名称 → handler 映射（单向事件，无需回包）
-  _EVENT_HANDLERS = {
+  _EVENT_HANDLERS: ClassVar[Dict[str, EventHandler['DownloadProxyConfigDialog']]] = {
     'download_proxy.close_requested': _handle_close_requested,
   }

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-import json
 import os
-from typing import Optional
+from typing import ClassVar, Dict, Optional
 
 from PySide6.QtCore import QEvent, Qt, QTimer, QUrl
 from PySide6.QtWebChannel import QWebChannel
@@ -33,15 +32,11 @@ from app_types.db_types import (
   OperationResult,
   OperationResultWithOptionalId,
 )
-from app_types.qt_bridge_types import QtBridgeIncomingMessage, QtBridgeRequest
-from config.enum.BIZ_CODE import (
-  BIZ_SUCCESS,
-)
+from app_types.qt_bridge_types import RequestHandler
 from lib.app_lib import is_app_server_running
-from lib.biz_error_lib import resolve_biz_error
-from lib.bridge_lib import _unpack_result
+from lib.bridge_lib import BridgeDispatcher
 from lib.db import MockDB, MockDBCache
-from lib.decorate import create_thread, error_catch
+from lib.decorate import error_catch
 from lib.logger_lib import APP_LOGGER
 from lib.TInteractObject import TInteractObj
 from lib.webview_lib import WebLoadingWidget, get_webview_dialog_config, setup_devtools
@@ -63,6 +58,8 @@ class MitmproxyDataEditDialog(QDialog):
     self.loading_widget: Optional[WebLoadingWidget] = None
     self.app_sever_running_data: Optional[AppServerRunningData] = app_sever_running_data
     self._devtools_view: Optional[QWebEngineView] = None
+    # 强引用持有 dispatcher：bound method 若被 GC 会断开信号连接，前端请求全部超时
+    self._bridge: Optional[BridgeDispatcher[MitmproxyDataEditDialog]] = None
 
     self.init()
 
@@ -80,9 +77,6 @@ class MitmproxyDataEditDialog(QDialog):
     # 定位到屏幕中心
     self.setGeometry(x0, y0, width, height)
 
-    def receive(message: str):
-      self.receive(message)
-
     # 创建 QWebEngineView 实例
     webview = QWebEngineView()
     # 隐藏期间 RWHV 仍按 widget 几何产帧，先撑到弹窗尺寸：
@@ -95,7 +89,13 @@ class MitmproxyDataEditDialog(QDialog):
 
     current_page = webview.page()
     interact_obj = TInteractObj()
-    interact_obj.js2qt_signal.connect(receive)
+    self._bridge = BridgeDispatcher(
+      send=interact_obj.send_qt2js_dict_msg,
+      request_handlers=self._REQUEST_HANDLERS,
+      handler_context=self,
+      tag='dataManager',
+    )
+    interact_obj.js2qt_signal.connect(self._bridge.dispatch)
     web_channel = QWebChannel(current_page)
     # 注册信号传递对象
     web_channel.registerObject('dataManager', interact_obj)
@@ -171,47 +171,7 @@ class MitmproxyDataEditDialog(QDialog):
     layout.addWidget(stack)
     self.setLayout(layout)
 
-  @create_thread
-  @error_catch(error_msg='处理web接受信息异常')
-  def receive(self, message: str) -> None:
-    incoming: QtBridgeIncomingMessage = json.loads(message)
-
-    if incoming.get('type') == 'request':
-      self._request(incoming)
-
-  @create_thread
-  def send_qt2js_dict_msg(self, data: dict) -> None:
-    self.interact_obj.send_qt2js_dict_msg(data)
-
-  # 处理 web 发出的请求相关事件
-  def _request(self, event: QtBridgeRequest) -> None:
-    msg_type = event.get('type')
-    name = event.get('name')
-    action_id = event.get('action_id')
-    params = event.get('params', {})
-    if msg_type != 'request':
-      return
-
-    def send_response(data: any = None, status_code: int = BIZ_SUCCESS, status_msg: str = ''):
-      self.send_qt2js_dict_msg(
-        TInteractObj.build_qt_response(name, action_id, data, status_code, status_msg)
-      )
-
-    handler = self._REQUEST_HANDLERS.get(name)
-    if handler is None:
-      return
-
-    try:
-      result = handler(self, params)
-    except Exception as e:
-      status_code, status_msg = resolve_biz_error(e)
-      send_response(None, status_code=status_code, status_msg=status_msg)
-      return
-
-    unpacked = _unpack_result(result)
-    send_response(unpacked.data, status_code=unpacked.status_code, status_msg=unpacked.status_msg)
-
-  # --- 请求 handler：只关注业务逻辑，返回数据 ---
+  # --- 请求 handler：只关注业务逻辑，返回数据（经 BridgeDispatcher 统一分发） ---
 
   def _handle_get_mock_data_page(self, params: GetMockDataPageParams) -> MockDataPageResult:
     mock_data_type = params.get('type')
@@ -315,7 +275,7 @@ class MitmproxyDataEditDialog(QDialog):
     return mock_db.set_variant_exclusive_enabled(params['id'])
 
   # 请求名称 → handler 映射（/mock_data 命名空间，动作作为路径末级）
-  _REQUEST_HANDLERS = {
+  _REQUEST_HANDLERS: ClassVar[Dict[str, RequestHandler['MitmproxyDataEditDialog']]] = {
     '/mock_data/list': _handle_get_mock_data_page,
     '/mock_data/detail': _handle_get_mock_data_detail,
     '/mock_data/create': _handle_add_mock_data,

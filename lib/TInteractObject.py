@@ -22,8 +22,9 @@ class TInteractObj(QObject):
   def send_qt2js_msg(self, message: str) -> None:
     self.qt2js_signal.emit(message)
 
+  # TODO(qt-bridge): @Slot(str) 与 QtResponsePayload dict 参数声明不一致，待评估修正
   @Slot(str)
-  def send_qt2js_dict_msg(self, data: dict) -> None:
+  def send_qt2js_dict_msg(self, data: QtResponsePayload) -> None:
     if not isinstance(data, dict):
       return
 
