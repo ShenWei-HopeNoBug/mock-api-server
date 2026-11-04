@@ -48,6 +48,14 @@ Qt 客户端升级：PyQt5（QtWebEngine 5.15.2 / Chromium 83）→ PySide6（Qt
 |---|---|---|---|
 | [pyside6-migration-plan](v0_1_5/pyside6/pyside6-migration-plan.md) | Qt 客户端全量 | 依赖换绑 + 17 文件手改 + 8 个 win_ui.py 重生成，含回归矩阵与回滚策略 | 待实施 |
 
+### qt-bridge/
+
+Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（DB 删 `success`、MCP 边界派生）、`BridgeDispatcher` 分发器抽离、`BizError` 业务异常；修复前端失败弹成功 bug。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [qt-bridge-refactor-plan](v0_1_5/qt-bridge/qt-bridge-refactor-plan.md) | `lib/bridge_lib.py` / `lib/db/*` / `module/mcp_server` / `qt_win` 两弹窗 / 前端两文件 | 两阶段实施（信封收敛 → 分发层抽离），含风险与验收 | 待实施 |
+
 ### security/
 
 安全面收敛：app_server 收 `127.0.0.1`、`/system/shutdown` POST + 回环校验、LAN 暴露面文档。
