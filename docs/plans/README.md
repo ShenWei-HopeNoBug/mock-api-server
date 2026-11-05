@@ -19,6 +19,7 @@
 | [schema-migration-transaction-plan](v0_1_5/bugfix/schema-migration-transaction-plan.md) | `lib/db/*` | 迁移包事务 + ALTER 幂等化（`_column_exists` 守卫），含 v≤2 老库预建表撞列修复，单 commit | 待实施 |
 | [mitmproxy-start-failure-running-plan](v0_1_5/bugfix/mitmproxy-start-failure-running-plan.md) | `qt_win/app.py` / `module/asyncio_mitmproxy_server.py` | ready/死亡双通道轮询 + 失败 terminate 清理 + 异常兜底防 START_WAIT 卡死，单 commit | 已实施 |
 | [process-daemon-true-plan](v0_1_5/bugfix/process-daemon-true-plan.md) | `qt_win/app.py` / `module/*` 三处 Process / `CODE_RULES.md` | 三处子进程补 `daemon=True` 落实规则 + daemon 禁孙进程约束写清，单 commit | 已实施 |
+| [port-dual-address-check-plan](v0_1_5/bugfix/port-dual-address-check-plan.md) | `lib/utils_lib.py` / `qt_win/app.py` 三处 / `module/app_server.py` | 端口探测精确匹配漏 127.0.0.1 占坑（回环静默劫持）→ `is_local_port_occupied` 通配+回环双地址族单扫描，app_server 顺手统一，单 commit | 待实施 |
 
 ### cleanup/
 
