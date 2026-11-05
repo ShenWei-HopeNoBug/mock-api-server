@@ -92,7 +92,10 @@ def start_mitmproxy(
 ) -> Process:
   """启动 mitmproxy"""
   CATCH_LOGGER.info("Start Mitmproxy")
-  mitmproxy_process = Process(target=run_mitmproxy, args=(share_dict, ready_event, stop_event))
+  mitmproxy_process = Process(
+    target=run_mitmproxy, args=(share_dict, ready_event, stop_event),
+    name='mitmproxy', daemon=True,
+  )
   mitmproxy_process.start()
   CATCH_LOGGER.info("Mitmproxy is running")
   return mitmproxy_process

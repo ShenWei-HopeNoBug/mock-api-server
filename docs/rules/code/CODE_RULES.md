@@ -29,7 +29,7 @@ trigger: manual
 - `QFileDialog` 静态方法（`getExistingDirectory` / `getOpenFileName` / `getOpenFileNames`）的目录参数名是 `dir`，不是 `directory`
 - `qt_ui/*/win_ui.py` 是 `pyside6-uic` 由 `.ui` 生成的文件，不要手改；改界面先改 `.ui` 再重新生成：`uv run pyside6-uic qt_ui/<目录>/win_ui.ui -o qt_ui/<目录>/win_ui.py`
 - 应用在 `main.py` 固定 `windowsvista` 样式：Qt6 默认 windows11 样式会跟随系统深色模式返回深色 palette，与自定义浅色样式表冲突导致白字/控件观感异常，改动前先确认意图
-- `multiprocessing.Process` 必须 `daemon=True`，否则退出阶段 multiprocessing atexit 会对存活子进程无限 join 导致窗口卡死
+- `multiprocessing.Process` 必须 `daemon=True`，否则退出阶段 multiprocessing atexit 会对存活子进程无限 join 导致窗口卡死；注意 daemon 进程禁止再创建孙进程（`AssertionError: daemonic processes are not allowed to have children`），若未来启用 Flask/uvicorn reloader、多 worker 或 mitmproxy wireguard 等会 spawn 子进程的模式，须先评估改回非 daemon 的退出挂死风险
 - `QApplication.quit()` 会向所有顶层窗口派发关闭事件；`closeEvent` 中 `event.ignore()` 会取消整个退出流程，确认退出后放行需 `event.accept()`
 
 ## 新生成的代码

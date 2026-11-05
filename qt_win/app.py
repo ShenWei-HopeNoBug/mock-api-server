@@ -740,6 +740,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       target=server_process_start,
       args=(server_config,),
       name='mock_server',
+      daemon=True,
     )
     self._mock_server_process = server_process
 

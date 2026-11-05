@@ -704,7 +704,10 @@ def run_mcp_server(config: McpServerRunConfig, stop_event: Optional[EventType] =
 def start_mcp_server(config: McpServerRunConfig, stop_event: Optional[EventType] = None) -> Process:
   """启动 MCP 服务子进程"""
   MCP_LOGGER.info('Start MCP Server')
-  mcp_process = Process(target=run_mcp_server, args=(config, stop_event), name='mcp_server')
+  mcp_process = Process(
+    target=run_mcp_server, args=(config, stop_event),
+    name='mcp_server', daemon=True,
+  )
   mcp_process.start()
   MCP_LOGGER.info('MCP Server is running')
   return mcp_process
