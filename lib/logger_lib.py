@@ -81,18 +81,19 @@ def configure_logging(role: str, queue: Optional[Queue] = None, log_level: int =
   global _LOG_QUEUE, _LOG_LISTENER, _LOG_CONFIGURED
   if _LOG_CONFIGURED:
     return
+
+  # 校验必须在置位之前：非法调用不应污染 _LOG_CONFIGURED 导致后续正确配置被静默跳过
+  if role not in ('parent', 'child'):
+    raise ValueError(f'未知日志进程角色: {role}')
+  if role == 'child' and queue is None:
+    raise ValueError('child 角色必须传入父进程创建的 mp.Queue')
   _LOG_CONFIGURED = True
 
   if role == 'child':
-    if queue is None:
-      raise ValueError('child 角色必须传入父进程创建的 mp.Queue')
     queue_handler = QueueHandler(queue)
     for logger in _DOMAIN_LOGGERS:
       logger.addHandler(queue_handler)
     return
-
-  if role != 'parent':
-    raise ValueError(f'未知日志进程角色: {role}')
 
   _LOG_QUEUE = multiprocessing.Queue()
   sink_handlers: List[logging.Handler] = [
