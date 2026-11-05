@@ -24,8 +24,9 @@ class MockDB(BaseSQLiteDB, ApiDataMixin, StaticDataMixin, ApiResponseVariantMixi
     return self.get_variants_by_api_id(api_id)
 
   def _migrate_schema(self, from_version: int, to_version: int) -> None:
-    """执行 schema 版本迁移，调度各 Mixin 的表级迁移逻辑"""
-    self._migrate_api(from_version, to_version)
-    self._migrate_static(from_version, to_version)
-    self._migrate_variant(from_version, to_version)
-    super()._migrate_schema(from_version, to_version)
+    """执行 schema 版本迁移，调度各 Mixin 的表级迁移逻辑（整体一个事务）"""
+    with self._transaction():
+      self._migrate_api(from_version, to_version)
+      self._migrate_static(from_version, to_version)
+      self._migrate_variant(from_version, to_version)
+      super()._migrate_schema(from_version, to_version)

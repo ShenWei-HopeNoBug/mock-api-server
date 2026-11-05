@@ -28,6 +28,7 @@ class StaticDataMixin:
   _lock: threading.Lock
   _closed: bool
   _transaction: Callable[[], ContextManager[sqlite3.Connection]]
+  _column_exists: Callable[[str, str], bool]
   _wal_checkpoint_passive: Callable[[], None]
 
   def _migrate_static(self, from_version: int, to_version: int) -> None:
@@ -38,7 +39,8 @@ class StaticDataMixin:
       DB_LOGGER.info('StaticDataMixin schema 迁移: v2 → v3, 删除未使用的 idx_static_url 索引')
     if from_version < 4 <= to_version:
       # v3 → v4: static_data 新增 operator 字段
-      self._conn.execute("ALTER TABLE static_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
+      if not self._column_exists('static_data', 'operator'):
+        self._conn.execute("ALTER TABLE static_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
       DB_LOGGER.info('StaticDataMixin schema 迁移: v3 → v4, static_data 新增 operator 字段')
 
   # 批量写静态资源到 DB

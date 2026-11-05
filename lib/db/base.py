@@ -73,6 +73,11 @@ class BaseSQLiteDB:
       DB_LOGGER.warning(
         f'{self.__class__.__name__} 数据库版本({db_version})比代码版本({self._schema_version})新，降级运行可能存在风险')
 
+  def _column_exists(self, table: str, column: str) -> bool:
+    """检查表是否存在指定列（供幂等迁移判断，table/column 为代码内字面量）"""
+    rows = self._conn.execute(f'PRAGMA table_info({table})').fetchall()
+    return any(row[1] == column for row in rows)
+
   # 执行 PASSIVE checkpoint，供批量写入后调用
   @_ensure_open()
   def _wal_checkpoint_passive(self) -> None:

@@ -50,6 +50,7 @@ class ApiDataMixin:
   _lock: threading.Lock
   _closed: bool
   _transaction: Callable[[], ContextManager[sqlite3.Connection]]
+  _column_exists: Callable[[str, str], bool]
   _wal_checkpoint_passive: Callable[[], None]
 
   def _fetch_variants(self, api_id: str) -> list:
@@ -64,21 +65,26 @@ class ApiDataMixin:
     return []
 
   def _migrate_api(self, from_version: int, to_version: int) -> None:
-    """api_data 表的 schema 版本迁移，逐版本升级"""
+    """api_data 表的 schema 版本迁移，逐版本升级（列已存在则跳过，保证幂等）"""
     if from_version < 2 <= to_version:
       # v1 → v2: api_data 新增 timeout 字段
-      self._conn.execute('ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0')
+      if not self._column_exists('api_data', 'timeout'):
+        self._conn.execute('ALTER TABLE api_data ADD COLUMN timeout INTEGER NOT NULL DEFAULT 0')
       # v1 → v2: api_data 新增 request_content_type 字段
-      self._conn.execute("ALTER TABLE api_data ADD COLUMN request_content_type TEXT NOT NULL DEFAULT 'NONE'")
+      if not self._column_exists('api_data', 'request_content_type'):
+        self._conn.execute("ALTER TABLE api_data ADD COLUMN request_content_type TEXT NOT NULL DEFAULT 'NONE'")
       DB_LOGGER.info('ApiDataMixin schema 迁移: v1 → v2, api_data 新增 timeout 和 request_content_type 字段')
     if from_version < 3 <= to_version:
       # v2 → v3: api_data 新增 response_variant_ids 与 enabled 字段
-      self._conn.execute("ALTER TABLE api_data ADD COLUMN response_variant_ids TEXT NOT NULL DEFAULT '[]'")
-      self._conn.execute('ALTER TABLE api_data ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1')
+      if not self._column_exists('api_data', 'response_variant_ids'):
+        self._conn.execute("ALTER TABLE api_data ADD COLUMN response_variant_ids TEXT NOT NULL DEFAULT '[]'")
+      if not self._column_exists('api_data', 'enabled'):
+        self._conn.execute('ALTER TABLE api_data ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1')
       DB_LOGGER.info('ApiDataMixin schema 迁移: v2 → v3, api_data 新增 response_variant_ids 和 enabled 字段')
     if from_version < 4 <= to_version:
       # v3 → v4: api_data 新增 operator 字段
-      self._conn.execute("ALTER TABLE api_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
+      if not self._column_exists('api_data', 'operator'):
+        self._conn.execute("ALTER TABLE api_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
       DB_LOGGER.info('ApiDataMixin schema 迁移: v3 → v4, api_data 新增 operator 字段')
 
   # 新增插入（纯 INSERT，不去重），返回是否成功

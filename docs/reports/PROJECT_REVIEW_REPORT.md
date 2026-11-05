@@ -259,3 +259,4 @@
 | 项 | 状态 | 说明 |
 |---|---|---|
 | 下载失败日志记 `success: True` | ✅ 已修复 | flag 修正 + 日志块收敛 `append_log` + `.part` 原子写 + compress 拆独立 try（方案：`docs/plans/v0_1_5/bugfix/download-log-success-flag-plan.md`）；连带消除「残缺文件自锁」与压缩失败语义污染 |
+| schema 迁移无事务 | ✅ 已修复 | 迁移整体包 `_transaction`（`user_version` 与 DDL 原子提交）+ 全部 `ADD COLUMN` 幂等化；实测顺带修通 v≤2 老库升级必崩路径（`_init_schema` 预建最新形态表所致）（方案：`docs/plans/v0_1_5/bugfix/schema-migration-transaction-plan.md`） |

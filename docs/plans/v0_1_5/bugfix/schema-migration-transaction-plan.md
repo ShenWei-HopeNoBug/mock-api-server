@@ -1,7 +1,7 @@
 # schema 迁移事务化与幂等化方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「§8 明确的 bug」schema 迁移无事务条目、「复查记录：2026-11-04」❌仍存留-🔴
-> 状态：待实施
+> 状态：已实施（2026-11-05）
 > 范围：`lib/db/mock_db.py`、`lib/db/base.py`、`lib/db/api_data.py`、`lib/db/static_data.py`、`lib/db/variants.py`
 
 ## 1. 背景
@@ -106,7 +106,7 @@ uv run ruff check .   # 保持归零
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| — | 待实施 | — | — |
+| 2026-11-05 | 按 §3 全部实施 | `ruff` 归零 + 4 场景实测通过：v1 无变体表升级修通、v3 常规升级、幂等重跑、注入失败整体回滚且可重试 | 三个 Mixin 补充 `_column_exists` 宿主属性声明；验证用临时脚本未入库 |
 
 ## 8. 方案修正
 

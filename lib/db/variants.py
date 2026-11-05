@@ -46,6 +46,7 @@ class ApiResponseVariantMixin:
   _lock: threading.Lock
   _closed: bool
   _transaction: Callable[[], ContextManager[sqlite3.Connection]]
+  _column_exists: Callable[[str, str], bool]
   _wal_checkpoint_passive: Callable[[], None]
 
   def _migrate_variant(self, from_version: int, to_version: int) -> None:
@@ -72,11 +73,13 @@ class ApiResponseVariantMixin:
       DB_LOGGER.info('ApiResponseVariantMixin schema 迁移: v2 → v3, 新增 response 变体支持')
     if from_version < 4 <= to_version:
       # v3 → v4: api_response_variants 新增 operator 字段
-      self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
+      if not self._column_exists('api_response_variants', 'operator'):
+        self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
       DB_LOGGER.info('ApiResponseVariantMixin schema 迁移: v3 → v4, api_response_variants 新增 operator 字段')
     if from_version < 5 <= to_version:
       # v4 → v5: api_response_variants 新增 type 字段（创建来源类型，创建后不可变更）
-      self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN type TEXT NOT NULL DEFAULT 'USER'")
+      if not self._column_exists('api_response_variants', 'type'):
+        self._conn.execute("ALTER TABLE api_response_variants ADD COLUMN type TEXT NOT NULL DEFAULT 'USER'")
       DB_LOGGER.info('ApiResponseVariantMixin schema 迁移: v4 → v5, api_response_variants 新增 type 字段')
 
   @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "插入变体失败", id=None))
