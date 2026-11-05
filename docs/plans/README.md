@@ -51,6 +51,7 @@
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
 | [logging-unification-plan](v0_1_5/logging/logging-unification-plan.md) | `lib/logger_lib` / `decorate` / 运行时 print | 基建加固 + 全量迁移，两 commit 拆分 | 已完成 |
+| [multiprocess-logging-queue-plan](v0_1_5/logging/multiprocess-logging-queue-plan.md) | `lib/logger_lib` 重构 / 四 spawn 点 + 子进程入口 / `main.py` / `_cleanup_in_thread` | 多进程共写 app.log 轮转死锁 → QueueHandler + QueueListener 单写进程，格式加 processName，单 commit | 待实施 |
 
 ### pyside6/
 
