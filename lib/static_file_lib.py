@@ -84,7 +84,7 @@ class StaticFileHandler:
 
     编排职责：
     1. 解析并校验本地文件；
-    2. 基于资源类型/限速开关/Range 头选择 direct 或 throttled；
+    2. 基于限速开关选择 direct 或 throttled；
     3. 将协议细节（304/206/416、缓存头拼装）下沉到子方法。
     """
     route_path: str = '/' + path
@@ -97,8 +97,8 @@ class StaticFileHandler:
     file_name: str = resolved.get('file_name')
     range_header: Optional[str] = request_headers.get('Range')
 
-    # 是否走节流读取由独立决策方法统一判断，避免 match 中出现大量资源分支 if-else。
-    if self._should_use_throttled(file_path, range_header):
+    # 是否走节流读取由独立决策方法统一判断
+    if self._should_use_throttled():
       return self._serve_throttled(file_path, file_name, range_header, request_headers)
 
     # 其余场景统一走 direct（不限速）：
@@ -106,19 +106,16 @@ class StaticFileHandler:
     # - 有 Range 的标准 send_from_directory 条件处理
     return self._serve_direct(file_path, file_name, request_headers)
 
-  def _should_use_throttled(self, file_path: str, range_header: Optional[str]) -> bool:
+  def _should_use_throttled(self) -> bool:
     """
     判断当前请求是否应走节流读取。
 
-    规则：
-    - 未开启限速：全部 direct；
-    - 开启限速后：图片、视频及其他类型均走节流（无 Range 时 200 节流全量，有 Range 时 206 节流分片）。
+    规则：限速开启后所有资源类型统一走节流（无 Range 时 200 节流全量，有 Range 时 206 节流分片）。
+
+    历史：曾按类型分流——视频无 Range 走 direct 探测响应（200 empty 引导浏览器改发
+    Range），因视频全量下载会拿到空 body 于 bdf9f4c 废弃，改为全类型节流。
     """
-    if self.static_load_speed <= 0:
-      return False
-    if self._is_image(file_path):
-      return True
-    return True
+    return self.static_load_speed > 0
 
   def _serve_direct(
       self,

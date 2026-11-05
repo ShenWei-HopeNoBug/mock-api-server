@@ -260,3 +260,4 @@
 |---|---|---|
 | 下载失败日志记 `success: True` | ✅ 已修复 | flag 修正 + 日志块收敛 `append_log` + `.part` 原子写 + compress 拆独立 try（方案：`docs/plans/v0_1_5/bugfix/download-log-success-flag-plan.md`）；连带消除「残缺文件自锁」与压缩失败语义污染 |
 | schema 迁移无事务 | ✅ 已修复 | 迁移整体包 `_transaction`（`user_version` 与 DDL 原子提交）+ 全部 `ADD COLUMN` 幂等化；实测顺带修通 v≤2 老库升级必崩路径（`_init_schema` 预建最新形态表所致）（方案：`docs/plans/v0_1_5/bugfix/schema-migration-transaction-plan.md`） |
+| `_should_use_throttled` 死分支 | ✅ 已收敛 | 非 bug：`bdf9f4c` 为修复视频全量下载拿到空 body 有意改为全类型节流，残留 `if _is_image: True` 半截分支；方法简化为 `return self.static_load_speed > 0`，docstring 记录探测机制废弃史（无 plan 文档，改动不足立项） |
