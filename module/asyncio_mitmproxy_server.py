@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import asyncio
 from multiprocessing import Process
+from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event as EventType
 from typing import Optional
 
@@ -8,7 +9,7 @@ from mitmproxy.options import Options
 from mitmproxy.tools.dump import DumpMaster
 
 from app_types.mitmproxy_types import MitmproxyRunConfig
-from lib.logger_lib import CATCH_LOGGER
+from lib.logger_lib import CATCH_LOGGER, configure_logging, get_log_queue
 from module.request_catch import RequestRecorder
 
 
@@ -67,8 +68,13 @@ def run_mitmproxy(
     share_dict: MitmproxyRunConfig,
     ready_event: Optional[EventType] = None,
     stop_event: Optional[EventType] = None,
+    log_queue: Optional[Queue] = None,
 ) -> None:
   """运行 mitmproxy"""
+  try:
+    configure_logging('child', log_queue)
+  except Exception:
+    pass  # 日志通道初始化失败不拖死服务进程
   loop = asyncio.new_event_loop()
   asyncio.set_event_loop(loop)
   try:
@@ -93,7 +99,7 @@ def start_mitmproxy(
   """启动 mitmproxy"""
   CATCH_LOGGER.info("Start Mitmproxy")
   mitmproxy_process = Process(
-    target=run_mitmproxy, args=(share_dict, ready_event, stop_event),
+    target=run_mitmproxy, args=(share_dict, ready_event, stop_event, get_log_queue()),
     name='mitmproxy', daemon=True,
   )
   mitmproxy_process.start()

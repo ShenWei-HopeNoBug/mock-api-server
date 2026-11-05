@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import asyncio
 from multiprocessing import Process
+from multiprocessing.queues import Queue
 from multiprocessing.synchronize import Event as EventType
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -26,7 +27,7 @@ from app_types.mcp_server_types import McpServerRunConfig
 from app_types.mcp_types import McpOperationResult, McpOperationResultWithOptionalId
 from config.enum.BIZ_CODE import BIZ_SUCCESS
 from lib.db import MockDBCache
-from lib.logger_lib import MCP_LOGGER
+from lib.logger_lib import MCP_LOGGER, configure_logging, get_log_queue
 
 # -------------------
 # MCP 服务封装
@@ -690,8 +691,16 @@ class McpServer:
 # -------------------
 
 # MCP 服务进程入口
-def run_mcp_server(config: McpServerRunConfig, stop_event: Optional[EventType] = None) -> None:
+def run_mcp_server(
+    config: McpServerRunConfig,
+    stop_event: Optional[EventType] = None,
+    log_queue: Optional[Queue] = None,
+) -> None:
   """运行 MCP 服务"""
+  try:
+    configure_logging('child', log_queue)
+  except Exception:
+    pass  # 日志通道初始化失败不拖死服务进程
   MCP_LOGGER.info(f'mcp_config: {config}')
   port = config.get('port', 8765)
   work_dir = config.get('work_dir', '.')
@@ -705,7 +714,7 @@ def start_mcp_server(config: McpServerRunConfig, stop_event: Optional[EventType]
   """启动 MCP 服务子进程"""
   MCP_LOGGER.info('Start MCP Server')
   mcp_process = Process(
-    target=run_mcp_server, args=(config, stop_event),
+    target=run_mcp_server, args=(config, stop_event, get_log_queue()),
     name='mcp_server', daemon=True,
   )
   mcp_process.start()

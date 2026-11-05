@@ -3,14 +3,15 @@ import logging
 import os
 import time
 from multiprocessing import Process
+from multiprocessing.queues import Queue
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from flask import Flask
 
 from app_types.app_gui_types import AppServerRunningData
 from lib.decorate import create_thread, error_catch
-from lib.logger_lib import APPSRV_LOGGER
+from lib.logger_lib import APPSRV_LOGGER, configure_logging, get_log_queue
 from lib.server_lib import register_system_routes
 from lib.utils_lib import (
   check_local_connection,
@@ -59,7 +60,11 @@ class AppServer:
 
 
 # app 服务进程启动
-def start_app_server_process(server_config: Dict[str, Any]) -> None:
+def start_app_server_process(server_config: Dict[str, Any], log_queue: Optional[Queue] = None) -> None:
+  try:
+    configure_logging('child', log_queue)
+  except Exception:
+    pass  # 日志通道初始化失败不拖死服务进程
   port = server_config.get('port', 5050)
   app_server = AppServer(port=port)
   app_server.start()
@@ -76,7 +81,7 @@ def start_app_server() -> AppServerRunningData:
 
     app_server_process = Process(
       target=start_app_server_process,
-      args=(server_config,),
+      args=(server_config, get_log_queue()),
       name='app_server_process',
       daemon=True,
     )

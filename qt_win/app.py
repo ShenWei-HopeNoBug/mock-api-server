@@ -37,7 +37,7 @@ from lib.app_lib import (
 from lib.db import MockDBCache
 from lib.decorate import create_thread, error_catch
 from lib.download_lib import download_server_static
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import APP_LOGGER, get_log_queue, shutdown_logging
 from lib.server_lib import server_process_start
 from lib.system_lib import HISTORY_CONFIG_MANAGER
 from lib.utils_lib import check_local_connection, is_local_server_running
@@ -738,7 +738,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     }
     server_process = Process(
       target=server_process_start,
-      args=(server_config,),
+      args=(server_config, get_log_queue()),
       name='mock_server',
       daemon=True,
     )
@@ -1004,6 +1004,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if is_app_server_running(self.app_sever_running_data):
       self.cleanup_progress_signal.emit('正在清理 APP 服务…')
       self._stop_app_server()
+    # 子进程已清理完毕，停掉日志 listener 排空已入队的子进程记录
+    try:
+      shutdown_logging()
+    except Exception:
+      pass
     self.cleanup_progress_signal.emit('正在关闭数据库…')
     time.sleep(0.5)
     # 退出兜底：若事件循环因存活的 WebView 等原因未能退出，超时强制结束进程

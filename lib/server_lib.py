@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
+from multiprocessing.queues import Queue
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
 
 from flask import Flask, Request, jsonify, request
@@ -35,7 +36,7 @@ from app_types.static_file_types import AssetsReplaceFunc
 from config.route import SYSTEM_ROUTE
 from lib.db import MockDBCache
 from lib.decorate import create_thread
-from lib.logger_lib import MOCK_LOGGER
+from lib.logger_lib import MOCK_LOGGER, configure_logging
 from lib.utils_lib import (
   create_md5,
   get_request_content_type,
@@ -405,7 +406,11 @@ class MockRequestHandler:
 
 
 # mock 服务进程启动（子进程入口，避免在 qt_win/app.py 中定义以减少子进程模块导入开销）
-def server_process_start(server_config: Dict[str, Any]) -> None:
+def server_process_start(server_config: Dict[str, Any], log_queue: Optional[Queue] = None) -> None:
+  try:
+    configure_logging('child', log_queue)
+  except Exception:
+    pass  # 日志通道初始化失败不拖死服务进程
   MOCK_LOGGER.info(f'server_config: {server_config}')
   port = server_config.get('port', 5000)
   work_dir = server_config.get('work_dir', '.')

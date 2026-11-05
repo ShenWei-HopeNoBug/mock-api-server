@@ -1,7 +1,7 @@
 # 多进程日志单点写盘（QueueHandler + QueueListener）方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「复查记录：2026-11-04」🆕 新发现问题 #4；`lib/logger_lib.py`；`docs/plans/v0_1_5/logging/logging-unification-plan.md`
-> 状态：待实施
+> 状态：已实施（2026-11-05）
 > 范围：`lib/logger_lib.py`（重构）、`main.py`、`qt_win/app.py`、`lib/server_lib.py`、`module/asyncio_mitmproxy_server.py`、`module/mcp_server.py`、`module/app_server.py`、`docs/rules/code/CODE_RULES.md`
 
 ## 1. 背景
@@ -124,7 +124,7 @@
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| - | - | - | - |
+| 2026-11-05 | 按 §3 全部实施 | `ruff` 归零；临时脚本实测：spawn 子进程经 `mp.Queue` 投递的 CATCH/DB/APP 域记录全部落盘（`processName=test_child` 可溯）；`maxBytes=2048` 触发轮转 → `.1~.5` 正常生成、无 PermissionError、无 handleError 噪音（旧实现子进程持句柄必败）；`shutdown_logging` 后父进程直写不受影响 | dev 态子记录经父 STREAM 统一打印一次，无双写；四入口 `log_queue` 均为 `Optional` 末位参数，未传则 `configure_logging` 抛 ValueError 被入口 try/except 静默降级 |
 
 ## 8. 方案修正
 

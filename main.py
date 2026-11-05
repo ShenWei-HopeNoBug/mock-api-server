@@ -21,7 +21,7 @@ from lib.app_lib import (
   is_app_work_dir_valid,
   run_blocking_with_events,
 )
-from lib.logger_lib import APP_LOGGER
+from lib.logger_lib import APP_LOGGER, configure_logging
 from lib.splash import StartSplash
 from module.app_server import start_app_server
 from qt_win.app import MainWindow
@@ -43,6 +43,8 @@ def exception_handler(
 if __name__ == '__main__':
   # 防止窗口开进程新打开个 GUI 窗口
   multiprocessing.freeze_support()
+  # 主进程独占文件/控制台日志 handler，起 QueueListener 汇聚子进程日志（须在任何子进程 spawn 之前）
+  configure_logging('parent')
   # 设置 Windows 任务栏 AppUserModelID，使任务栏图标使用自定义图标而非 Python 默认图标
   ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('mock-api-server')
   # Qt6 WebEngine 在 Windows 上跨进程 GPU 纹理共享存在周期性闪帧问题（上游未修复，QTBUG-142355 同类），
