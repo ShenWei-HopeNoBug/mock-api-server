@@ -350,6 +350,17 @@ def download_server_static(
       log_name=log_name,
     )
 
+  # 追加下载日志条目（各分支共用，仅 success/message 为差异点）
+  def append_log(success: bool, message: str = '') -> None:
+    download_log.append({
+      "url": asset,
+      "save_path": assets_path,
+      "file_name": file_name,
+      "proxies": proxies,
+      "success": success,
+      "message": message,
+    })
+
   assets_length = len(download_assets)
 
   download_config = get_download_config(work_dir=work_dir)
@@ -375,6 +386,8 @@ def download_server_static(
 
     # 保存图片的地址
     assets_path = os.path.abspath(f'{assets_dir}/{file_name}')
+    # 下载临时文件路径（先写 .part 再原子改名，中断不留残缺文件）
+    part_path = f'{assets_path}.part'
 
     # 校验下载的文件是否已经存在
     if os.path.exists(assets_path):
@@ -399,14 +412,7 @@ def download_server_static(
       if response.status_code != 200:
         DOWNLOAD_LOGGER.warning(f'下载失败：{asset}')
         # 保存下载日志
-        download_log.append({
-          "url": asset,
-          "save_path": assets_path,
-          "file_name": file_name,
-          "proxies": proxies,
-          "success": False,
-          "message": f"下载失败! STATUS_CODE:{response.status_code}",
-        })
+        append_log(False, f"下载失败! STATUS_CODE:{response.status_code}")
         write_log()
         continue
 
@@ -416,26 +422,23 @@ def download_server_static(
 
       # 将文件写入指定位置
       assets_data = response.content
-      with open(assets_path, 'wb') as fl:
+      with open(part_path, 'wb') as fl:
         fl.write(assets_data)
+      os.replace(part_path, assets_path)
 
-      # 压缩下载图片
+      # 压缩下载图片（压缩失败不影响文件可用性，仅记 warning）
       if compress:
-        compress_image(
-          input_path=assets_path,
-          output_path=assets_path,
-          quality=80
-        )
+        try:
+          compress_image(
+            input_path=assets_path,
+            output_path=assets_path,
+            quality=80
+          )
+        except Exception as e:
+          DOWNLOAD_LOGGER.warning(f'压缩图片失败，保留原图：{file_name} {e}')
 
       # 保存下载日志
-      download_log.append({
-        "url": asset,
-        "save_path": assets_path,
-        "file_name": file_name,
-        "proxies": proxies,
-        "success": True,
-        "message": ""
-      })
+      append_log(True)
 
       time.sleep(0.8)
     except ConnectionError as e:
@@ -443,26 +446,18 @@ def download_server_static(
       # 更新下载详情
       if auto_adjust_timeout:
         download_detail_manager.update_detail(url=asset, connect_error=True)
+      # 清理可能残留的临时文件
+      if os.path.exists(part_path):
+        os.remove(part_path)
       # 保存下载日志
-      download_log.append({
-        "url": asset,
-        "save_path": assets_path,
-        "file_name": file_name,
-        "proxies": proxies,
-        "success": True,
-        "message": f"下载连接异常! ConnectionError:{e}",
-      })
+      append_log(False, f"下载连接异常! ConnectionError:{e}")
     except Exception as e:
       DOWNLOAD_LOGGER.warning(f'下载静态资源出错！{e}')
+      # 清理可能残留的临时文件
+      if os.path.exists(part_path):
+        os.remove(part_path)
       # 保存下载日志
-      download_log.append({
-        "url": asset,
-        "save_path": assets_path,
-        "file_name": file_name,
-        "proxies": proxies,
-        "success": True,
-        "message": f"下载报错! ERROR:{e}",
-      })
+      append_log(False, f"下载报错! ERROR:{e}")
     finally:
       DOWNLOAD_LOGGER.info('*' * 29)
 

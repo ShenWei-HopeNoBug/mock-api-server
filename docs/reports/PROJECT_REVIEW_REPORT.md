@@ -251,3 +251,11 @@
 3. 补 pytest：`server_lib` 匹配/变体/Range、`static_file_lib`、db 层均为纯逻辑；
 4. 下载加 scheme 白名单 + `stream=True` 大小上限；
 5. 其余（basename 碰撞、配置原子写、N+1、正则/LIKE 转义、GET/POST-only 扩展、daemon 规则对齐）按独立立项推进。
+
+---
+
+## 处理进展：2026-11-05
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 下载失败日志记 `success: True` | ✅ 已修复 | flag 修正 + 日志块收敛 `append_log` + `.part` 原子写 + compress 拆独立 try（方案：`docs/plans/v0_1_5/bugfix/download-log-success-flag-plan.md`）；连带消除「残缺文件自锁」与压缩失败语义污染 |

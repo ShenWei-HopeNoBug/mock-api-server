@@ -43,4 +43,5 @@
 - 新增**现行实现/协议参考** → `reference/`（SCREAMING_SNAKE_CASE）；
 - 新增**评审/排查/审计报告** → `reports/`（SCREAMING_SNAKE_CASE）；
 - 新类别先在本文件登记再建子目录；
+- `reports/` 为快照类台账：不改写既有报告内容，问题处理进展以文末新开「处理进展：日期」小节追加；
 - 文档变更按 `rules/git/COMMIT_MESSAGE.md` 以 `docs:` 类型提交。

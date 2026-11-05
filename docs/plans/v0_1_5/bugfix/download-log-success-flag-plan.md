@@ -1,7 +1,7 @@
 # 下载失败日志 success 字段修复方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「§8 明确的 bug」首项、「复查记录：2026-11-04」❌仍存留-🔴
-> 状态：待实施
+> 状态：已实施（2026-11-05）
 > 范围：`lib/download_lib.py`（单文件）
 
 ## 1. 背景
@@ -120,7 +120,7 @@ uv run ruff check .   # 保持归零
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| — | 待实施 | — | — |
+| 2026-11-05 | 按 §3 全部实施（含 §3.4 可选项 `.part` 残留清理） | `ruff check` 归零 | 单文件改动；`part_path` 提前至 `assets_path` 赋值后定义供 try/except 共用 |
 
 ## 8. 方案修正
 
