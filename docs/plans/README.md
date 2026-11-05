@@ -15,7 +15,8 @@
 
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
-| [download-log-success-flag-plan](v0_1_5/bugfix/download-log-success-flag-plan.md) | `lib/download_lib.py` | 下载失败日志 `success:True` 修正 + 日志块收敛 + `.part` 原子写 + compress 拆 try，单 commit | 待实施 |
+| [download-log-success-flag-plan](v0_1_5/bugfix/download-log-success-flag-plan.md) | `lib/download_lib.py` | 下载失败日志 `success:True` 修正 + 日志块收敛 + `.part` 原子写 + compress 拆 try，单 commit | 已实施 |
+| [schema-migration-transaction-plan](v0_1_5/bugfix/schema-migration-transaction-plan.md) | `lib/db/*` | 迁移包事务 + ALTER 幂等化（`_column_exists` 守卫），含 v≤2 老库预建表撞列修复，单 commit | 待实施 |
 
 ### cleanup/
 
