@@ -43,7 +43,7 @@
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
 | [engineering-files-plan](v0_1_5/engineering/engineering-files-plan.md) | 仓库工程文件 | 9 项改动 + lint 基线清理，两 commit 拆分 | 已完成 |
-| [pytest-baseline-plan](v0_1_5/engineering/pytest-baseline-plan.md) | 新增 `tests/`（镜像源码结构）/ `pyproject.toml` / `AGENTS.md` | 测试基线：基建 + 首批 ~90 例（T1 纯逻辑/T2 DB/T3 边界），不含 CI，两 commit 拆分 | 待实施 |
+| [pytest-baseline-plan](v0_1_5/engineering/pytest-baseline-plan.md) | 新增 `tests/`（镜像源码结构）/ `pyproject.toml` / `AGENTS.md` | 测试基线：基建 + 首批 ~90 例（T1 纯逻辑/T2 DB/T3 边界），不含 CI，两 commit 拆分 | 已实施 |
 
 ### logging/
 

@@ -1,7 +1,7 @@
 # pytest 测试基线方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「🔴 高优先级问题 #1」；`AGENTS.md`；`pyproject.toml`
-> 状态：待实施
+> 状态：已实施
 > 范围：新增 `tests/`（镜像源码结构）、`pyproject.toml`（pytest ini）、`AGENTS.md`（测试命令）
 
 ## 1. 背景
@@ -125,10 +125,13 @@ addopts = "-q"
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| - | - | - | - |
+| 2026-11-05 | commit① 基建+T1 | `tests/` 基建（conftest 4 fixture）+ pytest ini + AGENTS 命令；utils/server_lib/static_file 三组纯逻辑用例落地 | `c252ce3`；实测 71 过 1 skip（symlink 权限兜底生效） |
+| 2026-11-05 | logger 置位污染修复 | `configure_logging` 校验前置、通过才置 `_LOG_CONFIGURED` | `90ae620`；由新 logger 用例抓出的存量 bug（校验失败置位残留→后续正确配置被静默跳过且不抛错），见 §8 |
+| 2026-11-05 | commit② T2/T3 | db 三件套（api/variants/cache 迁移幂等）+ bridge（FIFO/排空/队满/关闭守卫/事件去重）+ logger（角色挂载/队列传输/幂等/置位污染回归） | 全量 113 过 1 skip，`ruff check` 归零 |
 
 ## 8. 方案修正
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
-| - | - | - |
+| 2026-11-05 | 新增一例不在原清单的业务修复：`configure_logging` 置位顺序 | 测试抓出的真实 bug：`_LOG_CONFIGURED` 在校验前置位，非法调用残留置位使后续配置静默跳过；校验前置修复，单独 `fix(log)` commit |
+| 2026-11-05 | logger 用例断言改精确类型匹配（`type(h) is htype`） | pytest caplog 插件的 `LogCaptureHandler` 及 `RotatingFileHandler` 均为 `StreamHandler` 子类，`isinstance` 计数互扰 |
