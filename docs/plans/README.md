@@ -66,7 +66,7 @@ Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（D
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
 | [qt-bridge-refactor-plan](v0_1_5/qt-bridge/qt-bridge-refactor-plan.md) | `lib/bridge_lib.py` / `lib/db/*` / `module/mcp_server` / `qt_win` 两弹窗 / 前端两文件 | 两阶段实施（信封收敛 → 分发层抽离），含风险与验收 | 待实施 |
-| [bridge-dispatcher-worker-queue-plan](v0_1_5/qt-bridge/bridge-dispatcher-worker-queue-plan.md) | `lib/bridge_lib.py` / `qt_win` 两弹窗 / `QT_BRIDGE.md` | 无界 thread-per-message → 单 worker FIFO 队列（有界 512、shutdown 排空、回包守卫），refactor §5.5 TODO 收口，单 commit | 待实施 |
+| [bridge-dispatcher-worker-queue-plan](v0_1_5/qt-bridge/bridge-dispatcher-worker-queue-plan.md) | `lib/bridge_lib.py` / `qt_win` 两弹窗 / `QT_BRIDGE.md` | 无界 thread-per-message → 单 worker FIFO 队列（有界 512、shutdown 排空、回包守卫），refactor §5.5 TODO 收口，单 commit | 已实施 |
 
 ### refactor/
 

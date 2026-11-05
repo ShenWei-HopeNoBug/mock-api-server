@@ -12,6 +12,7 @@ Qt Bridge 协议工具集（纯 Python，不依赖 Qt，便于单元测试）
 三个键名，否则会被 _unpack_result 误识别为状态层。
 """
 import json
+import queue
 import re
 import threading
 import time
@@ -110,12 +111,53 @@ class BridgeDispatcher(Generic[CtxT]):
     self._tag = tag
     self._seen_event_ids: OrderedDict[Tuple[str, str], None] = OrderedDict()
     self._event_lock = threading.Lock()
+    # 消息队列与关闭标记：dispatch 仅入队，常驻 worker 按 FIFO 顺序分发
+    self._queue: queue.Queue[Optional[str]] = queue.Queue(maxsize=512)
+    self._closed: bool = False
+    # 丢弃计数（配合 _drop_warn 限流告警）
+    self._dropped_count: int = 0
+    # 常驻分发线程：daemon 不阻塞解释器退出，名字带 tag 便于排查
+    self._worker = threading.Thread(target=self._worker_loop, daemon=True, name=f'bridge-{tag}')
+    self._worker.start()
 
   # ---- 入口 ----
 
   def dispatch(self, message: str) -> None:
-    """js2qt_signal 槽函数：GUI 线程触发，内部开 worker 线程执行分发"""
-    threading.Thread(target=self._dispatch_safe, args=(message,)).start()
+    """js2qt_signal 槽函数：GUI 线程触发，仅入队由常驻 worker 顺序分发"""
+    if self._closed:
+      self._drop_warn('dispatcher 已关闭')
+      return
+    try:
+      self._queue.put_nowait(message)
+    except queue.Full:
+      self._drop_warn('消息队列已满(512)')
+
+  def _drop_warn(self, reason: str) -> None:
+    """丢弃告警限流：第 1 条及每累计 100 条记一次，防洪峰消息拖慢 GUI 线程日志 I/O"""
+    self._dropped_count += 1
+    n = self._dropped_count
+    if n == 1 or n % 100 == 0:
+      APP_LOGGER.warning(f'[{self._tag}] {reason}，累计丢弃 {n} 条')
+
+  def _worker_loop(self) -> None:
+    """常驻分发循环：FIFO 消费队列消息，收到 poison pill 后退出"""
+    while True:
+      message = self._queue.get()
+      if message is None:
+        return
+      self._dispatch_safe(message)
+
+  def shutdown(self) -> None:
+    """宿主关闭时调用：拒收新消息，已入队消息排空后 worker 退出（非阻塞）"""
+    if self._closed:
+      return
+    self._closed = True
+    try:
+      self._queue.put_nowait(None)
+    except queue.Full:
+      # 队满时挤掉最老一条为 poison pill 腾位，保证 worker 挂死场景下 shutdown 不阻塞
+      self._queue.get_nowait()
+      self._queue.put_nowait(None)
 
   def _dispatch_safe(self, message: str) -> None:
     try:
@@ -230,6 +272,9 @@ class BridgeDispatcher(Generic[CtxT]):
       status_code: int,
       status_msg: str,
   ) -> None:
+    # 关闭后跳过回包：handler 副作用照常完成，避免对已销毁的 interact_obj emit
+    if self._closed:
+      return
     payload: QtResponsePayload = {
       "type": "response",
       "name": name,

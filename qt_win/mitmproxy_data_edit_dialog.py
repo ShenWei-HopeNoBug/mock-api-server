@@ -297,6 +297,8 @@ class MitmproxyDataEditDialog(QDialog):
     QTimer.singleShot(0, lambda: self.webview.page().setVisible(True))
 
   def closeEvent(self, event: QEvent) -> None:
+    if self._bridge is not None:
+      self._bridge.shutdown()
     if self.loading_widget is not None:
       self.loading_widget.stop()
     if self._devtools_view is not None:

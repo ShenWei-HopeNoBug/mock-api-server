@@ -158,7 +158,7 @@ manager.fetch(name, params, { timeout, noMessage })
 ### Qt 端分发链路
 
 ```
-send_js2qt_msg → js2qt_signal → BridgeDispatcher.dispatch(message)   # 内部开 worker 线程
+send_js2qt_msg → js2qt_signal → BridgeDispatcher.dispatch(message)   # 入队由常驻 worker 线程 FIFO 分发
   → json.loads → 按 type 分流
     'request' → _handle_request(incoming)
       → 校验 action_id 非空（缺失则记 warning 丢弃，无法回包）
@@ -349,7 +349,10 @@ requestManager.destroy()        # 清理 pendingMap，pending 以 DESTROYED 拒�
 
 ### Qt 端线程模型
 
-- `BridgeDispatcher.dispatch()` 为每条消息开独立 worker 线程处理，回包在 worker 线程直接 emit `qt2js_signal`，不阻塞 GUI
+- `BridgeDispatcher` 持有 `Queue(maxsize=512)` + 单个常驻 daemon worker 线程：`dispatch()` 只做非阻塞入队，worker 按 FIFO 顺序分发，回包在 worker 线程直接 emit `qt2js_signal`，不阻塞 GUI
+- 队列满或被 `shutdown()` 后收到的消息丢弃并按计数限流告警（第 1 条及每 100 条 warn 一次）
+- 弹窗 `closeEvent` 调 `self._bridge.shutdown()`：置 `_closed` 拒收新消息，队尾放 poison pill（队满时挤掉最老一条腾位），已入队消息排空后 worker 退出；关闭后 handler 副作用照常完成，回包经 `_closed` 守卫跳过
+- 设计约束：线程资源有界、生命周期可控、顺序确定；未来慢速非 DB handler 可增配有界 slow lane（线程池/第二条 worker+队列），写操作永不进并行通道，永不回到裸线程
 - dispatcher 顶层有异常兜底，仅记日志
 - 工作线程中的 UI 操作须通过 Signal 回主线程（如 `close_signal` → `dialog.close()`）
 - 事件去重表等共享状态在 dispatcher 内部锁保护下访问
