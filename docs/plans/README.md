@@ -17,6 +17,7 @@
 |---|---|---|---|
 | [download-log-success-flag-plan](v0_1_5/bugfix/download-log-success-flag-plan.md) | `lib/download_lib.py` | 下载失败日志 `success:True` 修正 + 日志块收敛 + `.part` 原子写 + compress 拆 try，单 commit | 已实施 |
 | [schema-migration-transaction-plan](v0_1_5/bugfix/schema-migration-transaction-plan.md) | `lib/db/*` | 迁移包事务 + ALTER 幂等化（`_column_exists` 守卫），含 v≤2 老库预建表撞列修复，单 commit | 待实施 |
+| [mitmproxy-start-failure-running-plan](v0_1_5/bugfix/mitmproxy-start-failure-running-plan.md) | `qt_win/app.py` / `module/asyncio_mitmproxy_server.py` | ready/死亡双通道轮询 + 失败 terminate 清理 + 异常兜底防 START_WAIT 卡死，单 commit | 待实施 |
 
 ### cleanup/
 
