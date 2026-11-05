@@ -6,12 +6,20 @@ import re
 import shutil
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import requests
 from requests.exceptions import ConnectionError
 
-from app_types.download_types import DownloadProxyItem
+from app_types.download_types import (
+  DownloadConfig,
+  DownloadLogBase,
+  DownloadLogItem,
+  DownloadProgressItem,
+  DownloadProxyItem,
+  HttpGetSession,
+  OutputStaticItem,
+)
 from config.default import DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT, DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
 from config.enum import DOWNLOAD
 from config.work_file import (
@@ -36,7 +44,7 @@ from lib.utils_lib import (
 
 
 @error_catch(error_msg='获取导出下载地址列表失败', error_return=[])
-def get_output_data_list(log_path: str, work_dir: str = '.') -> List[Dict[str, str]]:
+def get_output_data_list(log_path: str, work_dir: str = '.') -> List[OutputStaticItem]:
   # 检查下载日志路径
   if not os.path.exists(log_path):
     return []
@@ -47,9 +55,9 @@ def get_output_data_list(log_path: str, work_dir: str = '.') -> List[Dict[str, s
     return []
 
   with open(log_path, 'r', encoding='utf-8') as fl:
-    logs = json.loads(fl.read())
+    logs: List[DownloadLogItem] = json.loads(fl.read())
 
-  path_list = []
+  path_list: List[OutputStaticItem] = []
   for log in logs:
     success = log.get('success', False)
     file_name = log.get('file_name', '')
@@ -66,7 +74,7 @@ def get_output_data_list(log_path: str, work_dir: str = '.') -> List[Dict[str, s
 
 
 @error_catch(error_msg='导出静态资源失败', error_return=[])
-def output_static_files(output_dir: str = './output', output_list: Optional[List[Dict[str, str]]] = None) -> None:
+def output_static_files(output_dir: str = './output', output_list: Optional[List[OutputStaticItem]] = None) -> None:
   if output_list is None:
     output_list = []
 
@@ -107,7 +115,7 @@ def get_static_match_regexp(include_files: List[str]) -> re.Pattern:
 @error_catch(error_msg='写入下载日志失败')
 def write_download_log(
     work_dir: str = '.',
-    download_log: Optional[List[Dict[str, Any]]] = None,
+    download_log: Optional[List[DownloadLogItem]] = None,
     log_name: str = 'log'
 ) -> None:
   if not isinstance(download_log, list):
@@ -213,9 +221,9 @@ class StaticAssetDownloader:
       work_dir: str = '.',
       static_url_path: str = STATIC_DIR,
       compress: bool = True,
-      callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+      callback: Optional[Callable[[DownloadProgressItem], None]] = None,
       stop_event: Optional[threading.Event] = None,
-      session: Optional[Any] = None,
+      session: Optional[HttpGetSession] = None,
   ):
     self.work_dir = work_dir
     # 静态资源目录
@@ -224,15 +232,15 @@ class StaticAssetDownloader:
     self.callback = callback
     self.stop_event = stop_event
     # 会话注入点：默认 requests 模块（无 cookie jar，与裸 requests.get 等价），测试可注入 mock
-    self.session = session or requests
+    self.session: HttpGetSession = session or requests
 
     # 运行级状态（run() 开头装载）
-    self.config: dict = {}
+    self.config: DownloadConfig = {}
     self.base_timeout = DEFAULT_DOWNLOAD_CONNECT_TIMEOUT
     self.auto_adjust_timeout = DEFAULT_AUTO_ADJUST_DOWNLOAD_TIMEOUT
     self.download_proxy_list: List[DownloadProxyItem] = []
     self.detail_manager = DownloadDetailManager(timeout=self.base_timeout)
-    self.download_log: list = []
+    self.download_log: List[DownloadLogItem] = []
     self.log_name = ''
 
   # 执行一次完整下载运行
@@ -295,7 +303,7 @@ class StaticAssetDownloader:
 
   # 读取下载配置
   @error_catch(error_msg='获取下载配置失败', error_return={})
-  def _load_config(self) -> dict:
+  def _load_config(self) -> DownloadConfig:
     download_config_path = f'{self.work_dir}{DOWNLOAD_CONFIG_PATH}'
     if not os.path.exists(download_config_path):
       return {}
@@ -411,7 +419,7 @@ class StaticAssetDownloader:
     )
 
     # 日志条目静态字段（各分支共用，仅 success/message 为差异点）
-    log_base = {
+    log_base: DownloadLogBase = {
       "url": asset,
       "save_path": assets_path,
       "file_name": file_name,
@@ -476,7 +484,7 @@ class StaticAssetDownloader:
     self._write_log()
 
   # 追加下载日志条目
-  def _append_log(self, log_base: Dict[str, Any], success: bool, message: str = '') -> None:
+  def _append_log(self, log_base: DownloadLogBase, success: bool, message: str = '') -> None:
     self.download_log.append({**log_base, "success": success, "message": message})
 
   # 写入下载日志
@@ -494,7 +502,7 @@ def download_server_static(
     work_dir: str = '.',
     static_url_path: str = STATIC_DIR,
     compress: bool = True,
-    callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    callback: Optional[Callable[[DownloadProgressItem], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> None:
   StaticAssetDownloader(

@@ -137,4 +137,4 @@ uv run ruff check .                    # 归零
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
-| — | — | — |
+| 2026-11-05 | `app_types/download_types.py` 新增 `DownloadConfig`/`DownloadLogBase`/`DownloadLogItem`/`OutputStaticItem`/`DownloadProgressItem`/`HttpGetSession(Protocol)`，类属性与导出函数类型同步收紧 | 实施中提出类内类型过宽（`self.config: dict` 等），纳入同次重构一并收紧 |
