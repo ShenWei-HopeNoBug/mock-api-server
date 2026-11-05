@@ -214,6 +214,22 @@ def check_local_connection(ip: str = '0.0.0.0', port: int = 5000) -> bool:
   return False
 
 
+# 本地服务启动前的端口占用探测集：通配 + 回环（IPv4/IPv6）
+_LOCAL_LISTEN_ADDRS = ('0.0.0.0', '127.0.0.1', '::', '::1')
+
+
+# 检测指定端口是否被本机通配/回环地址监听（服务启动前调用）
+def is_local_port_occupied(port: int = 5000) -> bool:
+  # 绑 0.0.0.0 会被 127.0.0.1 独占静默劫持回环流量；
+  # 绑 127.0.0.1 会被 0.0.0.0 独占直接阻塞，两类都必须探
+  for conn in psutil.net_connections():
+    if conn.status != 'LISTEN' or not conn.laddr:
+      continue
+    if conn.laddr.port == port and conn.laddr.ip in _LOCAL_LISTEN_ADDRS:
+      return True
+  return False
+
+
 # 压缩图片
 @error_catch(error_msg='压缩图片时出错', error_return=False)
 def compress_image(input_path: str, output_path: str, quality: int = 80) -> bool:

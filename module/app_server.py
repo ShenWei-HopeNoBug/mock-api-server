@@ -14,7 +14,7 @@ from lib.decorate import create_thread, error_catch
 from lib.logger_lib import APPSRV_LOGGER, configure_logging, get_log_queue
 from lib.server_lib import register_system_routes
 from lib.utils_lib import (
-  check_local_connection,
+  is_local_port_occupied,
   is_local_server_running,
   shutdown_local_server,
 )
@@ -92,9 +92,7 @@ def start_app_server() -> AppServerRunningData:
   app_server_port = 5050
   max_port_attempts = 100
   attempts = 0
-  # 回环绑定下 0.0.0.0 与 127.0.0.1 任一地址被监听都会阻塞启动，两个地址都要探测
-  while (check_local_connection(ip='0.0.0.0', port=app_server_port)
-         or check_local_connection(ip='127.0.0.1', port=app_server_port)):
+  while is_local_port_occupied(app_server_port):
     APPSRV_LOGGER.warning(f"APP_SERVER 待启动服务端口被占用: {app_server_port}")
     app_server_port += 1
     attempts += 1

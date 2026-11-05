@@ -40,7 +40,7 @@ from lib.download_lib import download_server_static
 from lib.logger_lib import APP_LOGGER, get_log_queue, shutdown_logging
 from lib.server_lib import server_process_start
 from lib.system_lib import HISTORY_CONFIG_MANAGER
-from lib.utils_lib import check_local_connection, is_local_server_running
+from lib.utils_lib import is_local_port_occupied, is_local_server_running
 from lib.work_file_lib import check_work_files, create_work_files
 from module.asyncio_mitmproxy_server import start_mitmproxy
 from module.mcp_server import start_mcp_server
@@ -585,7 +585,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return
 
     # 网络监听端口检查
-    if check_local_connection('0.0.0.0', self.catch_server_port):
+    if is_local_port_occupied(self.catch_server_port):
       self.message_dialog_signal.emit(
         'critical',
         '端口检查',
@@ -721,7 +721,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   @create_thread
   def start_server(self) -> None:
     # 网络监听端口检查
-    if check_local_connection('0.0.0.0', self.server_port):
+    if is_local_port_occupied(self.server_port):
       self.message_dialog_signal.emit(
         'critical',
         '端口检查',
@@ -804,7 +804,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   @create_thread
   def start_mcp_server(self) -> None:
     # 网络监听端口检查
-    if check_local_connection('0.0.0.0', self.mcp_server_port):
+    if is_local_port_occupied(self.mcp_server_port):
       self.message_dialog_signal.emit(
         'critical',
         '端口检查',

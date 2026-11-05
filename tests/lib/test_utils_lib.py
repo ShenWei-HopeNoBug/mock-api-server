@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 import hashlib
+import socket
+from collections import namedtuple
+
+import pytest
 
 from app_types.request_types import RequestContentType
 from lib.utils_lib import (
@@ -8,6 +12,7 @@ from lib.utils_lib import (
   get_request_content_type,
   get_url_domain,
   is_file_request,
+  is_local_port_occupied,
   is_url_match,
   limit_num_range,
   remove_byte_empty_content,
@@ -147,3 +152,50 @@ def test_limit_num_range():
   assert limit_num_range(-1, 0, 10) == 0
   assert limit_num_range(11, 0, 10) == 10
   assert limit_num_range(0.5, 0.0, 1.0) == 0.5
+
+
+# ---------- is_local_port_occupied（双地址族探测） ----------
+
+_Addr = namedtuple('addr', ['ip', 'port'])
+_Conn = namedtuple('conn', ['status', 'laddr'])
+
+
+def _patch_connections(monkeypatch, rows):
+  """往 psutil.net_connections 注入假监听行"""
+  import lib.utils_lib as ul
+
+  monkeypatch.setattr(ul.psutil, 'net_connections', lambda kind='tcp': rows)
+
+
+@pytest.mark.parametrize('squat_ip', ['0.0.0.0', '127.0.0.1', '::', '::1'])
+def test_port_occupied_detects_all_listen_families(monkeypatch, squat_ip):
+  # 通配/回环任一地址占坑都会劫持或阻塞本地服务，全部要探出
+  _patch_connections(monkeypatch, [_Conn('LISTEN', _Addr(squat_ip, 8080))])
+  assert is_local_port_occupied(8080) is True
+
+
+def test_port_occupied_nic_squat_ignored(monkeypatch):
+  # 具体网卡 IP 占坑只劫该网卡流量，回环不受影响 → 既定漏报边界
+  _patch_connections(monkeypatch, [_Conn('LISTEN', _Addr('192.168.1.10', 8080))])
+  assert is_local_port_occupied(8080) is False
+
+
+def test_port_occupied_other_port_or_state_ignored(monkeypatch):
+  _patch_connections(monkeypatch, [
+    _Conn('LISTEN', _Addr('0.0.0.0', 9090)),        # 别的端口
+    _Conn('TIME_WAIT', _Addr('127.0.0.1', 8080)),   # 非 LISTEN 状态
+    _Conn('LISTEN', ()),                            # 空 laddr
+  ])
+  assert is_local_port_occupied(8080) is False
+
+
+def test_port_occupied_real_socket_loopback():
+  # 真实 socket 自测：本进程绑 127.0.0.1 回环口应被探出
+  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  sock.bind(('127.0.0.1', 0))
+  sock.listen(1)
+  try:
+    port = sock.getsockname()[1]
+    assert is_local_port_occupied(port) is True
+  finally:
+    sock.close()

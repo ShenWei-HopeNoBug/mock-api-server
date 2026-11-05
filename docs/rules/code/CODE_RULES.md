@@ -32,6 +32,7 @@ trigger: manual
 - `multiprocessing.Process` 必须 `daemon=True`，否则退出阶段 multiprocessing atexit 会对存活子进程无限 join 导致窗口卡死；注意 daemon 进程禁止再创建孙进程（`AssertionError: daemonic processes are not allowed to have children`），若未来启用 Flask/uvicorn reloader、多 worker 或 mitmproxy wireguard 等会 spawn 子进程的模式，须先评估改回非 daemon 的退出挂死风险
 - `QApplication.quit()` 会向所有顶层窗口派发关闭事件；`closeEvent` 中 `event.ignore()` 会取消整个退出流程，确认退出后放行需 `event.accept()`
 - 日志架构：文件/控制台 handler 仅 GUI 主进程持有（`configure_logging('parent')`），子进程只把 LogRecord 经 `mp.Queue` 交父进程统一落盘——多进程共写 `app.log` 会在轮转 rename 时 PermissionError 且静默丢日志。新增 `Process` 必须 args 传 `get_log_queue()`，入口函数首行 `configure_logging('child', log_queue)`（包 try/except，失败不拖死服务）；`logger_lib` 模块级禁止建文件 handler
+- 端口探测：服务启动前用 `is_local_port_occupied(port)`（通配+回环双地址族单次扫描），不得单探 `0.0.0.0`——`127.0.0.1` 占坑 + 我方 `0.0.0.0` bind 在 Windows 下可共存，回环流量被静默劫持；`check_local_connection` 仅用于「按已知 bind 地址找自己的监听进程」（如 shutdown 路径）
 
 ## 新生成的代码
 

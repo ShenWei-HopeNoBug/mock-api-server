@@ -1,7 +1,7 @@
 # 端口占用探测双地址方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「处理进展」🆕 新发现问题 #2
-> 状态：待实施
+> 状态：已实施（2026-11-05）
 > 范围：`lib/utils_lib.py`、`qt_win/app.py`、`module/app_server.py`、`tests/lib/test_utils_lib.py`、`docs/rules/code/CODE_RULES.md`
 
 ## 1. 背景
@@ -123,7 +123,7 @@ uv run ruff check .    # 归零
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| - | - | - | - |
+| 2026-11-05 | 按 §3 全部实施 | `pytest` 全绿（120 过 1 skip）、`ruff` 归零；真实 socket 用例验证回环占坑探测 | `app_server` 顺带删去已失效的 `check_local_connection` import；测试按既定漏报边界断言 `192.168.x.x` 占坑 → False |
 
 ## 8. 方案修正
 
