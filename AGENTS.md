@@ -16,16 +16,17 @@ uv run python build.py     # PyInstaller 打包（产出带/不带黑窗两个 e
 
 ## 规则（改动代码前必读）
 
-- `rules/code/CODE_RULES.md` —— 代码规范（注释/类型/Qt 约定/命名风格）
-- `rules/git/COMMIT_MESSAGE.md` —— git 提交规范（Conventional Commits）
+- `docs/rules/code/CODE_RULES.md` —— 代码规范（注释/类型/Qt 约定/命名风格）
+- `docs/rules/git/COMMIT_MESSAGE.md` —— git 提交规范（Conventional Commits）
 
-`rules/` 内约定：按主题分子目录（`code/`、`git/`），文档统一全大写+下划线命名。
+`docs/rules/` 内约定：按主题分子目录（`code/`、`git/`），文档统一全大写+下划线命名。
 
 ## 文档地图
 
-- `docs/README.md` —— 方案文档总索引（含 plan 文档归置与「实施记录/方案修正」栏目约定）
-- `QT_BRIDGE.md` —— Qt Bridge 桥接协议分层说明
-- `PROJECT_REVIEW_REPORT.md` —— 项目评审与复查记录（问题台账）
+- `docs/README.md` —— 项目文档总地图（plans / rules / reference / reports 四类）
+- `docs/plans/README.md` —— 方案与实施文档存档索引（含 plan 文档归置与「实施记录/方案修正」栏目约定）
+- `docs/reference/QT_BRIDGE.md` —— Qt Bridge 桥接协议分层说明
+- `docs/reports/PROJECT_REVIEW_REPORT.md` —— 项目评审与复查记录（问题台账）
 - `CHANGELOG.md` —— 版本变更记录
 
 ## 红线

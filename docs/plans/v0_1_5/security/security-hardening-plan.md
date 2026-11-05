@@ -1,6 +1,6 @@
 # 安全面收敛方案
 
-> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「§3 安全面偏宽」「改进建议-3」
+> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「§3 安全面偏宽」「改进建议-3」
 > 状态：待实施
 > 范围：`module/app_server.py` / `module/mock_server.py` / `lib/server_lib.py` / `qt_win/app.py` / `README.md` / `CHANGELOG.md`
 
@@ -59,11 +59,11 @@
 
 - `README.md` 新增「网络暴露面」节：四服务表格（端口 / 绑定 / 暴露范围 / LAN 内他人能做什么）+「不可信局域网勿开抓包与 mock 服务」提示 + `resources/.mitmproxy-ca.7z` 用途说明；
 - `CHANGELOG.md` Unreleased 补记；
-- `PROJECT_REVIEW_REPORT.md` 勾选「安全面收敛」（随本方案 commit 落地）。
+- `docs/reports/PROJECT_REVIEW_REPORT.md` 勾选「安全面收敛」（随本方案 commit 落地）。
 
 ## 4. 提交拆分
 
-单 commit：§3 全部 + 本方案文档与 `docs/README.md` 登记。不自动提交，由人确认后提交。
+单 commit：§3 全部 + 本方案文档与 `docs/plans/README.md` 登记。不自动提交，由人确认后提交。
 
 ## 5. 验收
 

@@ -1,6 +1,6 @@
 # 日志统一方案
 
-> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「§4 print 炸弹」「§6 error_catch」「§7 日志不统一」「§9 日志噪音」「改进建议-4」
+> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「§4 print 炸弹」「§6 error_catch」「§7 日志不统一」「§9 日志噪音」「改进建议-4」
 > 状态：已完成（`01d35d5` + print 迁移 commit）
 > 范围：`lib/logger_lib.py` / `lib/decorate.py` / 运行时文件 print 迁移 / werkzeug 降噪
 

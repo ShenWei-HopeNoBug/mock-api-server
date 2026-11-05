@@ -1,100 +1,46 @@
 # 文档地图
 
-> 本目录为项目方案文档存档，按功能域 / 版本分子目录归置。
-> 约定：每篇为唯一权威方案，偏离修正以增量章节追加、不改正文；
-> 跨方案的后续变更单开增量文档（`*-changes.md`）。
->
-## v0_1_5/
+> 本目录为项目文档总目录，按语义分四类归置；每个子目录自带索引/约定。
+> 根目录仅保留门面文件：`README.md` / `CHANGELOG.md` / `LICENSE` / `AGENTS.md`。
 
-当前版本工作目录，按功能域分设子目录。
+## plans/ — 方案与实施文档存档
 
-### bugfix/
+迭代方案、重构计划、任务拆解等**过程性文档**，按版本（`v0_x_x/`）> 功能域归置。
+索引与归置约定见 [plans/README.md](plans/README.md)。
 
-评审「§8 明确的 bug」逐项修复方案存档。
+## rules/ — 规则规范
 
-| 文档 | 范围 | 说明 | 状态 |
-|---|---|---|---|
-| [download-log-success-flag-plan](v0_1_5/bugfix/download-log-success-flag-plan.md) | `lib/download_lib.py` | 下载失败日志 `success:True` 修正 + 日志块收敛 + `.part` 原子写 + compress 拆 try，单 commit | 待实施 |
+改动代码与提交前必读的**约束性规范**，按主题分子目录，文档统一全大写+下划线命名。
 
-### cleanup/
+| 文档 | 说明 |
+|---|---|
+| [code/CODE_RULES](rules/code/CODE_RULES.md) | 代码规范（注释/类型/Qt 约定/命名风格） |
+| [git/COMMIT_MESSAGE](rules/git/COMMIT_MESSAGE.md) | git 提交规范（Conventional Commits） |
 
-死代码清理：backup_lib/file_lib/hash_lib 删除、`BACKUP_DIR` 摘除、`white_` 命名修正与散件清理。
+## reference/ — 现行参考
 
-| 文档 | 范围 | 说明 | 状态 |
-|---|---|---|---|
-| [dead-code-cleanup-plan](v0_1_5/cleanup/dead-code-cleanup-plan.md) | `lib/` 死代码 / `config/work_file.py` / 命名修正 | 三文件删除 + BACKUP_DIR 摘除 + 命名与散件，单 commit | 待实施 |
+现行实现说明、协议、架构类**持久参考文档**，SCREAMING_SNAKE_CASE 命名。
 
-### dependency/
+| 文档 | 说明 |
+|---|---|
+| [QT_BRIDGE](reference/QT_BRIDGE.md) | Qt Bridge 桥接协议分层说明（现行约定） |
 
-依赖管理整改：`requirements.txt` 单源化 → uv 迁移两步走。
+> 注：`docs/plans/v0_1_3/static-file-handler-method-map.md` 亦属实现说明类，
+> 随版本存档冻结保留原位，且已滞后于现行实现。
 
-| 文档 | 范围 | 说明 | 状态 |
-|---|---|---|---|
-| [dependency-management-plan](v0_1_5/dependency/dependency-management-plan.md) | 全项目依赖配置 | Step 1 requirements.txt 单源化（`5b4dc12`）；Step 2 uv + pyproject.toml 迁移（`fc26535`） | 已完成 |
+## reports/ — 评审/排查/审计台账
 
-### engineering/
+结论性报告类文档，SCREAMING_SNAKE_CASE 命名。
 
-工程文件补齐：`.gitignore` 重写、LICENSE、CHANGELOG、ruff 配置、editorconfig 等。
+| 文档 | 说明 |
+|---|---|
+| [PROJECT_REVIEW_REPORT](reports/PROJECT_REVIEW_REPORT.md) | 项目评审报告与复查记录（问题台账） |
 
-| 文档 | 范围 | 说明 | 状态 |
-|---|---|---|---|
-| [engineering-files-plan](v0_1_5/engineering/engineering-files-plan.md) | 仓库工程文件 | 9 项改动 + lint 基线清理，两 commit 拆分 | 已完成 |
+## 归置约定
 
-### logging/
-
-日志统一：分域 logger、error_catch 堆栈、print 迁移、-w 打包态防御。
-
-| 文档 | 范围 | 说明 | 状态 |
-|---|---|---|---|
-| [logging-unification-plan](v0_1_5/logging/logging-unification-plan.md) | `lib/logger_lib` / `decorate` / 运行时 print | 基建加固 + 全量迁移，两 commit 拆分 | 已完成 |
-
-### pyside6/
-
-Qt 客户端升级：PyQt5（QtWebEngine 5.15.2 / Chromium 83）→ PySide6（Qt 6.10 / Chromium 134）。
-
-| 文档 | 范围 | 说明 | 状态 |
-|---|---|---|---|
-| [pyside6-migration-plan](v0_1_5/pyside6/pyside6-migration-plan.md) | Qt 客户端全量 | 依赖换绑 + 17 文件手改 + 8 个 win_ui.py 重生成，含回归矩阵与回滚策略 | 待实施 |
-
-### qt-bridge/
-
-Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（DB 删 `success`、MCP 边界派生）、`BridgeDispatcher` 分发器抽离、`BizError` 业务异常；修复前端失败弹成功 bug。
-
-| 文档 | 范围 | 说明 | 状态 |
-|---|---|---|---|
-| [qt-bridge-refactor-plan](v0_1_5/qt-bridge/qt-bridge-refactor-plan.md) | `lib/bridge_lib.py` / `lib/db/*` / `module/mcp_server` / `qt_win` 两弹窗 / 前端两文件 | 两阶段实施（信封收敛 → 分发层抽离），含风险与验收 | 待实施 |
-
-### security/
-
-安全面收敛：app_server 收 `127.0.0.1`、`/system/shutdown` POST + 回环校验、LAN 暴露面文档。
-
-| 文档 | 范围 | 说明 | 状态 |
-|---|---|---|---|
-| [security-hardening-plan](v0_1_5/security/security-hardening-plan.md) | `module/app_server` / `module/mock_server` / `lib/server_lib` / `qt_win/app.py` / `README.md` | 绑定收敛最小集 + shutdown 加固，单 commit | 待实施 |
-
-## 历史方案存档
-
-### v0_1_3/
-
-| 文档 | 说明 | 状态 |
-|---|---|---|
-| [static-file-handler-method-map](v0_1_3/static-file-handler-method-map.md) | StaticFileHandler 方法职责图（direct / throttled 双路径、Range / 缓存协议细节） | 现行实现说明 |
-
-### v0_1_0/
-
-SQLite 重构（JSON 文件存储 → `mock.db`）方案与任务拆解存档。
-
-| 文档 | 说明 | 状态 |
-|---|---|---|
-| [sqlite-refactor-plan](v0_1_0/sqlite-refactor-plan.md) | 总体方案：表设计、MockDB 数据访问层、迁移策略 | 已落地 |
-| [task/README](v0_1_0/task/README.md) | 原子子任务地图（task-01 ~ task-10）、实施顺序与依赖关系 | 已落地 |
-| [task-01 ~ task-10](v0_1_0/task/) | 各子任务执行文档（自包含，按 task/README 顺序执行） | 已落地 |
-
-## 新文档归置约定
-
-- 新功能方案按功能域入对应子目录；新功能域先在本文件登记再建目录。
-- 文件名带功能前缀（如 `mock-server-*.md`），与目录同名属预期，便于全文检索识别。
-- 跨方案变更单开 `*-changes.md` 增量文档，不改正文。
-- plan 文档除实施方案本身外，须含「实施记录」「方案修正」栏目，记录实际落地情况与偏离修正（增量章节追加，不改正文）。
-- 文档方案的落地执行不自动 git commit，由人确认后提交。
-- 版本存档目录（`v0_x_x/`）为历史冻结内容，不再变更；现行方案以功能域目录为准。
+- 新增**过程性方案** → `plans/`（版本 > 功能域，`*-plan.md`，kebab-case，约定见 plans/README）；
+- 新增**约束性规范** → `rules/`（主题子目录，SCREAMING_SNAKE_CASE）；
+- 新增**现行实现/协议参考** → `reference/`（SCREAMING_SNAKE_CASE）；
+- 新增**评审/排查/审计报告** → `reports/`（SCREAMING_SNAKE_CASE）；
+- 新类别先在本文件登记再建子目录；
+- 文档变更按 `rules/git/COMMIT_MESSAGE.md` 以 `docs:` 类型提交。

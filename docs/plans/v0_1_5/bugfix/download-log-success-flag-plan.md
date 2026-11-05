@@ -1,6 +1,6 @@
 # 下载失败日志 success 字段修复方案
 
-> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「§8 明确的 bug」首项、「复查记录：2026-11-04」❌仍存留-🔴
+> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「§8 明确的 bug」首项、「复查记录：2026-11-04」❌仍存留-🔴
 > 状态：待实施
 > 范围：`lib/download_lib.py`（单文件）
 
@@ -91,7 +91,7 @@ if os.path.exists(part_path):
 
 ## 4. 提交拆分
 
-单 commit：§3 全部（含可选项按实施时确认结果取舍）+ 本方案文档与 `docs/README.md` 登记 + `PROJECT_REVIEW_REPORT.md` 复查记录对应项勾选。不自动提交，由人确认后提交。
+单 commit：§3 全部（含可选项按实施时确认结果取舍）+ 本方案文档与 `docs/plans/README.md` 登记 + `docs/reports/PROJECT_REVIEW_REPORT.md` 复查记录对应项勾选。不自动提交，由人确认后提交。
 
 ## 5. 验收
 

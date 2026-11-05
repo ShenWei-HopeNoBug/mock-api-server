@@ -1,6 +1,6 @@
 # Qt Bridge 协议信封与分发层统一重构方案
 
-> 关联文档：[QT_BRIDGE.md](../../../QT_BRIDGE.md)（协议现行约定）、`mock-api-server-web-v3`（前端仓库）
+> 关联文档：[QT_BRIDGE.md](../../../reference/QT_BRIDGE.md)（协议现行约定）、`mock-api-server-web-v3`（前端仓库）
 > 状态：待实施
 > 范围：`lib/bridge_lib.py`（新建）/ `lib/biz_error_lib.py` / `lib/db/*` / `lib/TInteractObject.py` / `app_types/{qt_bridge_types,db_types,mcp_types}.py` / `module/mcp_server.py` / `qt_win/{mitmproxy_data_edit_dialog,download_proxy_config_dialog}.py` / `insert_test_db_data.py` / `QT_BRIDGE.md`；前端 `mock-api-server-web-v3` 两文件
 

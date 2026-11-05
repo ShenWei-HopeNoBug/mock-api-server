@@ -29,7 +29,7 @@ class QtBridgeEvent(_QtBridgeEventOptionalFields):
 QtBridgeIncomingMessage = Union[QtBridgeRequest, QtBridgeEvent]
 
 
-# Qt → JS 响应消息结构（对应 QT_BRIDGE.md 响应方向协议）
+# Qt → JS 响应消息结构（对应 docs/reference/QT_BRIDGE.md 响应方向协议）
 class QtResponsePayload(TypedDict):
   type: Literal['response']
   name: str           # 请求名称

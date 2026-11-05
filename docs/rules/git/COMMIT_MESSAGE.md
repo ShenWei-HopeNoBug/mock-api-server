@@ -56,7 +56,7 @@
 
 - `BREAKING CHANGE: <说明>`：声明破坏性变更（接口/配置/数据格式不兼容）；
 - `Generated with [Devin](https://devin.ai)` + `Co-Authored-By: Devin <...>`：agent 提交保留该 trailer；
-- 引用评审/方案条目可写 `Refs: PROJECT_REVIEW_REPORT.md §8`、`Refs: docs/v0_1_5/bugfix/xxx-plan.md`。
+- 引用评审/方案条目可写 `Refs: docs/reports/PROJECT_REVIEW_REPORT.md §8`、`Refs: docs/plans/v0_1_5/bugfix/xxx-plan.md`。
 
 ## 5. 正误例（本仓库真实提交改写对照）
 
@@ -86,6 +86,6 @@ feat(mock,db): xxx          # scope 单一，不并列
 
 - commit message 语言：subject/正文用中文，type/scope/footer 标记用英文；
 - 一个 commit 只做一件事；方案文档落地按各自「提交拆分」节执行，不自动提交；
-- **agent 不主动执行 `git commit`**：未得到明确提交指示时只完成工作区改动，由人确认后提交（与 `docs/README.md`「落地执行不自动 git commit」一致）；
+- **agent 不主动执行 `git commit`**：未得到明确提交指示时只完成工作区改动，由人确认后提交（与 `docs/plans/README.md`「落地执行不自动 git commit」一致）；
 - 合并提交（merge commit）保持默认生成信息，不套用本规范；
 - 规范文档自身变更按 `docs:` 提交。

@@ -1,6 +1,6 @@
 # 工程文件补齐方案
 
-> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「§12 工程化缺失清单」「改进建议-7」
+> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「§12 工程化缺失清单」「改进建议-7」
 > 状态：已完成
 > 范围：`.gitignore` / `LICENSE` / `CHANGELOG.md` / `pyproject.toml` / `.editorconfig` / `.python-version` / `README.md` / 存量 lint 基线
 
@@ -36,7 +36,7 @@
 | 6 | `.python-version` | 新建 | 内容 `3.13`，uv/PyCharm 自动识别 |
 | 7 | `README.md` | 增改 | 「开发工作流」小节：`uv sync` / `uv run python main.py` / `uv run python build.py` / `uv run ruff check .` |
 | 8 | 存量 lint 基线 | 清理 | `ruff check --fix` 自动修 52 处；手工复核 `F841`×3、`E721`×1 |
-| 9 | 登记勾选 | 增改 | 本文档落地 + `docs/README.md` 登记 `engineering/` 域 + 评审报告勾选 |
+| 9 | 登记勾选 | 增改 | 本文档落地 + `docs/plans/README.md` 登记 `engineering/` 域 + 评审报告勾选 |
 
 ### 3.4 pyproject.toml 目标配置
 

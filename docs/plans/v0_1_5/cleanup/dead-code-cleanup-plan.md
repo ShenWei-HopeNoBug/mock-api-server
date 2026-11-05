@@ -1,6 +1,6 @@
 # 死代码清理方案
 
-> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「§11 死代码与冗余」「改进建议-6」
+> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「§11 死代码与冗余」「改进建议-6」
 > 状态：待实施
 > 范围：`lib/{backup_lib,file_lib,hash_lib}.py` / `config/work_file.py` / `lib/download_lib.py` / `config/enum/SERVER.py` / `lib/static_file_lib.py` / `app-icon.png` / `tools/ico_transform.py`
 
@@ -40,7 +40,7 @@
 
 ## 4. 提交拆分
 
-单 commit：§3 全部 + 本方案文档与 `docs/README.md` 登记 + `PROJECT_REVIEW_REPORT.md` 勾选「死代码清理」。不自动提交，由人确认后提交。
+单 commit：§3 全部 + 本方案文档与 `docs/plans/README.md` 登记 + `docs/reports/PROJECT_REVIEW_REPORT.md` 勾选「死代码清理」。不自动提交，由人确认后提交。
 
 ## 5. 验收
 

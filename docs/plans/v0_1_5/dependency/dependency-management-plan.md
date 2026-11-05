@@ -1,6 +1,6 @@
 # 依赖管理整改方案（两步走）
 
-> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../PROJECT_REVIEW_REPORT.md)「改进建议-1」
+> 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「改进建议-1」
 > 状态：Step 1 已完成（`5b4dc12`）；Step 2 已实施待提交
 > 范围：`requirements.txt` / `package.txt` / `requirements-dev.txt` / `.gitattributes` / `pyproject.toml` / `README.md` / `config/globals.py` / `gen_requirements.py`
 

@@ -33,11 +33,14 @@
 
 本地 MCP 服务向 Agent 暴露 mock 接口与响应变体的完整 CRUD 工具，另含变体跨接口复制能力。
 
+> 注：mock 数据在 mock 服务启动时加载为匹配映射，运行期间增删改 mock 数据需重启服务后生效。
+
 ## 环境要求
 
 - 操作系统：64 位 Windows 10 及以上（含 Windows 11）；不支持 Windows 7 / 8 / 8.1（Qt6/PySide6 最低要求 Windows 10）
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/)（依赖与环境管理，`pip install uv` 或 winget 安装）
+- 前端构建产物（可选）：数据管理界面（WebView 弹窗）依赖 `appServer/` 静态产物，由前端仓库 `mock-api-server-web-v3` 构建后拷贝至本目录；未提供时应用正常启动，仅数据管理弹窗无内容
 
 ## 快速开始
 
@@ -54,6 +57,24 @@ uv sync
 ```bash
 uv run python main.py
 ```
+
+## 目录结构
+
+| 目录 | 说明 |
+|---|---|
+| `main.py` | 应用入口（QApplication、全局异常、单实例检查） |
+| `module/` | 本地服务：mock 服务、APP 前端服务、mitmproxy 抓包、MCP 服务 |
+| `lib/` | 业务逻辑层：DB 访问、静态文件处理、下载、Qt Bridge、日志、工具函数 |
+| `qt_win/` | PySide6 窗口与弹窗逻辑层 |
+| `qt_ui/` | 界面层：`.ui` 源文件 + `pyside6-uic` 生成物（不手改）+ 样式 |
+| `config/` | 常量、枚举、路由、菜单与工作文件定义 |
+| `schema/` | SQLite 建表脚本（按版本 `vN.sql`） |
+| `appServer/` | 前端构建产物目录（由 web-v3 仓库生成，不入库） |
+| `docs/` | 项目文档总目录（plans / rules / reference / reports，地图见 `docs/README.md`） |
+| `resources/` | mitmproxy CA 证书压缩包等静态资源 |
+| `tools/` | 杂项工具脚本（ico 转换等） |
+| `server/` | 默认工作目录（`config/` JSON 配置、`data/mock.db`、`static/`、`download/`、`output/`），运行时生成不入库 |
+| `system/` `logs/` | 运行时数据：历史配置与滚动日志，不入库 |
 
 ## 工具命令
 
@@ -93,3 +114,14 @@ uv add --dev <pkg>         # 新增开发依赖
 - `/system/shutdown` 仅接受来自 `127.0.0.1` 的 `POST` 请求，局域网设备无法远程关闭服务；
 - mitmproxy 与 mock 服务按设计需对局域网可达（被测设备直连）；在不可信的网络环境（如公共 WiFi）中请勿开启抓包与 mock 服务；
 - `resources/.mitmproxy-ca.7z` 为 mitmproxy CA 证书压缩包，供移动设备安装信任以抓取 HTTPS 流量。
+
+## 文档
+
+- [docs/README.md](docs/README.md) —— 项目文档总地图（方案存档 / 规范 / 参考 / 报告四类）
+- [docs/reference/QT_BRIDGE.md](docs/reference/QT_BRIDGE.md) —— Qt Bridge 桥接协议分层说明
+- [docs/reports/PROJECT_REVIEW_REPORT.md](docs/reports/PROJECT_REVIEW_REPORT.md) —— 项目评审与复查记录（问题台账）
+- [AGENTS.md](AGENTS.md) —— agent 与协作者入口索引（规则、命令、红线）
+
+## License
+
+MIT，见 [LICENSE](LICENSE)。
