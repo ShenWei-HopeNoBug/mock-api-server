@@ -261,3 +261,4 @@
 | 下载失败日志记 `success: True` | ✅ 已修复 | flag 修正 + 日志块收敛 `append_log` + `.part` 原子写 + compress 拆独立 try（方案：`docs/plans/v0_1_5/bugfix/download-log-success-flag-plan.md`）；连带消除「残缺文件自锁」与压缩失败语义污染 |
 | schema 迁移无事务 | ✅ 已修复 | 迁移整体包 `_transaction`（`user_version` 与 DDL 原子提交）+ 全部 `ADD COLUMN` 幂等化；实测顺带修通 v≤2 老库升级必崩路径（`_init_schema` 预建最新形态表所致）（方案：`docs/plans/v0_1_5/bugfix/schema-migration-transaction-plan.md`） |
 | `_should_use_throttled` 死分支 | ✅ 已收敛 | 非 bug：`bdf9f4c` 为修复视频全量下载拿到空 body 有意改为全类型节流，残留 `if _is_image: True` 半截分支；方法简化为 `return self.static_load_speed > 0`，docstring 记录探测机制废弃史（无 plan 文档，改动不足立项） |
+| mitmproxy 启动失败误报 RUNNING（新发现 #1） | ✅ 已修复 | `start_catch_server` 拆分入口+同步实现；等待改 ready/死亡双通道轮询（早夭秒回）；失败三态统一 terminate+清理+弹窗+READY；入口 try/except 防 START_WAIT 卡死；`run_mitmproxy` 补 BaseException 落盘；`_cleanup_in_thread` 补孤儿兜底（方案：`docs/plans/v0_1_5/bugfix/mitmproxy-start-failure-running-plan.md`）；实测发现 `127.0.0.1`-only 占用在 Windows 下不崩而是静默劫持端口，仍归问题 #2 独立立项 |

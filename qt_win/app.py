@@ -554,9 +554,31 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     output_dialog = OutputStaticDialog(work_dir=self.work_dir)
     output_dialog.exec()
 
+  # 强制终止 mitmproxy 子进程并清理引用
+  def _terminate_mitmproxy_process(self, reason: str, timeout: int = 3) -> None:
+    if self.mitmproxy_process is None:
+      return
+    if self.mitmproxy_process.is_alive():
+      APP_LOGGER.warning(f'{reason}，强制终止子进程！port={self.catch_server_port}')
+      self.mitmproxy_process.terminate()
+      self.mitmproxy_process.join(timeout=timeout)
+    self.mitmproxy_process = None
+    self.mitmproxy_stop_event = None
+    self.mitmproxy_ready_event = None
+
   # 启动抓包服务
   @create_thread
   def start_catch_server(self) -> None:
+    try:
+      self._start_catch_server()
+    except Exception as e:
+      APP_LOGGER.error(f'启动抓包服务异常：{e}', exc_info=True)
+      self._terminate_mitmproxy_process(reason='启动抓包服务异常')
+      self.message_dialog_signal.emit('critical', '启动失败', '抓包服务启动异常，请检查日志！')
+      self.mitmproxy_server_status_signal.emit('READY')
+
+  # 启动抓包服务（同步）
+  def _start_catch_server(self) -> None:
     # 抓包服务还在运行中，跳过
     if self.mitmproxy_process is not None and self.mitmproxy_process.is_alive():
       self.mitmproxy_server_status_signal.emit('READY')
@@ -590,11 +612,30 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       ready_event=self.mitmproxy_ready_event,
       stop_event=self.mitmproxy_stop_event,
     )
-    # 阻塞等待子进程就绪信号，最多等待 10 秒
-    ready = self.mitmproxy_ready_event.wait(timeout=10)
-    if not ready:
-      APP_LOGGER.warning('mitmproxy 服务启动超时（10s），请检查日志...')
-    self.mitmproxy_server_status_signal.emit('RUNNING')
+    # 双通道轮询：ready_event 置位或子进程死亡任一先到即结束等待，最多 10 秒
+    deadline = time.monotonic() + 10
+    ready = False
+    while time.monotonic() < deadline:
+      if self.mitmproxy_ready_event.wait(timeout=0.2):
+        ready = True
+        break
+      if not self.mitmproxy_process.is_alive():
+        break
+
+    if ready:
+      self.mitmproxy_server_status_signal.emit('RUNNING')
+      return
+
+    # 启动失败：子进程已死 或 超时未就绪（仍 alive 的半死进程须终止防孤儿）
+    if not self.mitmproxy_process.is_alive():
+      APP_LOGGER.error(f'mitmproxy 子进程启动失败退出，exitcode={self.mitmproxy_process.exitcode}')
+      fail_reason = '抓包子进程启动失败已退出'
+    else:
+      APP_LOGGER.error('mitmproxy 服务启动超时（10s），判定启动失败')
+      fail_reason = '抓包服务启动超时'
+    self._terminate_mitmproxy_process(reason=f'mitmproxy 启动失败（{fail_reason}）')
+    self.message_dialog_signal.emit('critical', '启动失败', f'{fail_reason}，请检查日志！port={self.catch_server_port}')
+    self.mitmproxy_server_status_signal.emit('READY')
 
   # 停止抓包服务（同步）
   def _stop_catch_server(self) -> None:
@@ -936,6 +977,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if self.mitmproxy_server_status == 'RUNNING':
       self.cleanup_progress_signal.emit('正在清理抓包服务…')
       self._stop_catch_server()
+    elif self.mitmproxy_process is not None and self.mitmproxy_process.is_alive():
+      self.cleanup_progress_signal.emit('正在清理抓包服务…')
+      self._terminate_mitmproxy_process(reason='退出清理：检测到 mitmproxy 孤儿子进程仍在运行', timeout=5)
     if self.server_status == 'RUNNING':
       self.cleanup_progress_signal.emit('正在清理 Mock 服务…')
       self._stop_server()

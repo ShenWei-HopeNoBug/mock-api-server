@@ -77,6 +77,10 @@ def run_mitmproxy(
       ready_event=ready_event,
       stop_event=stop_event,
     ))
+  except BaseException as e:
+    # SystemExit（端口绑定失败经 errorcheck 退出）与 Exception 一并记录后原样抛出
+    CATCH_LOGGER.error(f'mitmproxy 子进程退出：{type(e).__name__} {e}', exc_info=True)
+    raise
   finally:
     loop.close()
 

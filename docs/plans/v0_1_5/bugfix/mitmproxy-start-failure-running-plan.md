@@ -1,7 +1,7 @@
 # mitmproxy 启动失败误报 RUNNING 修复方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT.md](../../../reports/PROJECT_REVIEW_REPORT.md)「复查记录：2026-11-04」🆕 新发现问题 #1（联动 #2）
-> 状态：待实施
+> 状态：已实施（2026-11-05）
 > 范围：`qt_win/app.py`、`module/asyncio_mitmproxy_server.py`
 
 ## 1. 背景
@@ -169,7 +169,7 @@ uv run ruff check .   # 保持归零
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| - | - | - | - |
+| 2026-11-05 | 按 §3.1-3.4 全部实施 | `ruff` 归零；临时脚本三场景实测通过：0.0.0.0 占用→DEAD exitcode=1（1.43s）、配置损坏→DEAD exitcode=1（1.42s）、正常启动→READY（1.14s） | 验证用临时脚本未入库；实测发现 Windows 下 `127.0.0.1`-only 占用**不会**导致 mitmproxy `0.0.0.0` bind 失败（Windows SO_REUSEADDR 语义允许重复绑定），该形态为「静默劫持端口」而非崩溃——更凸显问题 #2 双地址预检的必要性，本方案不覆盖 |
 
 ## 8. 方案修正
 
