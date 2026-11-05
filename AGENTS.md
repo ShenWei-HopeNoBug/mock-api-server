@@ -11,6 +11,7 @@ uv sync                    # 安装/同步依赖（含 dev 组）
 uv run python main.py      # 运行应用
 uv run ruff check .        # lint（要求归零）
 uv run ruff check --fix .  # 自动修复
+uv run pytest              # 单元测试（tests/，镜像源码结构）
 uv run python build.py     # PyInstaller 打包（产出带/不带黑窗两个 exe）
 ```
 

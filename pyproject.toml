@@ -45,6 +45,11 @@ constraint-dependencies = [
   "mitmproxy-windows==0.12.11",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
 [tool.ruff]
 target-version = "py313"
 line-length = 120
