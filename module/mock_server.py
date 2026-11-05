@@ -219,13 +219,22 @@ class MockServer:
       f"{self.static_url_path}/*": {"origins": "*", "allow_headers": "*"},
     }
 
-    # 限速策略
+    # 限速策略（throttle_strategy 来自手工可编辑的 JSON 配置，策略名非法导致
+    # create_throttle 返回 None 时回退默认策略，避免静态请求空引用全 500）
     MOCK_LOGGER.info(f'当前生效的静态资源限速策略：{self.throttle_strategy}')
     throttle_strategy = create_throttle(
       strategy=self.throttle_strategy,
       speed_kbps=self.static_load_speed,
       max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
     )
+    if throttle_strategy is None and self.throttle_strategy != DEFAULT_THROTTLE_STRATEGY:
+      MOCK_LOGGER.warning(
+        f'限速策略创建失败，回退默认策略：{self.throttle_strategy} -> {DEFAULT_THROTTLE_STRATEGY}')
+      throttle_strategy = create_throttle(
+        strategy=DEFAULT_THROTTLE_STRATEGY,
+        speed_kbps=self.static_load_speed,
+        max_delay=SERVER.STATIC_MATCH_MAX_DELAY_SECONDS,
+      )
 
     static_handler: StaticFileHandler = StaticFileHandler(
       work_dir=self.work_dir,

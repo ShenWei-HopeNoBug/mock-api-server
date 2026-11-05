@@ -4,6 +4,7 @@ import os
 import pytest
 
 from lib.static_file_lib import StaticFileHandler
+from lib.throttle_lib import create_throttle
 
 
 @pytest.fixture()
@@ -153,3 +154,31 @@ def test_if_range(static):
   assert static._check_if_range(stat, {'If-Range': etag}) is True        # ETag 强比较命中
   assert static._check_if_range(stat, {'If-Range': f'W/{etag}'}) is False  # 弱 ETag 拒绝
   assert static._check_if_range(stat, {'If-Range': '"other"'}) is False
+
+
+# ---------- _should_use_throttled / 无策略降级 ----------
+
+
+def test_should_use_throttled_requires_strategy(tmp_path):
+  # 限速开启但无策略实例（策略名非法/未注入）→ False，降级 direct 不限速
+  handler = StaticFileHandler(
+    work_dir=str(tmp_path), static_load_speed=100, static_folder='static', max_delay=5)
+  assert handler._should_use_throttled() is False
+
+
+def test_should_use_throttled_with_strategy(tmp_path):
+  # 限速开启 + 有效策略实例 → True，走节流路径
+  throttle = create_throttle('CHUNK_SLEEP', speed_kbps=100, max_delay=5)
+  handler = StaticFileHandler(
+    work_dir=str(tmp_path), static_load_speed=100, static_folder='static',
+    max_delay=5, throttle_strategy=throttle)
+  assert handler._should_use_throttled() is True
+
+
+def test_match_no_throttle_degrades_to_direct(static, tmp_path, flask_app):
+  # 限速开启但无策略实例时 match() 走 direct 正常出文件，不抛 AttributeError
+  handler = StaticFileHandler(
+    work_dir=str(tmp_path), static_load_speed=100, static_folder='static', max_delay=5)
+  with flask_app.test_request_context('/a.txt'):
+    resp = handler.match('a.txt', {})
+  assert resp.status_code == 200

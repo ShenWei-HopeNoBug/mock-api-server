@@ -346,3 +346,13 @@
 2. #4-#6 启动快报 / 抓包容错 / shutdown timeout（真实会咬人的边角）；
 3. 台账大头：basename 碰撞、下载校验、ConfigFileManager 原子写+锁；
 4. #7-#11 零碎项合并一个小修复批次。
+
+---
+
+## 处理进展：2026-11-05（第三次复查后修复）
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 未知限速策略 → 静态请求全 500（新发现 #1） | ✅ 已修复 | `start_server` 在 `create_throttle` 返回 `None` 时回退 `DEFAULT_THROTTLE_STRATEGY` 重建并记 warning（`mock_server.py:222-237`）；`_should_use_throttled` 补 `self._throttle is not None` 判空兜底，策略缺位降级 direct 不限速（`static_file_lib.py:120`）；`test_static_file_lib` 补 3 例（无策略降级 / 有策略走节流 / `match` 端到端 200）（无 plan 文档，改动不足立项） |
+| 打包版窗口标题显示 `v0.0.0`（新发现 #2） | ✅ 已修复 | `app.py:175` 标题改用 `app_env.VERSION`（打包态取 `_build_config` 编译值，与 AboutDialog 同口径；开发态回退 `globals.version` 不变），顺带移除 `from config import globals` 死导入（无 plan 文档，改动不足立项） |
+| 导出弹窗标题兜底写反（新发现 #3） | ✅ 已修复 | `output_static_dialog.py:99,101` 兜底字面量互换为 critical→'异常' / information→'提示'，与 `app.py` 写法对齐；当前两处 emit 均显式传 title 属休眠 bug，预防性修正（无 plan 文档，改动不足立项） |

@@ -96,9 +96,9 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       return
 
     if dialog_type == 'critical':
-      QMessageBox.critical(self, title or '提示', message)
+      QMessageBox.critical(self, title or '异常', message)
     else:
-      QMessageBox.information(self, title or '异常', message)
+      QMessageBox.information(self, title or '提示', message)
 
   # 设置选中索引
   def set_select_row(self, value: int) -> None:

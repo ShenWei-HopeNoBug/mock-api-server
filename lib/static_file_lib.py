@@ -111,11 +111,13 @@ class StaticFileHandler:
     判断当前请求是否应走节流读取。
 
     规则：限速开启后所有资源类型统一走节流（无 Range 时 200 节流全量，有 Range 时 206 节流分片）。
+    限速开启但无有效策略实例时（策略创建失败/未注入）降级为 direct 不限速，
+    避免 self._throttle 为 None 导致 create_reader 空引用。
 
     历史：曾按类型分流——视频无 Range 走 direct 探测响应（200 empty 引导浏览器改发
     Range），因视频全量下载会拿到空 body 于 bdf9f4c 废弃，改为全类型节流。
     """
-    return self.static_load_speed > 0
+    return self.static_load_speed > 0 and self._throttle is not None
 
   def _serve_direct(
       self,

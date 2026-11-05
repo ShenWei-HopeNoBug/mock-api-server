@@ -25,7 +25,6 @@ import app_env
 from app_types.app_gui_types import AppServerRunningData
 from app_types.mcp_server_types import McpServerRunConfig
 from app_types.mitmproxy_types import MitmproxyRunConfig
-from config import globals
 from config.menu import EDIT, FILE, HELP
 from config.work_file import DEFAULT_WORK_DIR, STATIC_DIR
 from lib.app_lib import (
@@ -173,7 +172,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def init_ui(self) -> None:
     self.setupUi(self)
     self.setFixedSize(self.width(), self.height())
-    self.setWindowTitle(f'Mock Server {globals.version}')
+    self.setWindowTitle(f'Mock Server {app_env.VERSION}')
     self.setWindowOpacity(0.95)
     self.setStyleSheet(main_win_style.window)
 
