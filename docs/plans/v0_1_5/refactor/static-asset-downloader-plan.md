@@ -1,7 +1,7 @@
 # 下载执行簇类化封装方案
 
 > 关联文档：无直接台账条目（主动重构，非评审问题项）
-> 状态：待实施
+> 状态：已实施（2026-11-05）
 > 范围：`lib/download_lib.py` 重构 + `app_types/download_types.py` 一行注释
 
 ## 1. 背景
@@ -131,7 +131,7 @@ uv run ruff check .                    # 归零
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| — | 待实施 | — | — |
+| 2026-11-05 | 按 §3 全部实施 | `ruff check` 归零 + `py_compile` 通过 | `_download_one` 内按原分支语义分布 `_write_log` 调用点；`session` 注入留点默认 `requests` 模块 |
 
 ## 10. 方案修正
 

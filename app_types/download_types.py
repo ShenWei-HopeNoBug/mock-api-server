@@ -9,7 +9,7 @@ class DownloadProxyItem(TypedDict, total=False):
   """
   单条下载代理配置（对应 download_config.json 中 download_proxy_list 的元素）
 
-  消费端 get_download_proxies 通过 conf.get(key, 默认值) 读取，
+  消费端 StaticAssetDownloader._get_proxies 通过 conf.get(key, 默认值) 读取，
   因此所有字段均为可选，缺省时走默认值。
   """
   protocol: str        # 代理协议，如 'http' / 'https'，对应 requests 的 proxies key
