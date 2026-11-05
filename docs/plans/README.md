@@ -65,6 +65,14 @@ Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（D
 |---|---|---|---|
 | [qt-bridge-refactor-plan](v0_1_5/qt-bridge/qt-bridge-refactor-plan.md) | `lib/bridge_lib.py` / `lib/db/*` / `module/mcp_server` / `qt_win` 两弹窗 / 前端两文件 | 两阶段实施（信封收敛 → 分发层抽离），含风险与验收 | 待实施 |
 
+### refactor/
+
+结构重构：在不改变外部行为的前提下收敛内部组织。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [static-asset-downloader-plan](v0_1_5/refactor/static-asset-downloader-plan.md) | `lib/download_lib.py` | 下载执行簇封装 `StaticAssetDownloader`（实例化类、session 注入留点），薄入口兼容 + 单 commit | 待实施 |
+
 ### security/
 
 安全面收敛：app_server 收 `127.0.0.1`、`/system/shutdown` POST + 回环校验、LAN 暴露面文档。
