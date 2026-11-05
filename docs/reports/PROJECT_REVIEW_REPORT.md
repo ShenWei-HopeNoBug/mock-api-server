@@ -267,3 +267,82 @@
 | 多进程共写同一日志文件（新发现 #4） | ✅ 已修复 | `logger_lib` 重构为两阶段（import 零副作用 + `configure_logging` 按角色挂 handler）：父进程独占文件/控制台 handler + `mp.Queue` + `QueueListener` 单点写盘，子进程仅 `QueueHandler` 投递；四 spawn 点传 `get_log_queue()`、四入口首行 `configure_logging('child')`；`LOG_FORMAT` 加 `%(processName)s` 可溯来源；实测子进程记录到达、轮转 rename 无冲突（方案：`docs/plans/v0_1_5/logging/multiprocess-logging-queue-plan.md`） |
 | 零自动化测试（原报告 #1） | ✅ 已实施（不含 CI） | `tests/` 镜像源码结构 + conftest 共享 fixture（tmp_work_dir/mock_db/flask_app/make_handler）+ pytest ini；首批 113 例覆盖 utils/server_lib/static_file 纯逻辑、db CRUD 与迁移幂等、BridgeDispatcher 队列语义、logger 两阶段配置；`ruff` 归零；顺带抓出 `configure_logging` 置位污染存量 bug 已单独修复（方案：`docs/plans/v0_1_5/engineering/pytest-baseline-plan.md`）；CI 明确不做 |
 | 端口占用探测不一致（新发现 #2） | ✅ 已修复 | `check_local_connection` 按 `laddr.ip` 精确匹配，单探 `0.0.0.0` 漏 `127.0.0.1` 占坑 → Windows 下 wildcard+loopback 绑定共存、回环静默劫持（mitmproxy 显示 RUNNING 实则流量被劫）；新增 `is_local_port_occupied` 单扫描覆盖 `0.0.0.0`/`127.0.0.1`/`::`/`::1` 探测集，mitmproxy/mock/MCP 三处启动前检查替换，app_server 既有双探顺手统一；`CODE_RULES.md` 补探测规则；既定漏报边界：具体网卡 IP 占坑不探（避免误伤无辜服务）（方案：`docs/plans/v0_1_5/bugfix/port-dual-address-check-plan.md`） |
+
+---
+
+## 复查记录：2026-11-05（第三次复查）
+
+> 复查范围：全量代码逐项核验 + 台账逐条对照（基线：`ruff` 归零、`pytest` 119 过 1 skip）
+> 结论：台账两处「仍存留」标记已验证实际落地；其余存留项原样；另发现 16 个新引入/遗漏问题（含 3 个确定性 bug）。
+
+### ✅ 台账修正（二次复查标记未解决，本次验证已落地）
+
+| 二次复查条目 | 验证结果 |
+|---|---|
+| README 未提 `appServer/` 前端产物依赖 | 已写明（`README.md:43`，随 `fc2c383` 落地） |
+| mock 数据运行期修改需重启未说明 | 已写明（`README.md:36`「运行期间增删改 mock 数据需重启服务后生效」） |
+
+### ❌ 仍存留（台账未关闭项，位置以当前代码为准）
+
+| 项 | 位置 |
+|---|---|
+| basename 扁平化碰撞 | `static_file_lib.py:53`、`download_lib.py:332,396`、`output_static_files`(:102) |
+| 下载零校验（无 scheme 白名单/大小上限/全量进内存） | `download_lib.py:431,444` |
+| ConfigFileManager 无锁、非原子写、静默兜底 | `utils_lib.py:260-374` |
+| N+1 查询（3 次分类型全表 + 逐行查变体） | `app_lib.py:218-235`、`mock_server.py:184` |
+| `sleep(1)` + `/ping` 就绪轮询 | `app_server.py:106`、`qt_win/app.py:748,823` |
+| `create_thread` 丢句柄/异常 | `decorate.py:97-103` |
+| `select_work_dir` 不 close 旧 DB | `qt_win/app.py:337-350` |
+| CORS `*`（已收窄至静态路由） | `mock_server.py:219,253` |
+| 正则/LIKE 未转义 | `utils_lib.py:386-392`、`api_data.py:229-236`、`variants.py:293-297` |
+| `gethostbyname` / 末位 fallback / `is_app_running` 静默 True | `utils_lib.py:60`、`server_lib.py:356`、`app_lib.py:57` |
+| GET/POST-only + jsonify+200 | `mock_server.py:273`、`server_lib.py:405` |
+| spec 正则 hack / appServer 不进 `--add-data` | `build.py:46-83,105-107` |
+| `insert_test_db_data.py` 留根目录 | 根目录 |
+| `file_lib`/`hash_lib` 死代码 | 用户拍板保留，转可接受项 |
+
+### 🆕 新发现问题（第三次复查）
+
+**🔴 确定性 bug：**
+
+| # | 问题 | 位置 | 说明 |
+|---|---|---|---|
+| 1 | 未知限速策略 → 静态请求全 500 | `throttle_lib.py:627-632` → `static_file_lib.py:241` | `create_throttle` 对未知策略返回 `None`；`static_load_speed>0` 时 `self._throttle.create_reader(...)` 抛 AttributeError。`throttle_strategy` 来自手工可编辑 JSON，typo 即炸。修法：失败时回退 `DEFAULT_THROTTLE_STRATEGY` |
+| 2 | 打包版窗口标题显示 `v0.0.0` | `qt_win/app.py:176` | 标题用 `globals.version` 读 `pyproject.toml`，但该文件不在 `--add-data` → exe 内 fallback `'v0.0.0'`；AboutDialog 已走正确路径 `app_env.VERSION`（`about_dialog.py:44`），标题应对齐 |
+| 3 | 导出弹窗标题兜底写反 | `output_static_dialog.py:99-101` | critical→'提示'、information→'异常'，与 `app.py:332-334` 正确写法颠倒 |
+
+**🟡 可靠性/一致性：**
+
+| # | 问题 | 位置 | 说明 |
+|---|---|---|---|
+| 4 | mock/MCP 启动仍是 ping 单通道轮询 | `qt_win/app.py:749,824` | mitmproxy 已改 ready/死亡双通道，此两处未跟进；子进程早夭（如 `mock_server_config.json` 损坏，`mock_server.py:110-111` 裸 `json.loads`）要等满 ~20s 才报失败，应补 `is_alive()` 短路 |
+| 5 | 抓包遇畸形 JSON body 炸 addon | `request_catch.py:128` | `format_json_string` 无 try，声明 json 但 body 非法 → `response()` 抛异常 → addon error + 该条记录丢失，应 fallback `'{}'` |
+| 6 | shutdown 请求无 timeout | `qt_win/app.py:774,899` | `requests.post` 裸调，服务假死 → STOP_WAIT 永久卡死 |
+| 7 | `bind_variants_to_api` 静默成功 | `variants.py:450-458` | 不查 rowcount，api_data_id 不存在也返回成功 no-op（同类操作均有存在性校验） |
+| 8 | DB 读改写 TOCTOU | `api_data.py:358`、`variants.py:132,177,369,414` | 锁外 SELECT → 释放 → `_transaction` 再写，并发下字段合并基于过期值（last-writer-wins） |
+| 9 | `MockDBCache` 无锁 | `cache.py:16-21` | check-then-create 非原子，并发 `get` 双开连接、覆盖泄漏其一 |
+| 10 | `_ensure_open` 不吞异常 | `api_data.py:96,143`、`variants.py:95,150` | `format_json_string` 在 try 外，非法 JSON 裸抛，与 OperationResult 契约不一致（bridge 兜底映射 PARAM_INVALID） |
+| 11 | MCP 运行时不禁换工作目录 | `qt_win/app.py:483-505` | 其余三个状态变更均 disable `FILE.CHANGE_WORK_DIR`，此分支遗漏 → GUI 新目录与 MCP 旧目录 DB 并存 |
+
+**🟡 小项：**
+
+- `MockRequestHandler._state_locks` 只增不删（`server_lib.py:234-243`）：device 状态 LRU 限 1000，锁对象无上限；
+- `start_percent_timer` 非 daemon（`splash.py:173`）：启动期崩溃 → 线程空转、进程退不掉；
+- `compress_image` 对 RGBA PNG `quantize` 必抛 → 每次下载记 warning 且永不压缩（`utils_lib.py:251`）；
+- `static_match_route` 用 `startswith` 过滤，`/api2`、`/static2` 等合法前缀误伤（`mock_server.py:122`）；
+- 416 响应也打 `max-age=3600` 强缓存（`static_file_lib.py:434`），语义存疑；
+- CWD 相对路径（`./system`、`./logs`、`./server`、`./appServer`）：非 exe 目录启动时运行时数据落位错乱；
+- bridge `page_size` 无上限（`mitmproxy_data_edit_dialog.py:179`，MCP 侧 clamp 100，两侧不一致）；
+- 抓包过滤 UI 提示「包含字符串」实为正则语义（`mitmproxy_config_dialog.py:59` tooltip 与 `is_url_match` 行为不符）。
+
+**🟢 死代码/冗余：**
+
+- `config/enum/MITMPROXY.py` 空文件，零引用；
+- `check_local_connection` 已零调用方（`utils_lib.py:201`，shutdown 实际走 `find_connection_process`）。
+
+### 复查后建议优先级
+
+1. 新发现 #1-#3 确定性 bug（改动小，优先修）；
+2. #4-#6 启动快报 / 抓包容错 / shutdown timeout（真实会咬人的边角）；
+3. 台账大头：basename 碰撞、下载校验、ConfigFileManager 原子写+锁；
+4. #7-#11 零碎项合并一个小修复批次。
