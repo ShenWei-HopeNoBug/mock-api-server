@@ -8,6 +8,14 @@
 
 当前版本工作目录，按功能域分设子目录。
 
+### bugfix/
+
+评审「§8 明确的 bug」逐项修复方案存档。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [download-log-success-flag-plan](v0_1_5/bugfix/download-log-success-flag-plan.md) | `lib/download_lib.py` | 下载失败日志 `success:True` 修正 + 日志块收敛 + `.part` 原子写 + compress 拆 try，单 commit | 待实施 |
+
 ### cleanup/
 
 死代码清理：backup_lib/file_lib/hash_lib 删除、`BACKUP_DIR` 摘除、`white_` 命名修正与散件清理。
