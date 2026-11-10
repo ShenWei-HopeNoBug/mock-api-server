@@ -79,6 +79,7 @@ Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（D
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
 | [static-asset-downloader-plan](v0_1_5/refactor/static-asset-downloader-plan.md) | `lib/download_lib.py` | 下载执行簇封装 `StaticAssetDownloader`（实例化类、session 注入留点），薄入口兼容 + 单 commit | 待实施 |
+| [mock-api-load-plan](v0_1_5/refactor/mock-api-load-plan.md) | `lib/app_lib.py` / `lib/db/*` / `app_types/db_types.py` / `config/enum/SERVER.py` / `module/mock_server.py` | 三次类型查询合一（`api_types` IN 白名单 + 稳定排序）+ `create_api_map` 变体 N+1 消除（批量轻量元数据 + 降级），单 commit | 待实施 |
 
 ### security/
 
