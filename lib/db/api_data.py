@@ -213,6 +213,7 @@ class ApiDataMixin:
     where_clauses = []
     sql_params: list = []
     api_type = query.get('api_type')
+    api_types = query.get('api_types')
     url_like = query.get('url_like')
     params_like = query.get('params_like')
     response_like = query.get('response_like')
@@ -225,6 +226,10 @@ class ApiDataMixin:
     if api_type is not None:
       where_clauses.append('type = ?')
       sql_params.append(api_type)
+    if api_types:
+      placeholders = ','.join('?' * len(api_types))
+      where_clauses.append(f'type IN ({placeholders})')
+      sql_params.extend(api_types)
     if url_like:
       where_clauses.append('url LIKE ?')
       sql_params.append(f'%{url_like}%')

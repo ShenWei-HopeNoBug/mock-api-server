@@ -1,7 +1,7 @@
 # mock api 数据加载查询收敛方案
 
 > 关联文档：[PROJECT_REVIEW_REPORT](../../../reports/PROJECT_REVIEW_REPORT.md) §95 / §224（三次分类型全表查询 + 变体 N+1）；[TEST_GROUP_DESIGN_DISCUSSION](../../../discussions/TEST_GROUP_DESIGN_DISCUSSION.md) §2.2 优先级叙事 / §3 存量查询过滤点
-> 状态：待实施
+> 状态：已实施（2026-11-10）
 > 范围：`lib/app_lib.py` / `lib/db/api_data.py` / `lib/db/variants.py` / `app_types/db_types.py` / `config/enum/SERVER.py` / `module/mock_server.py` + 测试
 
 ## 1. 背景
@@ -226,7 +226,7 @@ uv run pytest          # 全绿
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| - | 待实施 | - | - |
+| 2026-11-10 | 按 §3.1–3.7 全部实施 | `ruff check` 归零 + `pytest` 127 过 1 skip | `test_app_lib.py` 增补 `enabled` 过滤用例；`PROJECT_REVIEW_REPORT` 追加「处理进展：2026-11-10」台账 |
 
 ## 10. 方案修正
 

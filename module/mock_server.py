@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
 
-from app_types.db_types import ApiData, ApiResponseVariant
+from app_types.db_types import ApiData, ApiResponseVariantMeta
 from app_types.mock_server_types import (
   ClientStateResult,
   FlaskRouteResult,
@@ -147,10 +147,21 @@ class MockServer:
     4. 不加载 response 文本，不解析 JSON，不关闭 DB，响应体由 MockRequestHandler 按需加载。
     """
     mock_api_map: MockApiMap = {}
-    # 所有的 mock 数据列表（MITMPROXY 在前、USER 在后，各自按 created_at 旧→新排序，仅启用状态）
+    # 所有的 mock 数据列表（按 MOCK_API_TYPE_PRIORITY 优先级分段，段内 created_at/id 正序，仅启用状态）
     mock_api_data_list: List[ApiData] = get_mock_api_data_list(work_dir=self.work_dir, enabled=True)
 
     mock_db = MockDBCache.get(self.work_dir)
+
+    # 一次批量查询全部启用变体的轻量元数据并按 api_data_id 分组（id 键保持查询序），
+    # 替代逐行 get_variants_by_api_id 的 N+1 查询与 response 大文本加载；
+    # 查询失败时降级为空映射，所有接口走主响应兜底而非整个 map 构建失败
+    variant_metas_by_api: Dict[str, Dict[str, ApiResponseVariantMeta]] = {}
+    try:
+      api_data_ids: List[str] = [row['id'] for row in mock_api_data_list]
+      for m in mock_db.get_variant_metas_by_api_ids(api_data_ids, enabled=True):
+        variant_metas_by_api.setdefault(m['api_data_id'], {})[m['id']] = m
+    except Exception as e:
+      MOCK_LOGGER.warning(f'变体元数据批量查询失败，全部接口降级为主响应：{e}')
 
     for row_data in mock_api_data_list:
       data = {**SERVER.MOCK_API_DATA_DEFAULTS, **row_data}
@@ -180,11 +191,14 @@ class MockServer:
           self.__get_params_json_string(params),
         )
 
-        # 获取启用的变体元数据列表（按 response_variant_ids 顺序）
-        variants: List[ApiResponseVariant] = mock_db.get_variants_by_api_id(api_data_id, enabled=True)
+        # 启用的变体元数据列表（按 response_variant_ids 顺序，未在列表中的排最后）
+        order_map = {v: i for i, v in enumerate(data['response_variant_ids'])}
         variant_metas: List[VariantMeta] = [
-          {'id': v['id'], 'timeout': v['timeout']}
-          for v in variants
+          {'id': m['id'], 'timeout': m['timeout']}
+          for m in sorted(
+            variant_metas_by_api.get(api_data_id, {}).values(),
+            key=lambda m: order_map.get(m['id'], len(order_map)),
+          )
         ]
 
         mock_api_map[request_key][response_key] = {

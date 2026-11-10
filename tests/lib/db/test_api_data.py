@@ -58,6 +58,15 @@ def test_method_filter(mock_db):
   assert mock_db.get_api_count(ApiQuery(method='POST')) == 1
 
 
+def test_api_types_filter(mock_db):
+  mock_db.insert_api(_api(url='/a', type='USER'))
+  mock_db.insert_api(_api(url='/b', type='MITMPROXY'))
+  mock_db.insert_api(_api(url='/c', type='MCP'))
+  mock_db.insert_api(_api(url='/d', type='TEST_GROUP'))
+  rows = mock_db.get_api_list(ApiQuery(api_types=['USER', 'MCP']))
+  assert {r['url'] for r in rows} == {'/a', '/c'}
+
+
 def test_update_api(mock_db):
   r = mock_db.insert_api(_api())
   r2 = mock_db.update_api(ApiRecord(id=r['id'], url='/api/y', timeout=500))

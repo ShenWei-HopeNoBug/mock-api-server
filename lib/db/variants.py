@@ -6,6 +6,7 @@ from typing import Callable, ContextManager, List, Optional
 from app_types.db_types import (
   ApiResponseVariant,
   ApiResponseVariantInsertRecord,
+  ApiResponseVariantMeta,
   ApiResponseVariantRecord,
   OperationResult,
   OperationResultWithOptionalId,
@@ -272,6 +273,42 @@ class ApiResponseVariantMixin:
       })
     # 按 api_data.response_variant_ids 中的顺序排列，未在列表中的放最后
     result.sort(key=lambda v: order_map.get(v['id'], len(order_map)))
+    return result
+
+  # 按 api_data_id 批量查询变体轻量元数据（不加载 response 大文本）
+  @_ensure_open(default=[])
+  def get_variant_metas_by_api_ids(
+      self,
+      api_data_ids: List[str],
+      enabled: Optional[bool] = None,
+  ) -> List[ApiResponseVariantMeta]:
+    """按 api_data_id 批量查询变体轻量元数据，供 mock 匹配映射构建使用
+
+    enabled=None 返回全部，True 仅启用，False 仅禁用。
+    不做排序，组内顺序由调用方按 api_data.response_variant_ids 自行排列。
+    """
+    if not api_data_ids:
+      return []
+
+    enabled_sql = ''
+    if enabled is True:
+      enabled_sql = ' AND enabled=1'
+    elif enabled is False:
+      enabled_sql = ' AND enabled=0'
+
+    result: List[ApiResponseVariantMeta] = []
+    # SQLite 变量上限安全分片（兼容旧版 SQLITE_MAX_VARIABLE_NUMBER=999）
+    chunk_size = 500
+    with self._lock:
+      for i in range(0, len(api_data_ids), chunk_size):
+        chunk = api_data_ids[i:i + chunk_size]
+        placeholders = ','.join('?' * len(chunk))
+        rows = self._conn.execute(
+          f'SELECT id, api_data_id, timeout FROM api_response_variants WHERE api_data_id IN ({placeholders}){enabled_sql}',
+          chunk,
+        ).fetchall()
+        for row in rows:
+          result.append({'id': row[0], 'api_data_id': row[1], 'timeout': row[2]})
     return result
 
   def _build_variant_where(self, query: VariantQuery) -> tuple:

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication, QMenu
 
 from app_types.app_gui_types import AppServerRunningData
 from app_types.db_types import ApiData, ApiQuery
+from config.enum import SERVER
 from lib.db import MockDB, MockDBCache
 from lib.decorate import error_catch
 from lib.logger_lib import APP_LOGGER
@@ -216,22 +217,19 @@ def get_process_windows(pid: int) -> List[int]:
 
 @error_catch(error_msg='读取 api 数据文件失败', error_return=[])
 def get_mock_api_data_list(work_dir: str = '.', enabled: Optional[bool] = None) -> List[ApiData]:
+  """按 MOCK_API_TYPE_PRIORITY 白名单一次查询 mock api 数据
+
+  返回顺序 = 类型优先级分段，段内 created_at/id 正序，供 create_api_map
+  「同 key 后者覆盖前者」语义使用；白名单外类型（如 TEST_GROUP）不参与。
+  """
   mock_db: MockDB = MockDBCache.get(work_dir)
   api_list = mock_db.get_api_list(
-    query=ApiQuery(api_type='MITMPROXY', enabled=enabled),
+    query=ApiQuery(api_types=SERVER.MOCK_API_TYPE_PRIORITY, enabled=enabled),
     reverse=False,
   )
-
-  api_list.extend(mock_db.get_api_list(
-    query=ApiQuery(api_type='MCP', enabled=enabled),
-    reverse=False),
-  )
-
-  api_list.extend(mock_db.get_api_list(
-    query=ApiQuery(api_type='USER', enabled=enabled),
-    reverse=False),
-  )
-
+  # 稳定排序仅按类型优先级重排，段内保持 DB 返回的 created_at/id 正序
+  type_order = {t: i for i, t in enumerate(SERVER.MOCK_API_TYPE_PRIORITY)}
+  api_list.sort(key=lambda data: type_order.get(data['type'], len(type_order)))
   return api_list
 
 

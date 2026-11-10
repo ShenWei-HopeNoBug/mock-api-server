@@ -59,3 +59,24 @@ def test_delete_variant_syncs_id_list(mock_db):
   assert mock_db.get_variant_by_id(vid) is None
   # 同步从 api_data.response_variant_ids 移除
   assert mock_db.get_api_detail(aid)['response_variants'] == []
+
+
+def test_get_variant_metas_by_api_ids(mock_db):
+  a1 = _api_id(mock_db)
+  a2 = _api_id(mock_db)
+  v1 = mock_db.insert_variant(_variant(a1, name='v1-on', timeout=100))['id']
+  mock_db.insert_variant(_variant(a1, name='v1-off', enabled=False))
+  v3 = mock_db.insert_variant(_variant(a2, name='v2-on'))['id']
+
+  # enabled=True 仅回启用变体，且仅含 id/api_data_id/timeout 三字段
+  metas = mock_db.get_variant_metas_by_api_ids([a1, a2], enabled=True)
+  assert {m['id'] for m in metas} == {v1, v3}
+  assert all(set(m.keys()) == {'id', 'api_data_id', 'timeout'} for m in metas)
+  m1 = next(m for m in metas if m['id'] == v1)
+  assert m1['api_data_id'] == a1
+  assert m1['timeout'] == 100
+
+  # enabled=None 返回全部
+  assert len(mock_db.get_variant_metas_by_api_ids([a1, a2])) == 3
+  # 空入参返回空列表
+  assert mock_db.get_variant_metas_by_api_ids([]) == []

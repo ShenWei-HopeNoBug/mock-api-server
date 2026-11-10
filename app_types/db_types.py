@@ -86,6 +86,7 @@ class ApiQuery(TypedDict, total=False):
   total=False 表示所有字段可选，调用方按需传入。
   """
   api_type: Optional[str]  # 数据来源类型精确匹配，如 'USER' / 'MITMPROXY' / 'MCP'
+  api_types: Optional[List[str]]  # 数据来源类型白名单（type IN (...)），与 api_type 同传时取交集；空列表/None 不筛选
   url_like: Optional[str]  # URL 模糊查询
   params_like: Optional[str]  # 请求参数模糊查询
   response_like: Optional[str]  # 响应体模糊查询
@@ -146,6 +147,18 @@ class ApiResponseVariant(TypedDict):
   type: str  # 创建来源类型，'USER' / 'MCP'，创建后不可变更
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+
+
+class ApiResponseVariantMeta(TypedDict):
+  """
+  API response 变体轻量元数据
+
+  用于 get_variant_metas_by_api_ids 的返回值，仅含 mock 匹配映射构建
+  所需字段，不加载 response 大文本。
+  """
+  id: str  # 记录唯一标识
+  api_data_id: str  # 所属 api_data 的 ID
+  timeout: int  # idle 回退超时时间（毫秒），0 表示不启用
 
 
 class VariantQuery(TypedDict, total=False):

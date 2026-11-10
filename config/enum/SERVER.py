@@ -16,6 +16,11 @@ MOCK_API_DATA_DEFAULTS = {
   'request_content_type': 'NONE',
 }
 
+# mock api 数据加载的类型优先级（后者覆盖前者）
+# create_api_map 按此顺序构建匹配映射，同 key 数据 USER 覆盖 MCP 覆盖 MITMPROXY
+# 白名单语义：不在列表中的类型（如 TEST_GROUP）不参与 mock 匹配
+MOCK_API_TYPE_PRIORITY = ['MITMPROXY', 'MCP', 'USER']
+
 # ---------------------------------------------------
 # Mock 服务运行时常量
 # ---------------------------------------------------

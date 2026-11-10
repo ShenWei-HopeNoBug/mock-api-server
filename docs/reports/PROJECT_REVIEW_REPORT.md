@@ -356,3 +356,11 @@
 | 未知限速策略 → 静态请求全 500（新发现 #1） | ✅ 已修复 | `start_server` 在 `create_throttle` 返回 `None` 时回退 `DEFAULT_THROTTLE_STRATEGY` 重建并记 warning（`mock_server.py:222-237`）；`_should_use_throttled` 补 `self._throttle is not None` 判空兜底，策略缺位降级 direct 不限速（`static_file_lib.py:120`）；`test_static_file_lib` 补 3 例（无策略降级 / 有策略走节流 / `match` 端到端 200）（无 plan 文档，改动不足立项） |
 | 打包版窗口标题显示 `v0.0.0`（新发现 #2） | ✅ 已修复 | `app.py:175` 标题改用 `app_env.VERSION`（打包态取 `_build_config` 编译值，与 AboutDialog 同口径；开发态回退 `globals.version` 不变），顺带移除 `from config import globals` 死导入（无 plan 文档，改动不足立项） |
 | 导出弹窗标题兜底写反（新发现 #3） | ✅ 已修复 | `output_static_dialog.py:99,101` 兜底字面量互换为 critical→'异常' / information→'提示'，与 `app.py` 写法对齐；当前两处 emit 均显式传 title 属休眠 bug，预防性修正（无 plan 文档，改动不足立项） |
+
+---
+
+## 处理进展：2026-11-10
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| N+1：`get_mock_api_data_list` 3 次分类型全表查询 + `create_api_map` 逐行 `get_variants_by_api_id`（§9 及三次复查台账条目） | ✅ 已修复 | `ApiQuery` 新增 `api_types` 白名单字段（`type IN` 单次查询），`SERVER.MOCK_API_TYPE_PRIORITY` 承载类型覆盖优先级，`get_mock_api_data_list` 改为一次查询 + 稳定排序重排段序（与三次拼接逐行等价，白名单天然排除未来 TEST_GROUP）；新增 `get_variant_metas_by_api_ids` 批量轻量查询（仅 id/api_data_id/timeout 三列，不加载 response 全文）替代逐行 N+1，批量失败降级为空映射走主响应兜底；查询次数 3+2N → 1+⌈N/500⌉；测试补 `test_api_types_filter`/`test_get_variant_metas_by_api_ids`/`test_app_lib` 三例，`ruff` 归零、`pytest` 127 过 1 skip（方案：`docs/plans/v0_1_5/refactor/mock-api-load-plan.md`） |
