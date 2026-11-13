@@ -5,7 +5,16 @@ from typing import Callable, Optional
 import live2d
 from OpenGL.GL import GL_FRAMEBUFFER, GL_RGBA, GL_UNSIGNED_BYTE, glBindFramebuffer, glReadPixels
 from PySide6.QtCore import QRect, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QCursor, QPainter, QPen, QRegion, QSurfaceFormat
+from PySide6.QtGui import (
+  QColor,
+  QCursor,
+  QPainter,
+  QPen,
+  QRegion,
+  QResizeEvent,
+  QShowEvent,
+  QSurfaceFormat,
+)
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QApplication
 
@@ -67,6 +76,8 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
     self.occupancy: Optional[bytes] = None
     # 当前已应用到 setMask 的命中网格（未变化时跳过 setMask，防 region 抖动）
     self._mask_grid: bytes = b''
+    # 屏变更信号是否已挂（首次 show 后才挂一次）
+    self._screen_hooked: bool = False
     self._frame_count: int = 0
     # LIVE2D_DEBUG_HIT=1 时叠加绘制占用图红框，调阈值/网格密度用
     # self._debug_hit: bool = os.environ.get('LIVE2D_DEBUG_HIT') == '1'
@@ -75,7 +86,8 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
     self._init_pet_shell(on_restore, on_quit, on_build_menu)
     # 关键坑位：QOpenGLWidget 在透明顶层窗中需关闭自动填充背景（live2d-py issue #30）
     self.setAutoFillBackground(False)
-    self.resize(self.WINDOW_W, self.WINDOW_H)
+    # 固定逻辑尺寸：跨 DPI 屏迁移时拒绝系统缩放建议，否则逻辑尺寸被改写、表观忽大忽小
+    self.setFixedSize(self.WINDOW_W, self.WINDOW_H)
 
     fmt = QSurfaceFormat()
     fmt.setAlphaBufferSize(8)
@@ -107,6 +119,24 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
   def resizeGL(self, w: int, h: int) -> None:
     if self.model:
       self.model.Resize(w, h)
+
+  # 首次显示后挂屏变更信号：拖到 DPI/分辨率不同的屏时重建命中 region
+  def showEvent(self, event: QShowEvent) -> None:
+    super().showEvent(event)
+    if not self._screen_hooked and self.windowHandle() is not None:
+      self.windowHandle().screenChanged.connect(lambda _s: self._on_surface_change())
+      self._screen_hooked = True
+
+  def resizeEvent(self, event: QResizeEvent) -> None:
+    super().resizeEvent(event)
+    self._on_surface_change()
+
+  # 几何/屏变更会使 setMask 的设备像素 region 失配：立即退回矩形命中，下帧按新尺寸重建
+  def _on_surface_change(self) -> None:
+    self.occupancy = None
+    self._mask_grid = b''
+    self.clearMask()
+    self.update()
 
   def paintGL(self) -> None:
     if not self.model:
@@ -184,8 +214,13 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
 
   # 实体格按行合并成矩形集，设为窗口 region：命中区外的点由 OS 直接投给下层窗口（真点穿）
   def _apply_hit_mask(self, mask_grid: bytearray) -> None:
-    cw = self.width() / self.OCC_COLS
-    ch = self.height() / self.OCC_ROWS
+    w, h = self.width(), self.height()
+    # 几何过渡中间态（跨屏/DPI 变化瞬间尺寸可能为 0 或失配）：退回矩形，绝不下空/错 mask
+    if w <= 0 or h <= 0:
+      self.clearMask()
+      return
+    cw = w / self.OCC_COLS
+    ch = h / self.OCC_ROWS
     region = QRegion()
     for r in range(self.OCC_ROWS):
       c = 0
@@ -199,6 +234,9 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
         x0, x1 = int(c0 * cw), int(c * cw)
         y0, y1 = int(r * ch), int((r + 1) * ch)
         region |= QRegion(QRect(x0, y0, x1 - x0, y1 - y0))
+    if region.isEmpty():
+      self.clearMask()
+      return
     self.setMask(region)
 
   # 调试：占用图实体格叠加红色描边
