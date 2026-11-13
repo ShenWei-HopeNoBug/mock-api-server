@@ -2,7 +2,7 @@
 from typing import Callable
 
 from PySide6.QtCore import QPointF, QRect, Qt
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QRadialGradient
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QRadialGradient, QRegion
 from PySide6.QtWidgets import QWidget
 
 from qt_win.pet_shell import PetShellMixin
@@ -20,6 +20,8 @@ class DesktopPetWindow(PetShellMixin, QWidget):
     super().__init__()
     self._init_pet_shell(on_restore, on_quit)
     self.setFixedSize(self.WINDOW_SIZE, self.WINDOW_SIZE)
+    # 命中区域裁成椭圆：四角透明区在 OS 层面点穿（球为静态形状，setMask 即可，不影响绘制）
+    self.setMask(QRegion(self._ball_rect(), QRegion.Ellipse))
 
   # 球体绘制区域（窗口内居中）
   def _ball_rect(self) -> QRect:
