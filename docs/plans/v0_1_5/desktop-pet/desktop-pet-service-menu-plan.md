@@ -1,6 +1,6 @@
 # 桌宠右键菜单服务快捷操作方案
 
-> 状态：待实施
+> 状态：已实施
 > 关联：[desktop-pet-basic-plan](desktop-pet-basic-plan.md) / [desktop-pet-live2d-plan](desktop-pet-live2d-plan.md)
 
 ## 1. 背景与目标
@@ -77,8 +77,10 @@
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
+| 2026-11-14 | 全量实施 | `pet_shell.py`：`on_build_menu` 钩子 + `make_pet_menu_icon` 公开入口（`_make_menu_icon` 重命名导出）+ `dot` kind + `QMenu::separator` 样式；`app.py`：`_build_pet_service_menu`/`_pet_service_enabled` + 三处构造点接线 | ruff 归零；离屏验证：dot 图标按色渲染、禁用矩阵 6 场景全对（全 READY/抓包 RUNNING/mock RUNNING/MCP RUNNING/mock+MCP 双 RUNNING/过渡态） |
 
 ## 8. 方案修正
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
+| 2026-11-14 | `Live2DPetWindow`/`DesktopPetWindow` 的 `__init__` 补 `on_build_menu` 参数透传至 `_init_pet_shell` | 初版只改了 mixin 签名未透传：`Live2DPetWindow` 收未知参数 TypeError → 被降级逻辑捕获 → `DesktopPetWindow` 同样 TypeError → 无兜底直接闪退 |

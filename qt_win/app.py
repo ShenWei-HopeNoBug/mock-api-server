@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import requests
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCloseEvent, QResizeEvent
+from PySide6.QtGui import QCloseEvent, QColor, QResizeEvent
 from PySide6.QtWidgets import (
   QApplication,
   QFileDialog,
@@ -53,6 +53,7 @@ from qt_win.download_proxy_config_dialog import DownloadProxyConfigDialog
 from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
 from qt_win.mitmproxy_data_edit_dialog import MitmproxyDataEditDialog
 from qt_win.output_static_dialog import OutputStaticDialog
+from qt_win.pet_shell import make_pet_menu_icon
 from qt_win.server_config_dialog import ServerConfigDialog
 
 
@@ -1093,12 +1094,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         model_json=app_env.LIVE2D_MODEL_JSON,
         on_restore=self.exit_pet_mode,
         on_quit=self.quit_from_pet,
+        on_build_menu=self._build_pet_service_menu,
       )
     except Exception as e:
       APP_LOGGER.warning(f'Live2D 初始化失败，降级占位球：{e}')
       return DesktopPetWindow(
         on_restore=self.exit_pet_mode,
         on_quit=self.quit_from_pet,
+        on_build_menu=self._build_pet_service_menu,
       )
 
   # 进入桌宠模式：隐藏主面板并显示桌宠（服务为独立子进程不受影响）
@@ -1116,9 +1119,44 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self._pet = DesktopPetWindow(
         on_restore=self.exit_pet_mode,
         on_quit=self.quit_from_pet,
+        on_build_menu=self._build_pet_service_menu,
       )
       self._pet.move_to_corner()
       self._pet.show()
+
+  # 桌宠右键菜单服务项：三服务启停快捷操作，状态点图标 + 复用主面板按钮入口
+  def _build_pet_service_menu(self, menu: QMenu) -> None:
+    for name, status, handler, label in (
+      ('mock', self.server_status, self.server_button_click, '服务'),
+      ('catch', self.mitmproxy_server_status, self.catch_server_button_click, '抓包服务'),
+      ('mcp', self.mcp_server_status, self.mcp_server_button_click, 'MCP服务'),
+    ):
+      if status == 'RUNNING':
+        text, color = f'停止{label}', QColor(90, 170, 90)
+      elif status == 'START_WAIT':
+        text, color = '正在启动...', QColor(230, 160, 60)
+      elif status == 'STOP_WAIT':
+        text, color = '正在停止...', QColor(230, 160, 60)
+      else:
+        text, color = f'启动{label}', QColor(150, 150, 150)
+      action = menu.addAction(make_pet_menu_icon('dot', color), text)
+      action.setEnabled(self._pet_service_enabled(name))
+      action.triggered.connect(handler)
+
+  # 服务项可用性：复刻主面板跨服务禁用矩阵（与 *_status_change 双写点，依赖变更需同步）
+  # 抓包需 mock/MCP 全停；mock、MCP 各需抓包停；自身过渡态一律禁用
+  def _pet_service_enabled(self, name: str) -> bool:
+    if name == 'mock':
+      status = self.server_status
+    elif name == 'catch':
+      status = self.mitmproxy_server_status
+    else:
+      status = self.mcp_server_status
+    if status in ('START_WAIT', 'STOP_WAIT'):
+      return False
+    if name == 'catch':
+      return self.server_status == 'READY' and self.mcp_server_status == 'READY'
+    return self.mitmproxy_server_status == 'READY'
 
   # 退出桌宠模式：隐藏小球并恢复主面板（Qt 自动还原几何位置）
   def exit_pet_mode(self) -> None:

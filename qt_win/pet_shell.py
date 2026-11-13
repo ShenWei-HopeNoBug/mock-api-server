@@ -34,6 +34,11 @@ PET_MENU_STYLE = '''
   QMenu::icon {
     padding-left: 8px;
   }
+  QMenu::separator {
+    height: 1px;
+    background: rgba(97, 97, 97, 60);
+    margin: 4px 10px;
+  }
 '''
 
 
@@ -55,12 +60,18 @@ def _draw_icon_pixmap(kind: str, color: QColor) -> QPixmap:
     # 电源符号：顶部竖线 + 圆弧（顶部留缺口给竖线）
     painter.drawLine(QPointF(8, 2), QPointF(8, 8))
     painter.drawArc(QRectF(3.5, 4, 9, 9), 120 * 16, 300 * 16)
+  elif kind == 'dot':
+    # 状态点：实心圆（颜色由调用方按状态给定）
+    painter.setBrush(color)
+    painter.drawEllipse(QRectF(4, 4, 8, 8))
   painter.end()
   return pixmap
 
 
-# 绘制菜单图标：常态深灰描边，hover/选中时反色为白，避免淹没在深灰 hover 底色里
-def _make_menu_icon(kind: str) -> QIcon:
+# 菜单图标公共入口：window/power 为深灰描边 + hover/选中反白双模式；dot 为彩色状态点（不反色）
+def make_pet_menu_icon(kind: str, color: Optional[QColor] = None) -> QIcon:
+  if kind == 'dot' and color is not None:
+    return QIcon(_draw_icon_pixmap('dot', color))
   icon = QIcon(_draw_icon_pixmap(kind, QColor(97, 97, 97)))
   white = _draw_icon_pixmap(kind, QColor(255, 255, 255))
   icon.addPixmap(white, QIcon.Active)
@@ -76,11 +87,18 @@ class PetShellMixin:
   # 出生位置屏幕角边距
   CORNER_MARGIN: int = 20
 
-  def _init_pet_shell(self, on_restore: Callable[[], None], on_quit: Callable[[], None]) -> None:
+  def _init_pet_shell(
+    self,
+    on_restore: Callable[[], None],
+    on_quit: Callable[[], None],
+    on_build_menu: Optional[Callable[[QMenu], None]] = None,
+  ) -> None:
     # 恢复主面板回调（菜单「打开主面板」）
     self._on_restore = on_restore
     # 退出应用回调（菜单「退出」）
     self._on_quit = on_quit
+    # 可选菜单构建钩子（主面板注入服务快捷项等，mixin 不感知内容）
+    self._on_build_menu = on_build_menu
     # 左键拖拽偏移量，非拖拽状态为 None
     self._drag_offset: Optional[QPoint] = None
     # 左键按下点，用于松开时区分点按与拖拽
@@ -136,9 +154,13 @@ class PetShellMixin:
     menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
     menu.setAttribute(Qt.WA_TranslucentBackground)
     menu.setStyleSheet(PET_MENU_STYLE)
-    open_action = menu.addAction(_make_menu_icon('window'), '打开主面板')
+    # 可选的服务快捷项等钩子项在前，与窗口操作项之间加分隔线
+    if self._on_build_menu is not None:
+      self._on_build_menu(menu)
+      menu.addSeparator()
+    open_action = menu.addAction(make_pet_menu_icon('window'), '打开主面板')
     open_action.triggered.connect(self._on_restore)
-    quit_action = menu.addAction(_make_menu_icon('power'), '退出')
+    quit_action = menu.addAction(make_pet_menu_icon('power'), '退出')
     quit_action.triggered.connect(self._on_quit)
     menu.exec(event.globalPos())
 

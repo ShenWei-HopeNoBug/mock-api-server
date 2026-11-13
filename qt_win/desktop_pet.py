@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Callable
+from typing import Callable, Optional
 
 from PySide6.QtCore import QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QRadialGradient, QRegion
@@ -16,9 +16,14 @@ class DesktopPetWindow(PetShellMixin, QWidget):
   # 球体直径（居中绘制，四周留透明区，配合 WA_TranslucentBackground 验证透明区点击穿透）
   BALL_SIZE: int = 80
 
-  def __init__(self, on_restore: Callable[[], None], on_quit: Callable[[], None]) -> None:
+  def __init__(
+    self,
+    on_restore: Callable[[], None],
+    on_quit: Callable[[], None],
+    on_build_menu: Optional[Callable] = None,
+  ) -> None:
     super().__init__()
-    self._init_pet_shell(on_restore, on_quit)
+    self._init_pet_shell(on_restore, on_quit, on_build_menu)
     self.setFixedSize(self.WINDOW_SIZE, self.WINDOW_SIZE)
     # 命中区域裁成椭圆：四角透明区在 OS 层面点穿（球为静态形状，setMask 即可，不影响绘制）
     self.setMask(QRegion(self._ball_rect(), QRegion.Ellipse))

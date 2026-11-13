@@ -46,7 +46,13 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
   # alpha 实体阈值（0-255）
   ALPHA_THRESHOLD: int = 32
 
-  def __init__(self, model_json: str, on_restore: Callable[[], None], on_quit: Callable[[], None]) -> None:
+  def __init__(
+    self,
+    model_json: str,
+    on_restore: Callable[[], None],
+    on_quit: Callable[[], None],
+    on_build_menu: Optional[Callable] = None,
+  ) -> None:
     super().__init__()
     if not os.path.exists(model_json):
       raise FileNotFoundError(f'Live2D 模型文件不存在：{model_json}')
@@ -66,7 +72,7 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
     # self._debug_hit: bool = os.environ.get('LIVE2D_DEBUG_HIT') == '1'
     self._debug_hit: bool = False
 
-    self._init_pet_shell(on_restore, on_quit)
+    self._init_pet_shell(on_restore, on_quit, on_build_menu)
     # 关键坑位：QOpenGLWidget 在透明顶层窗中需关闭自动填充背景（live2d-py issue #30）
     self.setAutoFillBackground(False)
     self.resize(self.WINDOW_W, self.WINDOW_H)
