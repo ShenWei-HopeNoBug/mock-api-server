@@ -84,3 +84,5 @@
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
 | 2026-11-14 | `Live2DPetWindow`/`DesktopPetWindow` 的 `__init__` 补 `on_build_menu` 参数透传至 `_init_pet_shell` | 初版只改了 mixin 签名未透传：`Live2DPetWindow` 收未知参数 TypeError → 被降级逻辑捕获 → `DesktopPetWindow` 同样 TypeError → 无兜底直接闪退 |
+| 2026-11-14 | 菜单项由「打开时快照」改为「存续期定时刷新」：`_PET_SERVICES` 类常量统一定义（标识/状态字段/切换方法/显示名）；`_build_pet_service_menu` 建 action+连 handler 一次性，挂 `QTimer(menu)` 500ms 调 `_refresh_pet_service_items`（随菜单销毁自动停止）；`contextMenuEvent` exec 后补 `menu.deleteLater()`（顺带修掉右键菜单累积泄漏） | 服务状态在菜单开着时变化（启动/停止是秒级过程），快照菜单不刷新导致显示过期状态；同时每次右键 new QMenu 挂 pet 上从不释放 |
+| 2026-11-14 | `PET_MENU_STYLE` 补 `QMenu::item:disabled` 淡色文字 `rgba(80,80,80,100)`；`make_pet_menu_icon('dot')` 附带 `QIcon.Disabled` 淡化位图（同色相 alpha 90） | 禁用项与可用项共用同一文字色且无 Disabled 图标位图，常规态/hover 态均区分不出禁用 |

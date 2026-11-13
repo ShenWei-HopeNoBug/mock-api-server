@@ -31,6 +31,14 @@ PET_MENU_STYLE = '''
     color: white;
     background-color: rgb(97, 97, 97);
   }
+  QMenu::item:disabled {
+    color: rgb(160, 160, 160);
+  }
+  /* 禁用项 hover 不允许出现深色底块：半透明/淡色内容压深底会糊 */
+  QMenu::item:disabled:selected {
+    color: rgb(160, 160, 160);
+    background-color: transparent;
+  }
   QMenu::icon {
     padding-left: 8px;
   }
@@ -69,9 +77,13 @@ def _draw_icon_pixmap(kind: str, color: QColor) -> QPixmap:
 
 
 # 菜单图标公共入口：window/power 为深灰描边 + hover/选中反白双模式；dot 为彩色状态点（不反色）
+# dot 附带 Disabled 淡化位图：禁用项的状态点同步变淡，与淡色文字一致
 def make_pet_menu_icon(kind: str, color: Optional[QColor] = None) -> QIcon:
   if kind == 'dot' and color is not None:
-    return QIcon(_draw_icon_pixmap('dot', color))
+    icon = QIcon(_draw_icon_pixmap('dot', color))
+    # Disabled 用浅化实色（保留色相提示，避免半透明在浅底上显糊）
+    icon.addPixmap(_draw_icon_pixmap('dot', color.lighter(150)), QIcon.Disabled)
+    return icon
   icon = QIcon(_draw_icon_pixmap(kind, QColor(97, 97, 97)))
   white = _draw_icon_pixmap(kind, QColor(255, 255, 255))
   icon.addPixmap(white, QIcon.Active)
@@ -163,6 +175,8 @@ class PetShellMixin:
     quit_action = menu.addAction(make_pet_menu_icon('power'), '退出')
     quit_action.triggered.connect(self._on_quit)
     menu.exec(event.globalPos())
+    # 菜单 exec 返回即弃用：deleteLater 回收（其内挂的刷新 timer 等子对象一并销毁）
+    menu.deleteLater()
 
   # 点按钩子（未拖拽的左键点击）：子类覆写做点击反应
   def _on_pet_tap(self, pos: QPointF) -> None:

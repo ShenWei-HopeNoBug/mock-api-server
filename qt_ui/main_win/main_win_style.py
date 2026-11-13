@@ -18,19 +18,37 @@ window = '''
     color:white;
     background-color:rgb(97, 97, 97);
   }
-  
+
+  QMenuBar::item:disabled {
+    color:rgb(160, 160, 160);
+  }
+
+  QMenuBar::item:disabled:selected {
+    color:rgb(160, 160, 160);
+    background-color:transparent;
+  }
+
   QMenu{
     background-color:rgb(255, 248, 225);
   }
-  
+
   QMenu::item{
     padding: 4px 20px;
     border-radius:4px;
   }
-  
+
   QMenu::item:selected{
     color:white;
     background-color:rgb(97, 97, 97);
+  }
+
+  QMenu::item:disabled {
+    color:rgb(160, 160, 160);
+  }
+
+  QMenu::item:disabled:selected {
+    color:rgb(160, 160, 160);
+    background-color:transparent;
   }
 
   QLineEdit{

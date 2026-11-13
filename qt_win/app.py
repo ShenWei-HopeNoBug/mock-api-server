@@ -7,8 +7,8 @@ from multiprocessing.synchronize import Event as EventType
 from typing import Any, Dict, Optional
 
 import requests
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCloseEvent, QColor, QResizeEvent
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QResizeEvent
 from PySide6.QtWidgets import (
   QApplication,
   QFileDialog,
@@ -1124,13 +1124,32 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self._pet.move_to_corner()
       self._pet.show()
 
-  # 桌宠右键菜单服务项：三服务启停快捷操作，状态点图标 + 复用主面板按钮入口
+  # 桌宠菜单服务项定义：(标识, 状态字段, 切换方法, 显示名)
+  _PET_SERVICES = (
+    ('mock', 'server_status', 'server_button_click', '服务'),
+    ('catch', 'mitmproxy_server_status', 'catch_server_button_click', '抓包服务'),
+    ('mcp', 'mcp_server_status', 'mcp_server_button_click', 'MCP服务'),
+  )
+
+  # 桌宠右键菜单服务项：建 action + 连入口（一次性），初始填充与定时刷新共用刷新函数
+  # 菜单开着时服务状态仍会变化（启动/停止是秒级过程），挂 500ms 定时器刷新到菜单关闭
   def _build_pet_service_menu(self, menu: QMenu) -> None:
-    for name, status, handler, label in (
-      ('mock', self.server_status, self.server_button_click, '服务'),
-      ('catch', self.mitmproxy_server_status, self.catch_server_button_click, '抓包服务'),
-      ('mcp', self.mcp_server_status, self.mcp_server_button_click, 'MCP服务'),
-    ):
+    actions: Dict[str, QAction] = {}
+    for name, _status_attr, handler_name, _label in self._PET_SERVICES:
+      action = menu.addAction(make_pet_menu_icon('dot', QColor(150, 150, 150)), '')
+      action.triggered.connect(getattr(self, handler_name))
+      actions[name] = action
+    self._refresh_pet_service_items(actions)
+    # timer 父对象为 menu：菜单销毁时随之停止，不空转
+    timer = QTimer(menu)
+    timer.setInterval(500)
+    timer.timeout.connect(lambda: self._refresh_pet_service_items(actions))
+    timer.start()
+
+  # 刷新服务项的文本/状态点/可用性（文本和禁用态都随状态字段变化）
+  def _refresh_pet_service_items(self, actions: Dict[str, QAction]) -> None:
+    for name, status_attr, _handler_name, label in self._PET_SERVICES:
+      status = getattr(self, status_attr)
       if status == 'RUNNING':
         text, color = f'停止{label}', QColor(90, 170, 90)
       elif status == 'START_WAIT':
@@ -1139,9 +1158,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         text, color = '正在停止...', QColor(230, 160, 60)
       else:
         text, color = f'启动{label}', QColor(150, 150, 150)
-      action = menu.addAction(make_pet_menu_icon('dot', color), text)
+      action = actions[name]
+      action.setText(text)
+      action.setIcon(make_pet_menu_icon('dot', color))
       action.setEnabled(self._pet_service_enabled(name))
-      action.triggered.connect(handler)
 
   # 服务项可用性：复刻主面板跨服务禁用矩阵（与 *_status_change 双写点，依赖变更需同步）
   # 抓包需 mock/MCP 全停；mock、MCP 各需抓包停；自身过渡态一律禁用
