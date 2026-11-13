@@ -95,7 +95,7 @@ Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（D
 
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
-| [desktop-pet-basic-plan](v0_1_5/desktop-pet/desktop-pet-basic-plan.md) | `main.py` / `qt_win/app.py` / 新增 `qt_win/desktop_pet.py` | 最小闭环：X 切桌宠 ↔ 双击恢复 + 右键菜单退出 + 透明区点穿验证，单 commit | 待实施 |
+| [desktop-pet-basic-plan](v0_1_5/desktop-pet/desktop-pet-basic-plan.md) | `main.py` / `qt_win/app.py` / `config/menu/FILE.py` / 新增 `qt_win/desktop_pet.py` | 最小闭环：X 切桌宠 ↔ 右键菜单恢复 + 文件菜单/桌宠菜单双退出入口 + 透明区点穿验证，单 commit | 已实施 |
 
 ## 历史方案存档
 

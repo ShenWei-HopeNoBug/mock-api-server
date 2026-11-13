@@ -1,7 +1,7 @@
 # 桌宠模式最小闭环方案
 
 > 关联文档：[GUI_STACK_DESKTOP_PET_DISCUSSION.md](../../../discussions/GUI_STACK_DESKTOP_PET_DISCUSSION.md)（选型与可行性背景，含 Live2D 路线评估）
-> 状态：待实施
+> 状态：已实施（2026-11-14，人工交互验收待确认）
 > 范围：`main.py`、`qt_win/app.py`、新增 `qt_win/desktop_pet.py`
 
 ## 1. 背景
@@ -120,10 +120,11 @@ uv run ruff check .   # 保持归零
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| - | - | - | - |
+| 2026-11-14 | 按 §3 全部实施 | `ruff` 归零；离屏渲染冒烟测试通过（球心 alpha=255、四角 alpha=0）；`qt_win.app`/`main` 导入链验证 | 透明区真实点击穿透为 OS 层行为，离屏环境不可测，待人工按 §6 验收 |
 
 ## 9. 方案修正
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
-| - | - | - |
+| 2026-11-14 | ① 文件菜单底部新增「退出」（`config/menu/FILE.py` + `FILE.EXIT_APP` 入 config_list + `insertSeparator` 分隔），新增 `quit_app()` 收敛 `_force_quit` 置位，`quit_from_pet` 复用 ② 移除桌宠 `mouseDoubleClickEvent`，恢复主面板唯一入口改为右键菜单「打开主面板」 | ① 面板态退出需 X→桌宠→菜单两步，过长 ② 后续 Live2D 上头点/戳互动产生连续点击，双击判定窗口内易误触恢复 |
+| 2026-11-14 | `closeEvent` 中 `_force_quit` 改为一次性消费语义（读出即清零再分流） | bug 修复：桌宠/文件菜单退出→确认框点否→`_force_quit` 残留 True→此后点 X 永远走退出分支进不了桌宠 |

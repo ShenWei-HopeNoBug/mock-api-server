@@ -57,6 +57,8 @@ if __name__ == '__main__':
   app: QApplication = QApplication(sys.argv)
   # 固定 windowsvista 样式：避免 Qt6 默认 windows11 样式跟随系统深色模式导致字体/控件观感异常
   app.setStyle('windowsvista')
+  # 桌宠模式下主面板隐藏后顶层窗口可能全部不可见，禁止 Qt 因"最后窗口关闭"自动 quit
+  app.setQuitOnLastWindowClosed(False)
   # 设置应用图标（任务栏/标题栏）
   app.setWindowIcon(QIcon(app_env.APP_ICON))
   # 全局异常捕获

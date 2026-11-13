@@ -9,10 +9,12 @@ MENU_NAME = '文件'
 CHANGE_WORK_DIR = '更换工作目录'
 OPEN_WORK_DIR = '打开工作目录'
 OUTPUT_STATIC_FILE = '导出静态资源'
+EXIT_APP = '退出'
 
 # 菜单action列表
 ACTION_NAME_LIST = [
   CHANGE_WORK_DIR,
   OPEN_WORK_DIR,
   OUTPUT_STATIC_FILE,
+  EXIT_APP,
 ]

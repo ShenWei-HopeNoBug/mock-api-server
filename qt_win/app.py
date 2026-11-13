@@ -46,6 +46,7 @@ from module.mcp_server import start_mcp_server
 from qt_ui.main_win import main_win_style
 from qt_ui.main_win.win_ui import Ui_MainWindow
 from qt_win.about_dialog import AboutDialog
+from qt_win.desktop_pet import DesktopPetWindow
 from qt_win.download_config_dialog import DownloadConfigDialog
 from qt_win.download_proxy_config_dialog import DownloadProxyConfigDialog
 from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
@@ -151,6 +152,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self._exit_tip_label: Optional[QLabel] = None
     # 退出清理是否已完成（放行 Qt 退出路径派发的关闭事件）
     self._exit_finished: bool = False
+    # 区分"点 X 切桌宠"与"桌宠菜单退出"：True 时 closeEvent 走原退出确认流程
+    self._force_quit: bool = False
+    # 桌宠悬浮窗实例（懒创建，hide/show 复用）
+    self._pet: Optional[DesktopPetWindow] = None
 
     self.init_ui()
     self.render_menu_bar()
@@ -196,7 +201,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       {"name": FILE.CHANGE_WORK_DIR, "callback": self.select_work_dir},
       {"name": FILE.OPEN_WORK_DIR, "callback": open_work_dir},
       {"name": FILE.OUTPUT_STATIC_FILE, "callback": self.output_static},
+      {"name": FILE.EXIT_APP, "callback": self.quit_app},
     ])
+    # 「退出」与功能项之间加分隔符
+    file_menu.insertSeparator(file_menu.actions()[-1])
 
     # ---------------------
     # 编辑菜单相关初始化
@@ -1046,6 +1054,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       event.ignore()
       return
 
+    # 一次性消费退出标志：普通点 X 切桌宠；置位路径（文件菜单/桌宠菜单退出）走确认流程
+    # 读出即清零，避免确认框点"否"后标志残留导致无法再次进入桌宠
+    force_quit = self._force_quit
+    self._force_quit = False
+    if not force_quit:
+      event.ignore()
+      self.enter_pet_mode()
+      return
+
     reply = QMessageBox.question(
       self,
       '消息',
@@ -1066,3 +1083,36 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     super().resizeEvent(event)
     if self._exit_overlay is not None:
       self._exit_overlay.setGeometry(self.rect())
+
+  # 进入桌宠模式：隐藏主面板并显示悬浮小球（服务为独立子进程不受影响）
+  def enter_pet_mode(self) -> None:
+    self.hide()
+    if self._pet is None:
+      self._pet = DesktopPetWindow(
+        on_restore=self.exit_pet_mode,
+        on_quit=self.quit_from_pet,
+      )
+      self._pet.move_to_corner()
+    self._pet.show()
+
+  # 退出桌宠模式：隐藏小球并恢复主面板（Qt 自动还原几何位置）
+  def exit_pet_mode(self) -> None:
+    if self._pet is not None:
+      self._pet.hide()
+    self.show()
+    self.raise_()
+    self.activateWindow()
+
+  # 退出应用：置退出标志并触发关闭，走现有退出流程（确认框 + 清理蒙层）
+  def quit_app(self) -> None:
+    self._force_quit = True
+    self.close()
+
+  # 桌宠菜单"退出"：恢复主面板并走现有退出流程
+  def quit_from_pet(self) -> None:
+    if self._pet is not None:
+      self._pet.hide()
+    self.show()
+    self.raise_()
+    self.activateWindow()
+    self.quit_app()
