@@ -89,6 +89,14 @@ Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（D
 |---|---|---|---|
 | [security-hardening-plan](v0_1_5/security/security-hardening-plan.md) | `module/app_server` / `module/mock_server` / `lib/server_lib` / `qt_win/app.py` / `README.md` | 绑定收敛最小集 + shutdown 加固，单 commit | 待实施 |
 
+### desktop-pet/
+
+桌宠模式：主面板点 X 切换桌面悬浮小球，双击恢复，右键菜单承载快捷操作与退出。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [desktop-pet-basic-plan](v0_1_5/desktop-pet/desktop-pet-basic-plan.md) | `main.py` / `qt_win/app.py` / 新增 `qt_win/desktop_pet.py` | 最小闭环：X 切桌宠 ↔ 双击恢复 + 右键菜单退出 + 透明区点穿验证，单 commit | 待实施 |
+
 ## 历史方案存档
 
 ### v0_1_3/

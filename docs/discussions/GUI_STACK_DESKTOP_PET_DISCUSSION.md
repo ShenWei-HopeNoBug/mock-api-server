@@ -3,6 +3,7 @@
 > 讨论日期：2026-11-14
 > 参与者：项目作者 × Devin
 > 性质：思维碰撞记录，非实施承诺；后续结论若立项实施，以 `plans/` 正式方案为准
+> 已立项（桌宠最小闭环部分）：[desktop-pet-basic-plan](../plans/v0_1_5/desktop-pet/desktop-pet-basic-plan.md)
 
 ## 1. 背景与议题
 
