@@ -1,7 +1,7 @@
 # Live2D 接入方案（桌宠 V2）
 
 > 关联文档：[desktop-pet-basic-plan](desktop-pet-basic-plan.md)（V1 最小闭环）；[GUI_STACK_DESKTOP_PET_DISCUSSION.md](../../../discussions/GUI_STACK_DESKTOP_PET_DISCUSSION.md)（Live2D 路线评估 §3.2、待验证清单 §6）
-> 状态：待实施
+> 状态：已实施（2026-11-14，渲染/点穿/打包运行待人工验收）
 > 范围：`tools/live2d_spike.py` / `qt_win/pet_shell.py` / `qt_win/live2d_pet.py` 新增；`qt_win/desktop_pet.py` / `qt_win/app.py` / `main.py` / `app_env.py` / `pyproject.toml` / `build.py` / `assets/live2d/` 改动
 
 ## 1. 背景与范围
@@ -149,10 +149,10 @@ def _create_pet(self):
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| - | - | - | - |
+| 2026-11-14 | 阶段一 spike + 阶段二集成全部实施 | 依赖 `live2d-py==1.0.0`/`pyopengl==3.1.9`（uv add，lock 已同步）；Hiyori 官方示例模型入 `assets/live2d/hiyori/`（4.8MB）；`ruff` 归零；**打包冒烟通过**：`--collect-all live2d` 构建产物含 `_live2d.pyd`+GLSL+模型，exe 正常运行（PID 存活、~227MB） | live2d-py 1.0.0 API 与文档期调研的 v3 子包命名不同：`live2d.Model`（非 `LAppModel`）、`IsAreaHit`/`StartRandomMotion`/`Drag`，CsmSDK 5-r.5 |
 
 ## 11. 方案修正
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
-| - | - | - |
+| 2026-11-14 | live2d 生命周期不在 main.py 显式 init/dispose，改为 `live2d_pet.ensure_live2d_init()` 延迟初始化 + `aboutToQuit` 挂 dispose（main.py 零改动）；`enter_pet_mode` 增加 show 后 `init_failed` 检查降级（initializeGL 在 show 时才执行，构造期检查覆盖不到 GL 阶段失败） | 延迟初始化使 live2d 仅在首次进桌宠时启动，启动路径零风险且失败可降级；GL 阶段失败（上下文创建/模型解析）必须 show 后兜底 |

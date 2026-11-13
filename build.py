@@ -104,6 +104,7 @@ def app_build(window=False, timestamp=''):
     "--contents-directory=site-packages",
     "--add-data", "schema;schema/",
     "--add-data", "assets;assets/",
+    "--collect-all", "live2d",
     "--icon=assets/app.ico",
     "main.py",
     "-D",

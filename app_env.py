@@ -26,3 +26,6 @@ def _resource_path(relative: str) -> str:
 
 # 应用图标路径
 APP_ICON = _resource_path('assets/app.ico')
+
+# Live2D 桌宠模型路径（官方示例模型，发布前需确认分发授权）
+LIVE2D_MODEL_JSON = _resource_path('assets/live2d/hiyori/Hiyori.model3.json')
