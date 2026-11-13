@@ -156,3 +156,5 @@ def _create_pet(self):
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
 | 2026-11-14 | live2d 生命周期不在 main.py 显式 init/dispose，改为 `live2d_pet.ensure_live2d_init()` 延迟初始化 + `aboutToQuit` 挂 dispose（main.py 零改动）；`enter_pet_mode` 增加 show 后 `init_failed` 检查降级（initializeGL 在 show 时才执行，构造期检查覆盖不到 GL 阶段失败） | 延迟初始化使 live2d 仅在首次进桌宠时启动，启动路径零风险且失败可降级；GL 阶段失败（上下文创建/模型解析）必须 show 后兜底 |
+| 2026-11-14 | pet_shell.py 右键菜单美化：`PET_MENU_STYLE` QSS（奶黄底 + 深灰 hover 白字 + 圆角）+ 菜单窗 `FramelessWindowHint | NoDropShadowWindowHint | WA_TranslucentBackground`（Windows 原生菜单窗需此组合 QSS border-radius 才生效）+ `_make_menu_icon()` QPainter 绘制 16×16 图标（window/power）；球版与 Live2D 版共用 mixin 同时生效 | 裸 QMenu 走 windowsvista 默认灰样式，与主面板菜单体系视觉不一致 |
+| 2026-11-14 | 菜单图标改为双模式：`_draw_icon_pixmap()` 按色绘制位图，`QIcon` 同时挂 Normal=深灰 / Active+Selected=白色两张 pixmap，hover 时 Qt 自动切换反色 | 深灰图标在深灰 hover 底色上被淹没 |

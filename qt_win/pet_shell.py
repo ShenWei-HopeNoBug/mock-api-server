@@ -1,9 +1,71 @@
 # -*- coding: utf-8 -*-
 from typing import Callable, Optional
 
-from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QContextMenuEvent, QMouseEvent
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
+from PySide6.QtGui import (
+  QColor,
+  QContextMenuEvent,
+  QIcon,
+  QMouseEvent,
+  QPainter,
+  QPen,
+  QPixmap,
+)
 from PySide6.QtWidgets import QApplication, QMenu
+
+# 右键菜单样式：与主面板菜单体系统一（奶黄底 + 深灰 hover 白字 + 圆角）
+PET_MENU_STYLE = '''
+  QMenu {
+    background-color: rgb(255, 248, 225);
+    border: 1px solid rgba(97, 97, 97, 60);
+    border-radius: 10px;
+    padding: 6px;
+  }
+  QMenu::item {
+    padding: 6px 28px 6px 30px;
+    border-radius: 6px;
+    color: rgb(80, 80, 80);
+    font-size: 13px;
+  }
+  QMenu::item:selected {
+    color: white;
+    background-color: rgb(97, 97, 97);
+  }
+  QMenu::icon {
+    padding-left: 8px;
+  }
+'''
+
+
+# 按颜色绘制 16x16 图标位图（window=主面板窗口轮廓 / power=电源符号）
+def _draw_icon_pixmap(kind: str, color: QColor) -> QPixmap:
+  pixmap = QPixmap(16, 16)
+  pixmap.fill(Qt.transparent)
+  painter = QPainter(pixmap)
+  painter.setRenderHint(QPainter.Antialiasing)
+  pen = QPen(color)
+  pen.setWidthF(1.5)
+  painter.setPen(pen)
+  painter.setBrush(Qt.NoBrush)
+  if kind == 'window':
+    # 外框 + 标题栏分隔线
+    painter.drawRoundedRect(QRectF(2, 2.5, 12, 11), 2, 2)
+    painter.drawLine(QPointF(2, 6), QPointF(14, 6))
+  elif kind == 'power':
+    # 电源符号：顶部竖线 + 圆弧（顶部留缺口给竖线）
+    painter.drawLine(QPointF(8, 2), QPointF(8, 8))
+    painter.drawArc(QRectF(3.5, 4, 9, 9), 120 * 16, 300 * 16)
+  painter.end()
+  return pixmap
+
+
+# 绘制菜单图标：常态深灰描边，hover/选中时反色为白，避免淹没在深灰 hover 底色里
+def _make_menu_icon(kind: str) -> QIcon:
+  icon = QIcon(_draw_icon_pixmap(kind, QColor(97, 97, 97)))
+  white = _draw_icon_pixmap(kind, QColor(255, 255, 255))
+  icon.addPixmap(white, QIcon.Active)
+  icon.addPixmap(white, QIcon.Selected)
+  return icon
 
 
 # 桌宠窗口壳 mixin：无边框透明置顶 + 拖拽 + 右键菜单 + 屏幕角定位 + 点按/悬停钩子
@@ -67,12 +129,16 @@ class PetShellMixin:
       self._press_pos = None
     super().mouseReleaseEvent(event)
 
-  # 右键菜单：打开主面板 / 退出
+  # 右键菜单：打开主面板 / 退出（圆角透明窗 + 统一样式 + 图标）
   def contextMenuEvent(self, event: QContextMenuEvent) -> None:
     menu = QMenu(self)
-    open_action = menu.addAction('打开主面板')
+    # Windows 上 QMenu 是原生窗口，需无边框 + 无阴影 + 透明背景，QSS border-radius 才生效
+    menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+    menu.setAttribute(Qt.WA_TranslucentBackground)
+    menu.setStyleSheet(PET_MENU_STYLE)
+    open_action = menu.addAction(_make_menu_icon('window'), '打开主面板')
     open_action.triggered.connect(self._on_restore)
-    quit_action = menu.addAction('退出')
+    quit_action = menu.addAction(_make_menu_icon('power'), '退出')
     quit_action.triggered.connect(self._on_quit)
     menu.exec(event.globalPos())
 
