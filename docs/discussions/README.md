@@ -9,6 +9,7 @@
 |---|---|
 | [PRODUCT_DIRECTION_DISCUSSION](PRODUCT_DIRECTION_DISCUSSION.md) | 产品定位、业界方案对比与迭代方向讨论记录 |
 | [TEST_GROUP_DESIGN_DISCUSSION](TEST_GROUP_DESIGN_DISCUSSION.md) | 测试组（测试任务）概念与 Playwright 编排方案讨论记录 |
+| [GUI_STACK_DESKTOP_PET_DISCUSSION](GUI_STACK_DESKTOP_PET_DISCUSSION.md) | 桌宠模式可行性评估与主流桌面 GUI 技术栈横评讨论记录 |
 
 ## 命名
 
