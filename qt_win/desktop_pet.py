@@ -2,10 +2,11 @@
 from typing import Callable, Optional
 
 from PySide6.QtCore import QRect, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPaintEvent, QPixmap, QRegion
+from PySide6.QtGui import QIcon, QPainter, QPaintEvent, QPixmap, QRegion
 from PySide6.QtWidgets import QWidget
 
 import app_env
+from config.theme import qc
 from qt_win.pet_shell import PetShellMixin
 
 
@@ -45,6 +46,6 @@ class DesktopPetWindow(PetShellMixin, QWidget):
       painter.drawPixmap(rect, self._icon_pixmap)
     else:
       painter.setPen(Qt.NoPen)
-      painter.setBrush(QColor(250, 140, 60))
+      painter.setBrush(qc('PET_BALL'))
       painter.drawEllipse(rect)
     painter.end()

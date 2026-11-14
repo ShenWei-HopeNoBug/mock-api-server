@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 
 import requests
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QResizeEvent
+from PySide6.QtGui import QAction, QCloseEvent, QIcon, QResizeEvent
 from PySide6.QtWidgets import (
   QApplication,
   QFileDialog,
@@ -31,6 +31,7 @@ from app_types.app_gui_types import AppServerRunningData
 from app_types.mcp_server_types import McpServerRunConfig
 from app_types.mitmproxy_types import MitmproxyRunConfig
 from config.menu import EDIT, FILE, HELP
+from config.theme import qc
 from config.work_file import DEFAULT_WORK_DIR, STATIC_DIR
 from lib.app_lib import (
   is_app_server_running,
@@ -48,6 +49,7 @@ from lib.utils_lib import is_local_port_occupied, is_local_server_running
 from lib.work_file_lib import check_work_files, create_work_files
 from module.asyncio_mitmproxy_server import start_mitmproxy
 from module.mcp_server import start_mcp_server
+from qt_ui.common_style import CARD_PANEL, OVERLAY, PROGRESS_BAR, TIP_LABEL
 from qt_ui.main_win import main_win_style
 from qt_ui.main_win.win_ui import Ui_MainWindow
 from qt_win.about_dialog import AboutDialog
@@ -933,47 +935,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return
     overlay = QFrame(self)
     overlay.setObjectName('exitOverlay')
-    overlay.setStyleSheet('''
-      #exitOverlay {
-        background-color: rgba(0, 0, 0, 140);
-      }
-    ''')
+    overlay.setStyleSheet(OVERLAY)
     layout = QVBoxLayout(overlay)
     layout.setAlignment(Qt.AlignCenter)
 
     card = QFrame(overlay)
-    card.setStyleSheet('''
-      QFrame {
-        background-color: rgb(255, 248, 225);
-        border-radius: 10px;
-        min-width: 280px;
-      }
-    ''')
+    card.setStyleSheet(CARD_PANEL)
     card_layout = QVBoxLayout(card)
     card_layout.setContentsMargins(30, 30, 30, 30)
     card_layout.setSpacing(16)
 
     tip_label = QLabel('正在关闭应用…', card)
     tip_label.setAlignment(Qt.AlignCenter)
-    tip_label.setStyleSheet('font-size: 15px; color: rgb(96, 62, 30); border: none;')
+    tip_label.setStyleSheet(TIP_LABEL)
     self._exit_tip_label = tip_label
 
     progress_bar = QProgressBar(card)
     progress_bar.setRange(0, 0)
     progress_bar.setFixedWidth(240)
     progress_bar.setTextVisible(False)
-    progress_bar.setStyleSheet('''
-      QProgressBar {
-        border: none;
-        border-radius: 4px;
-        background-color: rgb(240, 222, 192);
-        height: 8px;
-      }
-      QProgressBar::chunk {
-        border-radius: 4px;
-        background-color: rgb(190, 140, 80);
-      }
-    ''')
+    progress_bar.setStyleSheet(PROGRESS_BAR)
 
     card_layout.addWidget(tip_label)
     card_layout.addWidget(progress_bar, alignment=Qt.AlignCenter)
@@ -1154,7 +1135,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     open_action.triggered.connect(self.exit_pet_mode)
     quit_action = menu.addAction(make_pet_menu_icon('power'), '退出')
     quit_action.triggered.connect(self.quit_from_pet)
-    kill_action = menu.addAction(make_pet_menu_icon('kill', QColor(200, 60, 60)), '强制退出')
+    kill_action = menu.addAction(make_pet_menu_icon('kill', qc('ICON_DANGER')), '强制退出')
     kill_action.triggered.connect(self._force_kill)
 
   # 强制退出：跳过全部确认与清理立即杀死进程（正常流程失效时的最后手段；daemon 子进程随进程消亡）
@@ -1204,7 +1185,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def _build_pet_service_menu(self, menu: QMenu) -> None:
     actions: Dict[str, QAction] = {}
     for name, _status_attr, handler_name, _label in self._PET_SERVICES:
-      action = menu.addAction(make_pet_menu_icon('dot', QColor(150, 150, 150)), '')
+      action = menu.addAction(make_pet_menu_icon('dot', qc('STATUS_OFF')), '')
       action.triggered.connect(getattr(self, handler_name))
       actions[name] = action
     self._refresh_pet_service_items(actions)
@@ -1221,13 +1202,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     for name, status_attr, _handler_name, label in self._PET_SERVICES:
       status = getattr(self, status_attr)
       if status == 'RUNNING':
-        text, color = f'停止{label}', QColor(90, 170, 90)
+        text, color = f'停止{label}', qc('STATUS_ON')
       elif status == 'START_WAIT':
-        text, color = '正在启动...', QColor(230, 160, 60)
+        text, color = '正在启动...', qc('STATUS_WAIT')
       elif status == 'STOP_WAIT':
-        text, color = '正在停止...', QColor(230, 160, 60)
+        text, color = '正在停止...', qc('STATUS_WAIT')
       else:
-        text, color = f'启动{label}', QColor(150, 150, 150)
+        text, color = f'启动{label}', qc('STATUS_OFF')
       action = actions[name]
       action.setText(text)
       action.setIcon(make_pet_menu_icon('dot', color))

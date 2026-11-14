@@ -7,11 +7,13 @@ from PySide6.QtGui import QColor, QKeySequence, QPainter, QPaintEvent, QPen, QSh
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 
+from config.theme import c, qc
+
 
 class SpinnerWidget(QWidget):
   """旋转圆环 loading 动画，纯 QPainter 绘制，无需外部资源"""
 
-  def __init__(self, parent: Optional[QWidget] = None, size: int = 44, color: QColor = QColor(120, 120, 120)) -> None:
+  def __init__(self, parent: Optional[QWidget] = None, size: int = 44, color: QColor = qc('SPINNER')) -> None:
     """初始化旋转圆环
     :param parent: 父组件
     :param size: 控件固定尺寸（正方形，像素）
@@ -48,7 +50,7 @@ class SpinnerWidget(QWidget):
     margin = 4
     rect = self.rect().adjusted(margin, margin, -margin, -margin)
     # 背景灰环（完整 360°）
-    painter.setPen(QPen(QColor(225, 225, 225), 4, Qt.SolidLine, Qt.RoundCap))
+    painter.setPen(QPen(qc('SPINNER_TRACK'), 4, Qt.SolidLine, Qt.RoundCap))
     painter.drawArc(rect, 0, 360 * 16)
     # 前景旋转弧（约 110°），起始角度随 _angle 变化产生旋转效果
     painter.setPen(QPen(self._color, 4, Qt.SolidLine, Qt.RoundCap))
@@ -61,7 +63,7 @@ class WebLoadingWidget(QWidget):
 
   def __init__(self, parent: Optional[QWidget] = None, text: str = '加载中…') -> None:
     super().__init__(parent)
-    self.setStyleSheet('background-color: rgb(250, 250, 250);')
+    self.setStyleSheet(f'background-color: {c("LOADING_BG")};')
     layout = QVBoxLayout(self)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(16)
@@ -70,7 +72,7 @@ class WebLoadingWidget(QWidget):
     self._spinner.start()
     tip: QLabel = QLabel(text, self)
     tip.setAlignment(Qt.AlignCenter)
-    tip.setStyleSheet('font-size: 14px; color: rgb(130, 130, 130); border: none; background: transparent;')
+    tip.setStyleSheet(f'font-size: 14px; color: {c("TEXT_MUTED")}; border: none; background: transparent;')
     layout.addWidget(self._spinner, alignment=Qt.AlignCenter)
     layout.addWidget(tip, alignment=Qt.AlignCenter)
 

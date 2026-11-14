@@ -13,30 +13,32 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QApplication, QMenu
 
+from config.theme import qc, qss
+
 # 右键菜单样式：与主面板菜单体系统一（奶黄底 + 深灰 hover 白字 + 圆角）
-PET_MENU_STYLE = '''
+PET_MENU_STYLE = qss('''
   QMenu {
-    background-color: rgb(255, 248, 225);
-    border: 1px solid rgba(97, 97, 97, 60);
+    background-color: $PANEL_BG;
+    border: 1px solid $GRAY_LINE;
     border-radius: 10px;
     padding: 6px;
   }
   QMenu::item {
     padding: 6px 28px 6px 30px;
     border-radius: 6px;
-    color: rgb(80, 80, 80);
+    color: $GRAY_TEXT;
     font-size: 13px;
   }
   QMenu::item:selected {
     color: white;
-    background-color: rgb(97, 97, 97);
+    background-color: $HOVER_BG;
   }
   QMenu::item:disabled {
-    color: rgb(160, 160, 160);
+    color: $MENU_DISABLED;
   }
   /* 禁用项 hover 不允许出现深色底块：半透明/淡色内容压深底会糊 */
   QMenu::item:disabled:selected {
-    color: rgb(160, 160, 160);
+    color: $MENU_DISABLED;
     background-color: transparent;
   }
   QMenu::icon {
@@ -44,10 +46,10 @@ PET_MENU_STYLE = '''
   }
   QMenu::separator {
     height: 1px;
-    background: rgba(97, 97, 97, 60);
+    background: $GRAY_LINE;
     margin: 4px 10px;
   }
-'''
+''')
 
 
 # 按颜色绘制 16x16 图标位图（window=主面板窗口轮廓 / power=电源符号）
@@ -89,8 +91,8 @@ def make_pet_menu_icon(kind: str, color: Optional[QColor] = None) -> QIcon:
     # Disabled 用浅化实色（保留色相提示，避免半透明在浅底上显糊）
     icon.addPixmap(_draw_icon_pixmap('dot', color.lighter(150)), QIcon.Disabled)
     return icon
-  normal = color if color is not None else QColor(97, 97, 97)
-  highlight = color.lighter(140) if color is not None else QColor(255, 255, 255)
+  normal = color if color is not None else qc('HOVER_BG')
+  highlight = color.lighter(140) if color is not None else qc('WHITE')
   icon = QIcon(_draw_icon_pixmap(kind, normal))
   icon.addPixmap(_draw_icon_pixmap(kind, highlight), QIcon.Active)
   icon.addPixmap(_draw_icon_pixmap(kind, highlight), QIcon.Selected)

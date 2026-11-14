@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QListView
 from config.work_file import DEFAULT_WORK_DIR, MOCK_SERVER_CONFIG_PATH, WORK_FILE_DICT
 from lib.throttle_lib import get_strategy_options
 from lib.utils_lib import ConfigFileManager
+from qt_ui.common_style import COMBO_DROP_VIEW
 from qt_ui.server_config_win import server_config_win_style
 from qt_ui.server_config_win.module import FileTypeListModule, StaticRouteListModule
 from qt_ui.server_config_win.win_ui import Ui_Dialog
@@ -91,31 +92,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
 
     # 使用 QListView 作为下拉视图，确保 ::item 样式生效
     list_view = QListView()
-    list_view.setStyleSheet('''
-      QListView {
-        background-color: rgb(255, 248, 225);
-        border: 1px solid rgb(195, 148, 95);
-        border-radius: 0px;
-        padding: 2px;
-        outline: none;
-        font-size: 8pt;
-      }
-      QListView::item {
-        color: rgb(96, 62, 30);
-        min-height: 24px;
-        padding: 2px 6px;
-        margin: 1px 0px;
-        border-radius: 4px;
-      }
-      QListView::item:hover {
-        background-color: rgb(255, 245, 225);
-      }
-      QListView::item:selected {
-        background-color: rgb(255, 224, 178);
-        color: rgb(96, 62, 30);
-        border-radius: 4px;
-      }
-    ''')
+    list_view.setStyleSheet(COMBO_DROP_VIEW)
     throttle_combo.setView(list_view)
 
     # 通过 QFont 设置输入框字体大小

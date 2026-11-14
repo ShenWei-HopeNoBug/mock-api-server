@@ -1,133 +1,134 @@
 # -*- coding: utf-8 -*-
-# 全应用共享暖调 QSS 片段（与 main_win_style 同源色板）
-# 各 *_win_style.py / module_style.py 组合引用，统一调色只改此处，不再逐文件复制色值
+# 全应用共享暖调 QSS 片段（色值经 config.theme 调色板 $TOKEN 渲染）
+# 各 *_win_style.py / module_style.py 组合引用，统一调色只改 config/theme.py，不再逐文件复制色值
+from config.theme import qss
 
 # 对话框大底（与主面板同色）+ 全局文字暖深棕
-DIALOG_BASE = '''
+DIALOG_BASE = qss('''
   #Dialog{
-    background-color:rgb(255, 232, 195);
+    background-color:$WINDOW_BG;
   }
 
   QLabel{
-    color:rgb(96, 62, 30);
+    color:$TEXT;
   }
-'''
+''')
 
 # 模块内文字色（QWidget 模块非 Dialog，只补文字，不动底色）
-MODULE_TEXT = '''
+MODULE_TEXT = qss('''
   QLabel{
-    color:rgb(96, 62, 30);
+    color:$TEXT;
   }
-'''
+''')
 
 # 按钮组三态样式生成：QSS 逗号选择器组的伪类需逐名展开（#a,#b:hover 只命中 #b 的 hover）
 def button_group(*names: str) -> str:
   normal = ',\n  '.join(names)
   hover = ',\n  '.join(f'{n}:hover' for n in names)
   disabled = ',\n  '.join(f'{n}:disabled' for n in names)
-  return f'''
+  return qss(f'''
   {normal}
   {{
-    color:rgb(96, 62, 30);
-    background-color:rgb(255, 252, 246);
+    color:$TEXT;
+    background-color:$BTN_BG;
     border-radius:6px;
-    border:1px solid rgb(195, 148, 95);
+    border:1px solid $BORDER;
     padding:4px 8px;
   }}
 
   {hover}
   {{
     color:white;
-    background-color:rgb(97, 97, 97);
+    background-color:$HOVER_BG;
     border-width:0;
   }}
 
   {disabled}
   {{
-    color:rgb(165, 140, 115);
-    border:1px solid rgb(215, 190, 160);
-    background-color:rgb(250, 242, 228);
+    color:$DISABLED_TEXT;
+    border:1px solid $DISABLED_BORDER;
+    background-color:$DISABLED_BG;
   }}
-'''
+''')
 
 # 文本输入框（含 focus 强调态）
-LINE_EDIT = '''
+LINE_EDIT = qss('''
   QLineEdit{
-    color:rgb(96, 62, 30);
-    background-color:rgb(255, 248, 225);
+    color:$TEXT;
+    background-color:$PANEL_BG;
     border-radius:6px;
-    border:1px solid rgba(160, 120, 70, 70);
+    border:1px solid $BORDER_SOFT;
     padding:2px 8px;
   }
 
   QLineEdit:focus{
-    border:1px solid rgb(190, 140, 80);
+    border:1px solid $BORDER_FOCUS;
   }
-'''
+''')
 
-SPIN_BOX = '''
+SPIN_BOX = qss('''
   QSpinBox{
-    color:rgb(96, 62, 30);
-    background-color:rgb(255, 248, 225);
+    color:$TEXT;
+    background-color:$PANEL_BG;
     border-radius:4px;
-    border:1px solid rgba(160, 120, 70, 70);
+    border:1px solid $BORDER_SOFT;
     padding:4px;
   }
 
   QSpinBox:focus{
-    border:1px solid rgb(190, 140, 80);
+    border:1px solid $BORDER_FOCUS;
   }
-'''
+''')
 
 # 复选框：文字暖深棕 + 暖色指示框，选中态暖橙填充
-CHECK_BOX = '''
+CHECK_BOX = qss('''
   QCheckBox{
-    color:rgb(96, 62, 30);
+    color:$TEXT;
   }
 
   QCheckBox::indicator{
     width:14px;
     height:14px;
     border-radius:3px;
-    border:1px solid rgba(150, 110, 60, 110);
-    background-color:rgb(255, 248, 225);
+    border:1px solid $INDICATOR_BORDER;
+    background-color:$PANEL_BG;
   }
 
   QCheckBox::indicator:checked{
-    background-color:rgb(205, 140, 65);
-    border:1px solid rgb(165, 105, 45);
+    background-color:$ACCENT;
+    border:1px solid $ACCENT_DEEP;
   }
-'''
+''')
 
-TEXT_EDIT = '''
+TEXT_EDIT = qss('''
   QTextEdit{
-    color:rgb(96, 62, 30);
+    color:$TEXT;
     border-radius:6px;
-    background-color:rgb(255, 248, 225);
-    border:1px solid rgba(160, 120, 70, 70);
+    background-color:$PANEL_BG;
+    border:1px solid $BORDER_SOFT;
     padding:4px;
   }
 
   QTextEdit:focus{
-    border:1px solid rgb(190, 140, 80);
+    border:1px solid $BORDER_FOCUS;
   }
-'''
+''')
 
 # 下拉框：drop-down/down-arrow 结构保留（原为 skyblue 描边），换暖棕边 + focus 态
-COMBO_BOX = '''
+COMBO_BOX = qss('''
   QComboBox
   {
-    color:rgb(96, 62, 30);
-    background-color:rgb(255, 252, 246);
+    color:$TEXT;
+    background-color:$BTN_BG;
     border-radius:6px;
-    border:1px solid rgb(195, 148, 95);
+    border:1px solid $BORDER;
     padding:4px 8px;
     min-height:24px;
   }
 
   QComboBox:hover
   {
-    border:1px solid rgb(190, 140, 80);
+    border:1px solid $BORDER_FOCUS;
   }
 
   QComboBox::drop-down
@@ -141,35 +142,62 @@ COMBO_BOX = '''
     width:10px;
     height:10px;
   }
-'''
+''')
+
+# 下拉弹出视图：QComboBox setView(QListView) 用（视图是独立控件，须单独 setStyleSheet）
+COMBO_DROP_VIEW = qss('''
+  QListView {
+    background-color: $PANEL_BG;
+    border: 1px solid $BORDER;
+    border-radius: 0px;
+    padding: 2px;
+    outline: none;
+    font-size: 8pt;
+  }
+  QListView::item {
+    color: $TEXT;
+    min-height: 24px;
+    padding: 2px 6px;
+    margin: 1px 0px;
+    border-radius: 4px;
+  }
+  QListView::item:hover {
+    background-color: $PANEL_HOVER;
+  }
+  QListView::item:selected {
+    background-color: $PANEL_SELECT;
+    color: $TEXT;
+    border-radius: 4px;
+  }
+''')
 
 # 列表控件：item 暖深棕字 + 暖棕下划线提示，选中态暖橙强调
-LIST_WIDGET = '''
+LIST_WIDGET = qss('''
   QListWidget{
     border-radius:6px;
-    background-color:rgb(255, 248, 225);
-    border:1px solid rgba(160, 120, 70, 70);
+    background-color:$PANEL_BG;
+    border:1px solid $BORDER_SOFT;
   }
 
   QListWidget::item{
     background-color:transparent;
-    color:rgb(96, 62, 30);
+    color:$TEXT;
     border-radius:4px;
     padding:0 2px;
   }
 
   QListWidget::item:hover{
-    border-bottom:1px solid rgb(190, 140, 80);
+    border-bottom:1px solid $BORDER_FOCUS;
   }
 
   QListWidget::item:selected{
-    border-bottom:1px solid rgb(190, 140, 80);
-    color:rgb(210, 110, 45);
+    border-bottom:1px solid $BORDER_FOCUS;
+    color:$ACCENT_TEXT;
   }
-'''
+''')
 
 # 滚动条：灰色 handle 换淡暖棕（结构沿用原有 6px 细条方案）
-SCROLLBAR = '''
+SCROLLBAR = qss('''
   QScrollBar:vertical {
     border: none;
     background: none;
@@ -178,7 +206,7 @@ SCROLLBAR = '''
   }
 
   QScrollBar::handle:vertical {
-    background: rgb(205, 170, 125);
+    background: $SCROLLBAR;
     min-height: 20px;
     border-radius: 3px;
   }
@@ -204,7 +232,7 @@ SCROLLBAR = '''
   }
 
   QScrollBar::handle:horizontal {
-    background: rgb(205, 170, 125);
+    background: $SCROLLBAR;
     min-width: 20px;
     border-radius: 3px;
   }
@@ -219,4 +247,35 @@ SCROLLBAR = '''
   QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
     background: none;
   }
-'''
+''')
+
+# 加载/退出场景共享片段：splash 启动卡与退出蒙层同源（此前逐字复制两份）
+CARD_PANEL = qss('''
+  QFrame {
+    background-color: $PANEL_BG;
+    border-radius: 10px;
+    min-width: 280px;
+  }
+''')
+
+TIP_LABEL = qss('font-size: 15px; color: $TEXT; border: none;')
+
+PROGRESS_BAR = qss('''
+  QProgressBar {
+    border: none;
+    border-radius: 4px;
+    background-color: $PROGRESS_BG;
+    height: 8px;
+  }
+  QProgressBar::chunk {
+    border-radius: 4px;
+    background-color: $BORDER_FOCUS;
+  }
+''')
+
+# 退出蒙层压暗层（#exitOverlay objectName 选择器）
+OVERLAY = qss('''
+  #exitOverlay {
+    background-color: $OVERLAY_DIM;
+  }
+''')

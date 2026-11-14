@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from lib.decorate import create_thread
+from qt_ui.common_style import CARD_PANEL, PROGRESS_BAR, TIP_LABEL
 
 """启动阶段文案，key 为进度百分比阈值，value 为该阶段的启动文案
 当进度 >= 某个 key 时显示对应文案，直到达到下一个 key
@@ -76,12 +77,7 @@ class StartSplash(QObject):
 
     # 卡片容器，样式与退出蒙层一致
     card = QFrame(win)
-    card.setStyleSheet('''
-      QFrame {
-        background-color: rgb(255, 248, 225);
-        border-radius: 10px;
-      }
-    ''')
+    card.setStyleSheet(CARD_PANEL)
     card_layout = QVBoxLayout(card)
     card_layout.setContentsMargins(30, 30, 30, 30)
     card_layout.setSpacing(16)
@@ -89,7 +85,7 @@ class StartSplash(QObject):
     # 启动文案
     tip_label = QLabel('正在启动应用…', card)
     tip_label.setAlignment(Qt.AlignCenter)
-    tip_label.setStyleSheet('font-size: 15px; color: rgb(96, 62, 30); border: none;')
+    tip_label.setStyleSheet(TIP_LABEL)
     self._tip_label = tip_label
 
     # 进度条（indeterminate，循环滚动动画）
@@ -97,18 +93,7 @@ class StartSplash(QObject):
     progress_bar.setRange(0, 0)
     progress_bar.setFixedWidth(280)
     progress_bar.setTextVisible(False)
-    progress_bar.setStyleSheet('''
-      QProgressBar {
-        border: none;
-        border-radius: 4px;
-        background-color: rgb(240, 222, 192);
-        height: 8px;
-      }
-      QProgressBar::chunk {
-        border-radius: 4px;
-        background-color: rgb(190, 140, 80);
-      }
-    ''')
+    progress_bar.setStyleSheet(PROGRESS_BAR)
     self._progress_bar = progress_bar
 
     card_layout.addWidget(tip_label)

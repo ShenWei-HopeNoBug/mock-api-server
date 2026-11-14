@@ -106,6 +106,7 @@ Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（D
 | 文档 | 涉及文件 | 说明 | 状态 |
 |---|---|---|---|
 | [main-win-warm-restyle-plan](v0_1_5/ui/main-win-warm-restyle-plan.md) | `qt_ui/main_win/win_ui.ui` / `main_win_style.py` / `qt_win/app.py` | 主面板暖调美化与布局重排：档 A 样式层级 + 档 B 绝对定位→QVBoxLayout 三卡片重排、QMainWindow 根部件类型修正，两 commit | 已实施 |
+| [theme-palette-plan](v0_1_5/ui/theme-palette-plan.md) | `config/theme.py`（新增）/ `qt_ui` 两样式文件 / `qt_win` 五处 / `lib` 两处 | 主题色值单源化：PALETTE + `c()/qc()/qss()` 三出口，QSS `$TOKEN` 渲染，内联样式与 QColor 字面量归拢，单 commit | 已实施 |
 
 ## 历史方案存档
 

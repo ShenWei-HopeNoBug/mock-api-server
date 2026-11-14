@@ -6,6 +6,7 @@ from PySide6.QtGui import QCursor, QDesktopServices, QFont, QMouseEvent
 from PySide6.QtWidgets import QDialog, QLabel, QWidget
 
 import app_env
+from config.theme import qss
 from qt_ui.about_win import about_win_style
 from qt_ui.about_win.win_ui import Ui_Dialog
 
@@ -17,7 +18,7 @@ class LinkLabel(QLabel):
     self.setTextInteractionFlags(Qt.TextBrowserInteraction)
     self.setCursor(QCursor(Qt.PointingHandCursor))  # 鼠标悬停时显示手形图标
     self.linkActivated.connect(self.open_link)
-    self.setStyleSheet('color:rgb(190, 110, 40)')
+    self.setStyleSheet(qss('color:$LINK'))
 
   def mouseReleaseEvent(self, event: QMouseEvent) -> None:
     if event.button() == Qt.LeftButton:
