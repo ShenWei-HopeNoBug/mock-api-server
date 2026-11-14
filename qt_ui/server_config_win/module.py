@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 import re
 
-from PySide6.QtWidgets import QMessageBox
-
 from config.route import INNER_ROUTE_LIST
 from qt_ui.list_edit_module.module import ListEditModule
+from qt_ui.message_box import msg_error
 
 
 class FileTypeListModule(ListEditModule):
@@ -20,7 +19,7 @@ class FileTypeListModule(ListEditModule):
   ):
     valid = bool(re.match(r'^\.[a-zA-Z0-9]+$', text))
     if not valid:
-      QMessageBox.critical(
+      msg_error(
         self,
         '异常',
         '请输入标准的文件扩展名文本（扩展名字符可包含大小写字母和数字），如：\n .jpg, .png',
@@ -42,7 +41,7 @@ class StaticRouteListModule(ListEditModule):
   ) -> bool:
     valid: bool = bool(re.match(r'^/[a-zA-Z0-9_-]+$', text))
     if not valid:
-      QMessageBox.critical(
+      msg_error(
         self,
         '异常',
         '请输入指定格式的路由（路由字符可包含大小写字母、数字、下划线和中划线），如：\n /test，/test2, /my_path',
@@ -51,7 +50,7 @@ class StaticRouteListModule(ListEditModule):
     inner_route_set = set(INNER_ROUTE_LIST)
     if text in inner_route_set:
       valid = False
-      QMessageBox.critical(
+      msg_error(
         self,
         '异常',
         '该路由名已被应用内部服务占用，请不要使用以下路由进行命名：\n{}'.format('，'.join(INNER_ROUTE_LIST)),

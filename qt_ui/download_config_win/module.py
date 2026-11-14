@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import re
 
-from PySide6.QtWidgets import QMessageBox
-
 from qt_ui.list_edit_module.module import ListEditModule
+from qt_ui.message_box import msg_error
 
 
 class FileTypeListModule(ListEditModule):
@@ -19,7 +18,7 @@ class FileTypeListModule(ListEditModule):
   ):
     valid = bool(re.match(r'^\.[a-zA-Z0-9]+$', text))
     if not valid:
-      QMessageBox.critical(
+      msg_error(
         self,
         '异常',
         '请输入标准的文件扩展名文本（扩展名字符可包含大小写字母和数字），如：\n .jpg, .png',

@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
   QLabel,
   QMainWindow,
   QMenu,
-  QMessageBox,
   QProgressBar,
   QSystemTrayIcon,
   QVBoxLayout,
@@ -52,6 +51,7 @@ from module.mcp_server import start_mcp_server
 from qt_ui.common_style import CARD_PANEL, OVERLAY, PROGRESS_BAR, TIP_LABEL
 from qt_ui.main_win import main_win_style
 from qt_ui.main_win.win_ui import Ui_MainWindow
+from qt_ui.message_box import msg_error, msg_info, msg_question
 from qt_win.about_dialog import AboutDialog
 from qt_win.desktop_pet import DesktopPetWindow
 from qt_win.download_config_dialog import DownloadConfigDialog
@@ -272,7 +272,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       result = open_operation_manual_html()
       # 打开失败
       if not result:
-        QMessageBox.critical(self, '异常', '打开操作手册html失败！')
+        msg_error(self, '异常', '打开操作手册html失败！')
 
     help_menu = menu_bar.addMenu(HELP.MENU_NAME)
     set_menu_config(help_menu, [
@@ -355,9 +355,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       return
 
     if dialog_type == 'critical':
-      QMessageBox.critical(self, title or '异常', message)
+      msg_error(self, title or '异常', message)
     else:
-      QMessageBox.information(self, title or '提示', message)
+      msg_info(self, title or '提示', message)
 
   # 选择工作目录
   def select_work_dir(self) -> None:
@@ -556,17 +556,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if check_work_files(work_dir):
       return True
 
-    reply = QMessageBox.question(
+    confirmed = msg_question(
       self,
       '消息',
       '应用工作目录文件完整性检查未通过，是否创建工作目录文件？\n当前工作目录：{}'.format(
         os.path.abspath(work_dir),
       ),
-      QMessageBox.Yes | QMessageBox.No,
-      QMessageBox.No,
     )
 
-    if reply == QMessageBox.Yes:
+    if confirmed:
       # 创建工作文件
       create_work_files(work_dir)
       return True
@@ -1062,15 +1060,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       self.enter_pet_mode()
       return
 
-    reply = QMessageBox.question(
-      self,
-      '消息',
-      '确定要退出吗？',
-      QMessageBox.Yes | QMessageBox.No,
-      QMessageBox.No,
-    )
+    confirmed = msg_question(self, '消息', '确定要退出吗？')
 
-    if reply == QMessageBox.Yes:
+    if confirmed:
       event.ignore()
       self._show_exit_overlay()
       threading.Thread(target=self._cleanup_in_thread, daemon=True).start()

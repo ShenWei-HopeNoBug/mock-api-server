@@ -279,3 +279,36 @@ OVERLAY = qss('''
     background-color: $OVERLAY_DIM;
   }
 ''')
+
+# 消息弹窗：QMessageBox 前缀作用域（不误伤宿主控件）；须挂 QApplication 级——parent=None 弹窗亦覆盖
+MESSAGE_BOX = qss('''
+  QMessageBox{
+    background-color:$PANEL_BG;
+  }
+
+  QMessageBox QLabel{
+    color:$TEXT;
+    background-color:transparent;
+  }
+
+  QMessageBox QPushButton{
+    color:$TEXT;
+    background-color:$BTN_BG;
+    border-radius:6px;
+    border:1px solid $BORDER;
+    padding:4px 8px;
+    min-width:80px;
+  }
+
+  QMessageBox QPushButton:hover{
+    color:white;
+    background-color:$HOVER_BG;
+    border-width:0;
+  }
+
+  QMessageBox QPushButton:disabled{
+    color:$DISABLED_TEXT;
+    border:1px solid $DISABLED_BORDER;
+    background-color:$DISABLED_BG;
+  }
+''')

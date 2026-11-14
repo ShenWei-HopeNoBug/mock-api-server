@@ -3,11 +3,12 @@ import os
 from typing import List
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QFileDialog
 
 from config.work_file import DEFAULT_WORK_DIR, DOWNLOAD_DIR, OUTPUT_DIR
 from lib.decorate import create_thread
 from lib.download_lib import get_output_data_list, output_static_files
+from qt_ui.message_box import msg_error, msg_info, msg_question
 from qt_ui.output_static_win import output_static_win_style
 from qt_ui.output_static_win.win_ui import Ui_Dialog
 
@@ -52,27 +53,11 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
   def add_events(self) -> None:
     # 点击导出按钮
     def output_button_click():
-      reply = QMessageBox.question(
-        self,
-        '消息',
-        '确认要开始导出静态资源？',
-        QMessageBox.Yes | QMessageBox.No,
-        QMessageBox.No,
-      )
-
-      if reply == QMessageBox.Yes:
+      if msg_question(self, '消息', '确认要开始导出静态资源？'):
         self.output()
 
     def clear_btn_click():
-      reply = QMessageBox.question(
-        self,
-        '消息',
-        '确认要清空列表数据？',
-        QMessageBox.Yes | QMessageBox.No,
-        QMessageBox.No,
-      )
-
-      if reply == QMessageBox.Yes:
+      if msg_question(self, '消息', '确认要清空列表数据？'):
         self.clear_list_widget()
 
     self.browsePushButton.clicked.connect(self.select_output_dir)
@@ -96,9 +81,9 @@ class OutputStaticDialog(QDialog, Ui_Dialog):
       return
 
     if dialog_type == 'critical':
-      QMessageBox.critical(self, title or '异常', message)
+      msg_error(self, title or '异常', message)
     else:
-      QMessageBox.information(self, title or '提示', message)
+      msg_info(self, title or '提示', message)
 
   # 设置选中索引
   def set_select_row(self, value: int) -> None:

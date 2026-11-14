@@ -9,7 +9,7 @@ from typing import Optional, Type
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication, QIcon
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication
 
 import app_env
 from app_types.app_gui_types import AppServerRunningData
@@ -24,7 +24,9 @@ from lib.app_lib import (
 from lib.logger_lib import APP_LOGGER, configure_logging
 from lib.splash import StartSplash
 from module.app_server import start_app_server
+from qt_ui.common_style import MESSAGE_BOX
 from qt_ui.main_win import main_win_style
+from qt_ui.message_box import msg_error, msg_info
 from qt_win.app import MainWindow
 
 
@@ -37,7 +39,7 @@ def exception_handler(
   tb_str = ''.join(tb_module.format_exception(exception_type, value, traceback))
   APP_LOGGER.error(f'APP全局程序异常捕获：{value}\n{tb_str}')
   # 显示异常信息的对话框
-  QMessageBox.critical(None, "程序异常", f"发生异常：{value}")
+  msg_error(None, "程序异常", f"发生异常：{value}")
   sys.exit(1)
 
 
@@ -59,7 +61,8 @@ if __name__ == '__main__':
   # 固定 windowsvista 样式：避免 Qt6 默认 windows11 样式跟随系统深色模式导致字体/控件观感异常
   app.setStyle('windowsvista')
   # 全局 tooltip 暖调样式：tooltip 是 Qt 自建顶层窗，窗口级 QSS 覆盖不到，须挂 QApplication
-  app.setStyleSheet(main_win_style.tooltip)
+  # 消息弹窗同理：QMessageBox 常 parent=None 顶层弹出，QApplication 级挂接保证全覆盖
+  app.setStyleSheet(main_win_style.tooltip + MESSAGE_BOX)
   # 桌宠模式下主面板隐藏后顶层窗口可能全部不可见，禁止 Qt 因"最后窗口关闭"自动 quit
   app.setQuitOnLastWindowClosed(False)
   # 设置应用图标（任务栏/标题栏）
@@ -75,16 +78,16 @@ if __name__ == '__main__':
       # 将已运行的实例窗口置顶
       brought = bring_to_front(pid)
       if brought:
-        QMessageBox.information(None, '提示', '程序已经在运行中，已将窗口置顶！')
+        msg_info(None, '提示', '程序已经在运行中，已将窗口置顶！')
       else:
-        QMessageBox.information(None, '提示', '程序已经在运行中，但未检测到可见窗口（可能仍在启动中），请稍后查看！')
+        msg_info(None, '提示', '程序已经在运行中，但未检测到可见窗口（可能仍在启动中），请稍后查看！')
     else:
-      QMessageBox.information(None, '提示', '程序已经在运行中！')
+      msg_info(None, '提示', '程序已经在运行中！')
     sys.exit(1)
 
   # 检查 APP 运行路径是否合法
   if not is_app_work_dir_valid():
-    QMessageBox.critical(None, '程序异常', '程序运行路径异常（路径包含中文或路径不存在）！')
+    msg_error(None, '程序异常', '程序运行路径异常（路径包含中文或路径不存在）！')
     sys.exit(1)
 
   start_splash: StartSplash = StartSplash()

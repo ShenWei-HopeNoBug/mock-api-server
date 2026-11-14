@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import copy
 
-from PySide6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtWidgets import QWidget
 
 from lib.decorate import error_catch
 from qt_ui.list_edit_module import module_style
 from qt_ui.list_edit_module.win_ui import Ui_Form
+from qt_ui.message_box import msg_question
 from qt_win.text_input_dialog import TextInputDialog
 
 
@@ -29,15 +30,7 @@ class ListEditModule(QWidget, Ui_Form):
   # 绑定事件
   def add_events(self):
     def clear():
-      reply = QMessageBox.question(
-        self,
-        '消息',
-        '确认要清空列表数据？',
-        QMessageBox.Yes | QMessageBox.No,
-        QMessageBox.No,
-      )
-
-      if reply == QMessageBox.Yes:
+      if msg_question(self, '消息', '确认要清空列表数据？'):
         self.clear()
 
     def add():
