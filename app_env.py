@@ -4,6 +4,7 @@ import os
 import sys
 
 from config.work_file import SYSTEM_DIR
+from lib.logger_lib import APP_LOGGER
 
 # 构建配置由 build.py 在打包时生成 _build_config.py 模块，
 # 编译进每个 exe 的 PYZ 中，实现同目录下多个 exe 各自独立配置。
@@ -64,7 +65,10 @@ def load_pet_model_config() -> dict:
   try:
     with open(PET_MODEL_CONFIG_PATH, 'r', encoding='utf-8') as f:
       data = json.load(f)
-  except Exception:
+  except FileNotFoundError:
+    data = {}  # 文件缺失是正常态（首跑/未配置），静默默认
+  except Exception as e:
+    APP_LOGGER.warning(f'桌宠模型配置解析失败，回退内嵌默认：{PET_MODEL_CONFIG_PATH}（{e}）')
     data = None
   if isinstance(data, dict):
     for key in ('window_w', 'window_h'):
@@ -80,6 +84,8 @@ def load_pet_model_config() -> dict:
       resolved = _resolve_pet_model_path(raw)
       if os.path.exists(resolved):
         cfg['model_json'] = resolved
+      else:
+        APP_LOGGER.warning(f'桌宠模型文件不存在，回退内嵌模型：{resolved}')
   return cfg
 
 
