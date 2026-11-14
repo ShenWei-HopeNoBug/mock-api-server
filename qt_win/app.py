@@ -184,10 +184,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 初始化窗口 UI
   def init_ui(self) -> None:
     self.setupUi(self)
-    # 分区标题去【】括号：层级改由样式承担（加粗+分隔线），文本保持语义纯净
-    self.label_4.setText('服务配置')
-    self.label_5.setText('抓包配置')
-    self.label_mcp.setText('MCP 配置')
     self.setFixedSize(self.width(), self.height())
     self.setWindowTitle(f'Mock Server {app_env.VERSION}')
     self.setWindowOpacity(0.95)

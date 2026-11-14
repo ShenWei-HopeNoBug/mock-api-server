@@ -101,6 +101,12 @@ Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（D
 | [desktop-pet-tray-plan](v0_1_5/desktop-pet/desktop-pet-tray-plan.md) | `qt_win/pet_shell.py` / `qt_win/app.py` | 桌宠模式系统托盘：pet 模式显示/隐藏 + 服务菜单复用 + 强制退出兜底 + 幽灵图标防护，单 commit | 已实施 |
 | [desktop-pet-model-config-plan](v0_1_5/desktop-pet/desktop-pet-model-config-plan.md) | `app_env.py` / `qt_win/live2d_pet.py` / `qt_win/app.py` | Live2D 模型外置配置：`system/pet_model.json` 六字段（路径/尺寸/动作组/命中区），打包产物可换模型，单 commit | 已实施 |
 
+### ui/
+
+| 文档 | 涉及文件 | 说明 | 状态 |
+|---|---|---|---|
+| [main-win-warm-restyle-plan](v0_1_5/ui/main-win-warm-restyle-plan.md) | `qt_ui/main_win/win_ui.ui` / `main_win_style.py` / `qt_win/app.py` | 主面板暖调美化与布局重排：档 A 样式层级 + 档 B 绝对定位→QVBoxLayout 三卡片重排、QMainWindow 根部件类型修正，两 commit | 已实施 |
+
 ## 历史方案存档
 
 ### v0_1_3/

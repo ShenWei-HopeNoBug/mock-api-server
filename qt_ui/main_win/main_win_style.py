@@ -56,6 +56,13 @@ window = '''
     color:rgb(96, 62, 30);
   }
 
+  /* 分区卡片：浅色底 + 圆角 + 细描边，承载一个配置分区 */
+  #cardServer, #cardCatch, #cardMcp{
+    background-color:rgba(255, 250, 238, 150);
+    border-radius:10px;
+    border:1px solid rgba(150, 110, 60, 45);
+  }
+
   /* 分区标题：加粗 + 底部细分隔线，建立视觉层级（替代原文本【】括号） */
   #label_4, #label_5, #label_mcp{
     font-size:14px;
@@ -86,6 +93,7 @@ window = '''
     border-radius:6px;
     border:1px solid rgb(195, 148, 95);
     padding:4px 8px;
+    min-width:110px;
   }
 
   #catchServerButton:hover,
