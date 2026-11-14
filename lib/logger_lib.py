@@ -72,6 +72,10 @@ _DOMAIN_LOGGERS: List[Logger] = [
   MCP_LOGGER, APPSRV_LOGGER, DB_LOGGER, DOWNLOAD_LOGGER,
 ]
 
+# 第三方 logger 降噪：打包产物 exclude numpy 后 PyOpenGL 加载 NumpyHandler 必然失败，
+# 但仅回退 ctypes 处理器（功能无影响），其 WARNING 经 root lastResort 打控制台成噪音
+logging.getLogger('OpenGL').setLevel(logging.ERROR)
+
 
 def configure_logging(role: str, queue: Optional[Queue] = None, log_level: int = INFO) -> None:
   """按进程角色挂载日志 handler：

@@ -105,6 +105,9 @@ def app_build(window=False, timestamp=''):
     "--add-data", "schema;schema/",
     "--add-data", "assets/app.ico;assets/",
     "--collect-all", "live2d",
+    # live2d-py 声明依赖 numpy 但运行时未用（渲染走编译扩展+ctypes），
+    # 打包 numpy 反而因 C 扩展 DLL 收集不全打印 ImportError 噪音，直接排除
+    "--exclude-module", "numpy",
     "--icon=assets/app.ico",
     "main.py",
     "-D",
