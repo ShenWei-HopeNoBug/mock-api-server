@@ -1,6 +1,6 @@
 # 桌宠模式系统托盘接入方案
 
-> 状态：待实施
+> 状态：已实施
 > 关联：[desktop-pet-service-menu-plan](desktop-pet-service-menu-plan.md)
 
 ## 1. 背景与目标
@@ -69,6 +69,8 @@ def _ensure_tray(self):
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
+| 2026-11-14 | 全量实施 | `pet_shell.py` 抽 `apply_pet_menu_style` + `kill` 图标；`app.py` 托盘懒建/菜单重建/三处接线/幽灵图标防护 + 服务 timer 自清 | ruff 归零；离屏验证降级路径（无托盘环境跳过无报错） |
+| 2026-11-14 | 强制退出标红 | `make_pet_menu_icon` 非 dot 项支持 color 参数：常态彩色、hover/选中同色相 `lighter(140)` 提亮（不反白，保留红色警示语义）；kill 项传 `QColor(200,60,60)` | 讨论后不加确认弹窗：强制退出定位"正常流程失效时的最后手段"，弹窗依赖事件循环反而不可靠 |
 
 ## 9. 方案修正
 

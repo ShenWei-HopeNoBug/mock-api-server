@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import requests
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QResizeEvent
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QResizeEvent
 from PySide6.QtWidgets import (
   QApplication,
   QFileDialog,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
   QMenu,
   QMessageBox,
   QProgressBar,
+  QSystemTrayIcon,
   QVBoxLayout,
   QWidget,
 )
@@ -53,7 +54,7 @@ from qt_win.download_proxy_config_dialog import DownloadProxyConfigDialog
 from qt_win.mitmproxy_config_dialog import MitmproxyConfigDialog
 from qt_win.mitmproxy_data_edit_dialog import MitmproxyDataEditDialog
 from qt_win.output_static_dialog import OutputStaticDialog
-from qt_win.pet_shell import make_pet_menu_icon
+from qt_win.pet_shell import apply_pet_menu_style, make_pet_menu_icon
 from qt_win.server_config_dialog import ServerConfigDialog
 
 
@@ -158,6 +159,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self._force_quit: bool = False
     # 桌宠悬浮窗实例（懒创建，hide/show 复用；Live2D 或占位球两种渲染层）
     self._pet: Optional[QWidget] = None
+    # 系统托盘图标（懒创建，仅桌宠模式显示，提供恢复/退出/强制退出兜底）
+    self._tray: Optional[QSystemTrayIcon] = None
 
     self.init_ui()
     self.render_menu_bar()
@@ -1031,6 +1034,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
   # 退出清理完成槽（主线程）
   def _on_cleanup_done(self) -> None:
+    # 先隐藏托盘图标：进程退出不 hide 会在 Windows 托盘留幽灵图标
+    if self._tray is not None:
+      self._tray.hide()
     MockDBCache.close_all()
     if self._exit_tip_label is not None:
       self._exit_tip_label.setText('正在退出应用…')
@@ -1104,9 +1110,51 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         on_build_menu=self._build_pet_service_menu,
       )
 
+  # 创建托盘图标（懒建，无托盘环境降级跳过）；进程退出前必 hide，防 Windows 幽灵图标
+  def _ensure_tray(self) -> None:
+    if self._tray is not None or not QSystemTrayIcon.isSystemTrayAvailable():
+      return
+    tray = QSystemTrayIcon(QIcon(app_env.APP_ICON), self)
+    tray.setToolTip('mock-api-server')
+    # 持久菜单：每次弹出前 aboutToShow 重建，防服务项快照过期
+    menu = QMenu()
+    apply_pet_menu_style(menu)
+    menu.aboutToShow.connect(self._rebuild_tray_menu)
+    tray.setContextMenu(menu)
+    tray.activated.connect(self._on_tray_activated)
+    QApplication.instance().aboutToQuit.connect(tray.hide)
+    self._tray = tray
+
+  # 托盘左键/双击 → 恢复主面板
+  def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+    if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
+      self.exit_pet_mode()
+
+  # 托盘菜单每次弹出前重建：服务项 + 打开主面板/退出/强制退出
+  def _rebuild_tray_menu(self) -> None:
+    if self._tray is None:
+      return
+    menu = self._tray.contextMenu()
+    menu.clear()
+    self._build_pet_service_menu(menu)
+    menu.addSeparator()
+    open_action = menu.addAction(make_pet_menu_icon('window'), '打开主面板')
+    open_action.triggered.connect(self.exit_pet_mode)
+    quit_action = menu.addAction(make_pet_menu_icon('power'), '退出')
+    quit_action.triggered.connect(self.quit_from_pet)
+    kill_action = menu.addAction(make_pet_menu_icon('kill', QColor(200, 60, 60)), '强制退出')
+    kill_action.triggered.connect(self._force_kill)
+
+  # 强制退出：跳过全部确认与清理立即杀死进程（正常流程失效时的最后手段；daemon 子进程随进程消亡）
+  def _force_kill(self) -> None:
+    os._exit(0)
+
   # 进入桌宠模式：隐藏主面板并显示桌宠（服务为独立子进程不受影响）
   def enter_pet_mode(self) -> None:
     self.hide()
+    self._ensure_tray()
+    if self._tray is not None:
+      self._tray.show()
     if self._pet is None:
       self._pet = self._create_pet()
       self._pet.move_to_corner()
@@ -1140,10 +1188,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       action.triggered.connect(getattr(self, handler_name))
       actions[name] = action
     self._refresh_pet_service_items(actions)
-    # timer 父对象为 menu：菜单销毁时随之停止，不空转
+    # timer 父对象为 menu：菜单销毁时随之停止；托盘菜单持久复用，靠 aboutToHide 自清防累积
     timer = QTimer(menu)
     timer.setInterval(500)
     timer.timeout.connect(lambda: self._refresh_pet_service_items(actions))
+    menu.aboutToHide.connect(timer.stop)
+    menu.aboutToHide.connect(timer.deleteLater)
     timer.start()
 
   # 刷新服务项的文本/状态点/可用性（文本和禁用态都随状态字段变化）
@@ -1182,6 +1232,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   def exit_pet_mode(self) -> None:
     if self._pet is not None:
       self._pet.hide()
+    if self._tray is not None:
+      self._tray.hide()
     self.show()
     self.raise_()
     self.activateWindow()

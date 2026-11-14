@@ -68,6 +68,10 @@ def _draw_icon_pixmap(kind: str, color: QColor) -> QPixmap:
     # 电源符号：顶部竖线 + 圆弧（顶部留缺口给竖线）
     painter.drawLine(QPointF(8, 2), QPointF(8, 8))
     painter.drawArc(QRectF(3.5, 4, 9, 9), 120 * 16, 300 * 16)
+  elif kind == 'kill':
+    # 强制退出：交叉 X
+    painter.drawLine(QPointF(4.5, 4.5), QPointF(11.5, 11.5))
+    painter.drawLine(QPointF(11.5, 4.5), QPointF(4.5, 11.5))
   elif kind == 'dot':
     # 状态点：实心圆（颜色由调用方按状态给定）
     painter.setBrush(color)
@@ -78,17 +82,26 @@ def _draw_icon_pixmap(kind: str, color: QColor) -> QPixmap:
 
 # 菜单图标公共入口：window/power 为深灰描边 + hover/选中反白双模式；dot 为彩色状态点（不反色）
 # dot 附带 Disabled 淡化位图：禁用项的状态点同步变淡，与淡色文字一致
+# 非 dot 项传 color 时走彩色路线：常态彩色、hover/选中同色相提亮（保留语义色，如 kill 红色警示）
 def make_pet_menu_icon(kind: str, color: Optional[QColor] = None) -> QIcon:
   if kind == 'dot' and color is not None:
     icon = QIcon(_draw_icon_pixmap('dot', color))
     # Disabled 用浅化实色（保留色相提示，避免半透明在浅底上显糊）
     icon.addPixmap(_draw_icon_pixmap('dot', color.lighter(150)), QIcon.Disabled)
     return icon
-  icon = QIcon(_draw_icon_pixmap(kind, QColor(97, 97, 97)))
-  white = _draw_icon_pixmap(kind, QColor(255, 255, 255))
-  icon.addPixmap(white, QIcon.Active)
-  icon.addPixmap(white, QIcon.Selected)
+  normal = color if color is not None else QColor(97, 97, 97)
+  highlight = color.lighter(140) if color is not None else QColor(255, 255, 255)
+  icon = QIcon(_draw_icon_pixmap(kind, normal))
+  icon.addPixmap(_draw_icon_pixmap(kind, highlight), QIcon.Active)
+  icon.addPixmap(_draw_icon_pixmap(kind, highlight), QIcon.Selected)
   return icon
+
+
+# 应用桌宠菜单样式：无边框/无系统阴影/透明背景（Windows 原生菜单窗需此组合 border-radius 才生效）+ 统一 QSS
+def apply_pet_menu_style(menu: QMenu) -> None:
+  menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+  menu.setAttribute(Qt.WA_TranslucentBackground)
+  menu.setStyleSheet(PET_MENU_STYLE)
 
 
 # 桌宠窗口壳 mixin：无边框透明置顶 + 拖拽 + 右键菜单 + 屏幕角定位 + 点按/悬停钩子
@@ -162,10 +175,7 @@ class PetShellMixin:
   # 右键菜单：打开主面板 / 退出（圆角透明窗 + 统一样式 + 图标）
   def contextMenuEvent(self, event: QContextMenuEvent) -> None:
     menu = QMenu(self)
-    # Windows 上 QMenu 是原生窗口，需无边框 + 无阴影 + 透明背景，QSS border-radius 才生效
-    menu.setWindowFlags(menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
-    menu.setAttribute(Qt.WA_TranslucentBackground)
-    menu.setStyleSheet(PET_MENU_STYLE)
+    apply_pet_menu_style(menu)
     # 可选的服务快捷项等钩子项在前，与窗口操作项之间加分隔线
     if self._on_build_menu is not None:
       self._on_build_menu(menu)
