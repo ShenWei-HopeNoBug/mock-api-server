@@ -15,6 +15,9 @@ PETS_DIR = r'./pets'
 # 历史记录问价路径
 HISTORY_CONFIG_PATH = f'{SYSTEM_DIR}/history.json'
 
+# 桌宠模型配置路径
+PET_MODEL_CONFIG_PATH = f'{SYSTEM_DIR}/pet_model.json'
+
 # -------------------------------------------------------------
 # APP默认工作目录
 DEFAULT_WORK_DIR = './server'

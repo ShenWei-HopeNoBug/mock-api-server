@@ -50,13 +50,14 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 - `--add-data "assets;assets/"` → `--add-data "assets/app.ico;assets/"`（-4.8MB）
 - `--collect-all live2d` **保留**（live2d-py 为渲染运行时，删了用户放模型也渲不了）
 
-### 4.4 `app_env.py`
+### 4.4 `lib/pet_lib.py`（桌宠领域逻辑，原拟 `app_env.py` 已归位）
 
 - 删 `LIVE2D_MODEL_JSON` 常量与三层内嵌兜底，`model_json` 默认 `''`：
   - 配置缺失 → `''` 静默（正常态）；JSON 损坏 → `''`+warning；路径不存在 → `''`+warning（warning 含解析后完整路径，提示用户该放哪）
 - `_resolve_pet_model_path(raw)`：删 `assets/` 前缀分支；绝对路径→原样；相对路径→`os.path.abspath(raw)`（app 根/CWD 为基，与 `system/`、`pets/` 的 `./` 锚定一致）
 - `load_pet_model_config()` 保持无参
 - `ensure_pet_model_config()`：`os.makedirs(PETS_DIR)` 连带建全局 pets 目录（挪到"配置已存在即 return"之前——配置在手目录被删也要补建）
+- `PET_MODEL_CONFIG_PATH` 常量归 `config/work_file.py`（与 `HISTORY_CONFIG_PATH` 同模式）；`app_env.py` 剥离全部桌宠代码回归纯构建环境面
 - `_PET_MODEL_DEFAULT['model_json']` → `'pets/hiyori/Hiyori.model3.json'`（app 根相对）
 
 ### 4.5 `app.py`
@@ -64,7 +65,7 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 - `_create_pet()`：`model_json` 为空直接返回 `DesktopPetWindow`（未配置=正常态，跳过 Live2D 尝试，不打 warning）；其余走原"尝试→异常→球"链路
 - 两级降级、config-diff 免重启重建机制不动
 
-### 4.6 `tests/test_app_env.py`
+### 4.6 `tests/lib/test_pet_lib.py`（原 `tests/test_app_env.py`，随代码归位迁移）
 
 - 三处兜底断言 `LIVE2D_MODEL_JSON` → `''`
 - `assets/` 前缀解析用例 → app 根（`abspath`）基相对路径解析用例
@@ -84,7 +85,7 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 
 | 项 | 评估 |
 |---|---|
-| 文件 | 8：work_file.py / build.py / app_env.py / app.py / test_app_env.py / `assets/live2d→pets` / 本文档+README / spike 注释 |
+| 文件 | 8：work_file.py / build.py / lib/pet_lib.py / app.py / tests/lib/test_pet_lib.py / `assets/live2d→pets` / 本文档+README / spike 注释 |
 | 用户感知 | 未配置/配错→图标球（原=hiyori）；beta 默认关闭、配置即开启 |
 | 升级副作用 | 无启动弹窗扰动——`pets/` 不入 `WORK_DIR_DICT`，完整性检查不受影响；`pets/` 与模板同机懒建于首进桌宠（中间态曾挂 work_dir 的用户会残留 `server/pets/` 空目录，无害） |
 | 配置落点 | `pet_model.json` 在 `./system/`、模型在 `./pets/`——同属 app 级目录（打包后均=exe 同目录），与 work_dir 解耦 |
@@ -109,6 +110,7 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 | 2026-11-14 | `app.py` + 测试 | `_create_pet` 空 model_json 直接 `DesktopPetWindow`（不打 warning）；两处调用传 `self.work_dir`；`test_app_env.py` 重写 7 例 | 端到端冒烟过：自动建目录→未配置空串→放模型命中 三态全对 |
 | 2026-11-14 | 验证 | ruff 归零、pytest 全量过 | 手码 `assets/live2d`、`LIVE2D_MODEL_JSON` 引用清零 |
 | 2026-11-14 | pets 改 app 级全局目录 | `WORK_DIR_DICT` 摘除，`PETS_DIR='./pets'` 挪 `SYSTEM_DIR` 旁；解析基回 `os.path.abspath`（app 根）；`load_pet_model_config` 回无参；`ensure_` 连带 `makedirs(PETS_DIR)` 且挪到"配置已存在即 return"之前 | 用户拍板：先只支持全局 pets 与 system 同级；顺带收益——dev 下模板默认路径直接命中仓库 `pets/hiyori`，零拷贝 |
+| 2026-11-14 | 桌宠代码归位 `lib/pet_lib.py` | 5 符号（`PET_MODEL_CONFIG_PATH`→`work_file.py` 常量，`_PET_MODEL_DEFAULT`/`_resolve_`/`load_`/`ensure_`→`lib/pet_lib.py`）整体迁出 `app_env.py`；测试迁 `tests/lib/test_pet_lib.py`；app/spike 调用点改 import | `app_env` 回归纯构建环境面（APP_ICON/VERSION/LOG 开关）；内嵌兜底删除后 pet 代码不再用 `_resource_path`，滞留打包桥接文件已无理由 |
 
 ## 9. 方案修正
 
@@ -117,3 +119,4 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 | 2026-11-14 | 沿用 `assets/` 前缀分支做内嵌资源解析 | 删除该分支，相对路径统一以 work_dir 为基 | `pets/` 挂 WORK_DIR_DICT 后模型归入用户数据语义；work_dir 已由启动机制解析，无需 frozen/CWD 分叉 |
 | 2026-11-14 | 模型目录命名 `live2d/` 放仓库根 | 改 `pets/` | `live2d` 与 live2d-py 包同名存在命名空间目录遮蔽隐患；`pets/` 彻底绕开且语义模型无关 |
 | 2026-11-14 | `pets/` 挂 `WORK_DIR_DICT` 作 work_dir 子目录（`<work_dir>/pets`，相对路径以 work_dir 为基） | 改 app 级 `./pets` 与 `./system` 同级，解析基回 app 根 `abspath`，自动创建并入 `ensure_pet_model_config` | 用户定调"先只支持全局 pets"——模型属 app 级资源非 work_dir 用户数据；同时消掉 work_dir 传参与升级弹窗副作用 |
+| 2026-11-14 | 桌宠配置代码驻 `app_env.py`（历史沿用：内嵌模型曾需 `_resource_path` 解析） | 迁 `lib/pet_lib.py`（领域逻辑）+ `config/work_file.py`（`PET_MODEL_CONFIG_PATH` 常量），贴合"常量在 config、逻辑在 lib"分层 | 内嵌兜底删除后 `_resource_path` 耦合消失，`app_env` 应只剩构建环境桥接；pet 代码曾占该文件 2/3 体量，归位后模块职责单一 |

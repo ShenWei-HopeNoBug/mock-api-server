@@ -42,6 +42,7 @@ from lib.db import MockDBCache
 from lib.decorate import create_thread, error_catch
 from lib.download_lib import download_server_static
 from lib.logger_lib import APP_LOGGER, get_log_queue, shutdown_logging
+from lib.pet_lib import ensure_pet_model_config, load_pet_model_config
 from lib.server_lib import server_process_start
 from lib.system_lib import HISTORY_CONFIG_MANAGER
 from lib.utils_lib import is_local_port_occupied, is_local_server_running
@@ -1080,7 +1081,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 创建桌宠窗口：模型已配置才走 Live2D 渲染层（参数走 system/pet_model.json）；
   # 未配置直接图标球（beta 收敛：无内嵌兜底，未配置=正常态），已配置但加载失败同样降级
   def _create_pet(self) -> QWidget:
-    pet_config = app_env.load_pet_model_config()
+    pet_config = load_pet_model_config()
     if not pet_config.get('model_json'):
       return DesktopPetWindow(
         on_restore=self.exit_pet_mode,
@@ -1149,8 +1150,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self._ensure_tray()
     if self._tray is not None:
       self._tray.show()
-    app_env.ensure_pet_model_config()
-    cfg_key = json.dumps(app_env.load_pet_model_config(), sort_keys=True)
+    ensure_pet_model_config()
+    cfg_key = json.dumps(load_pet_model_config(), sort_keys=True)
     if self._pet is not None and self._pet_cfg_key != cfg_key:
       self._pet.hide()
       self._pet.deleteLater()

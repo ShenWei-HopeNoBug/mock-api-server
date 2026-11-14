@@ -23,9 +23,9 @@ from PySide6.QtGui import QGuiApplication, QMouseEvent, QSurfaceFormat
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QApplication, QMenu
 
-# 模型路径与主链路同源：走 app_env 的 system/pet_model.json 配置加载（相对路径以 work_dir 为基，模型放 server/pets/）
+# 模型路径与主链路同源：走 lib.pet_lib 的 system/pet_model.json 配置加载（相对路径以 app 根为基，模型放 ./pets/）
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-from app_env import load_pet_model_config  # noqa: E402
+from lib.pet_lib import load_pet_model_config  # noqa: E402
 
 _cfg = load_pet_model_config()
 MODEL_JSON = _cfg['model_json']
