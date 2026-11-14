@@ -18,10 +18,12 @@ window = '''
 
   QMenuBar{
     background-color:rgb(255, 248, 225);
+    border-bottom:1px solid rgba(150, 110, 60, 50);
   }
 
   QMenuBar::item {
-    padding:3px 8px;
+    color:rgb(96, 62, 30);
+    padding:4px 10px;
     border-radius:4px;
   }
 
@@ -40,11 +42,15 @@ window = '''
     background-color:transparent;
   }
 
+  /* 不加 border-radius：QMenu 下拉为顶层弹窗，圆角外会露原生矩形底色（同 tooltip 坑位） */
   QMenu{
     background-color:rgb(255, 248, 225);
+    border:1px solid rgba(150, 110, 60, 60);
+    padding:4px;
   }
 
   QMenu::item{
+    color:rgb(96, 62, 30);
     padding: 4px 20px;
     border-radius:4px;
   }
@@ -52,6 +58,12 @@ window = '''
   QMenu::item:selected{
     color:white;
     background-color:rgb(97, 97, 97);
+  }
+
+  QMenu::separator{
+    height:1px;
+    background:rgba(150, 110, 60, 50);
+    margin:3px 8px;
   }
 
   QMenu::item:disabled {

@@ -955,7 +955,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     tip_label = QLabel('正在关闭应用…', card)
     tip_label.setAlignment(Qt.AlignCenter)
-    tip_label.setStyleSheet('font-size: 15px; color: rgb(80, 80, 80); border: none;')
+    tip_label.setStyleSheet('font-size: 15px; color: rgb(96, 62, 30); border: none;')
     self._exit_tip_label = tip_label
 
     progress_bar = QProgressBar(card)
@@ -966,12 +966,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
       QProgressBar {
         border: none;
         border-radius: 4px;
-        background-color: rgb(230, 230, 230);
+        background-color: rgb(240, 222, 192);
         height: 8px;
       }
       QProgressBar::chunk {
         border-radius: 4px;
-        background-color: rgb(97, 97, 97);
+        background-color: rgb(190, 140, 80);
       }
     ''')
 

@@ -89,7 +89,7 @@ class StartSplash(QObject):
     # 启动文案
     tip_label = QLabel('正在启动应用…', card)
     tip_label.setAlignment(Qt.AlignCenter)
-    tip_label.setStyleSheet('font-size: 15px; color: rgb(80, 80, 80); border: none;')
+    tip_label.setStyleSheet('font-size: 15px; color: rgb(96, 62, 30); border: none;')
     self._tip_label = tip_label
 
     # 进度条（indeterminate，循环滚动动画）
@@ -101,12 +101,12 @@ class StartSplash(QObject):
       QProgressBar {
         border: none;
         border-radius: 4px;
-        background-color: rgb(230, 230, 230);
+        background-color: rgb(240, 222, 192);
         height: 8px;
       }
       QProgressBar::chunk {
         border-radius: 4px;
-        background-color: rgb(97, 97, 97);
+        background-color: rgb(190, 140, 80);
       }
     ''')
     self._progress_bar = progress_bar
