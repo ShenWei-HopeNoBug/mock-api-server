@@ -54,6 +54,9 @@
 | 2026-11-14 | 档 A 样式美化 | commit `0528c52`：标题层级/暖棕配色/描边/复选框/底色提亮 | 用户两轮调色后定稿 |
 | 2026-11-14 | 档 B 布局重排 | `.ui` 全量重写为 QVBoxLayout+三卡片；根部件类型修正 QMainWindow；按钮 min-width 110px；`win_ui.py` 重新生成 | 首次生成后布局塌缩——QMainWindow setLayout 被拒，修正根部件类型后正常 |
 | 2026-11-14 | 工作目录 elide + tooltip 美化 + 卡内分隔线 | `_refresh_work_dir_display` fontMetrics ElideRight + `singleShot(0)` 延迟测量；`QToolTip` app 级 QSS（直角无圆角）+ 56 字符 `<br>` 换行；服务卡加 `serverDivider` 上下各 10px 间距，下载两项归分隔线下 | elide 初版 `layout().activate()` 方案废弃：窗口未 show 前激活会按默认小尺寸算死；tooltip 圆角会露顶层窗原生矩形底色故去圆角 |
+| 2026-11-14 | 菜单栏 + 启动/退出动画暖调 | 菜单栏暖棕字/发丝线，下拉菜单描边/分隔线；splash 与退出蒙层文字/进度条暖化（commit `22eeffe`） | QMenu 下拉同为顶层弹窗，不加圆角 |
+| 2026-11-14 | 全 dialog 暖调统一（共享样式抽取） | 新增 `qt_ui/common_style.py`：DIALOG_BASE/MODULE_TEXT/`button_group`/LINE_EDIT/SPIN_BOX/TEXT_EDIT/COMBO_BOX/LIST_WIDGET/SCROLLBAR 片段；7 个 `*_style.py`/`module_style.py` 重写为组合引用；内联冷色两处修正（about LinkLabel `#409eff`→暖橙、server_config QListView skyblue→暖棕） | 不再逐文件复制色值，调色只改 common_style；webview 弹窗（抓包数据/代理配置）不在范围 |
+| 2026-11-14 | 复选框共享片段补齐 | `common_style` 补 `CHECK_BOX` 片段；`download_config_win_style` 组合引用，修复下载配置弹窗复选框回落原生 windowsvista 样式；`main_win_style` 内联 QCheckBox 块删除改引用同一片段 | 上轮抽取漏 QCheckBox——片段集不含它，dialog 侧无规则回落原生；色值与主面板原样式逐条一致 |
 
 ## 6. 方案修正
 

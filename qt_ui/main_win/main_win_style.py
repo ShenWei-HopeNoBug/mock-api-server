@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from qt_ui.common_style import CHECK_BOX
+
 # 全局 tooltip 样式：tooltip 是 Qt 自建顶层窗，须挂 QApplication 级才生效（main.py setStyleSheet）
 tooltip = '''
   /* 不加 border-radius：Windows 下 QToolTip 为不透明顶层窗，圆角外会露原生矩形底色 */
@@ -159,21 +161,4 @@ window = '''
   QSpinBox:focus{
     border:1px solid rgb(190, 140, 80);
   }
-
-  QCheckBox{
-    color:rgb(96, 62, 30);
-  }
-
-  QCheckBox::indicator{
-    width:14px;
-    height:14px;
-    border-radius:3px;
-    border:1px solid rgba(150, 110, 60, 110);
-    background-color:rgb(255, 248, 225);
-  }
-
-  QCheckBox::indicator:checked{
-    background-color:rgb(205, 140, 65);
-    border:1px solid rgb(165, 105, 45);
-  }
-'''
+''' + CHECK_BOX

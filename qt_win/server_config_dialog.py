@@ -93,14 +93,15 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
     list_view = QListView()
     list_view.setStyleSheet('''
       QListView {
-        background-color: rgb(250, 250, 250);
-        border: 1px solid skyblue;
+        background-color: rgb(255, 248, 225);
+        border: 1px solid rgb(195, 148, 95);
         border-radius: 0px;
         padding: 2px;
         outline: none;
         font-size: 8pt;
       }
       QListView::item {
+        color: rgb(96, 62, 30);
         min-height: 24px;
         padding: 2px 6px;
         margin: 1px 0px;
@@ -111,7 +112,7 @@ class ServerConfigDialog(QDialog, Ui_Dialog):
       }
       QListView::item:selected {
         background-color: rgb(255, 224, 178);
-        color: black;
+        color: rgb(96, 62, 30);
         border-radius: 4px;
       }
     ''')

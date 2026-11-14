@@ -17,7 +17,7 @@ class LinkLabel(QLabel):
     self.setTextInteractionFlags(Qt.TextBrowserInteraction)
     self.setCursor(QCursor(Qt.PointingHandCursor))  # 鼠标悬停时显示手形图标
     self.linkActivated.connect(self.open_link)
-    self.setStyleSheet('color:#409eff')
+    self.setStyleSheet('color:rgb(190, 110, 40)')
 
   def mouseReleaseEvent(self, event: QMouseEvent) -> None:
     if event.button() == Qt.LeftButton:

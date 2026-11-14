@@ -1,54 +1,5 @@
 # -*- coding: utf-8 -*-
-window = '''
-  #Dialog
-  {
-    background-color:rgb(255, 224, 178);
-  }
+from qt_ui.common_style import COMBO_BOX, DIALOG_BASE, button_group
 
-  #confirmPushButton
-  {
-    background-color:rgb(250, 250, 250);
-    border-radius:6px;
-    border:1px solid skyblue;
-    padding:4px 8px;
-  }
-
-  #confirmPushButton:hover
-  {
-    color:white;
-    background-color:rgb(97, 97, 97);
-    border-width:0;
-  }
-
-  #confirmPushButton:disabled
-  {
-    border:none;
-  }
-
-  QComboBox
-  {
-    background-color:rgb(250, 250, 250);
-    border-radius:6px;
-    border:1px solid skyblue;
-    padding:4px 8px;
-    min-height:24px;
-  }
-
-  QComboBox:hover
-  {
-    border:1px solid rgb(97, 97, 97);
-  }
-
-  QComboBox::drop-down
-  {
-    border:none;
-    width:24px;
-  }
-
-  QComboBox::down-arrow
-  {
-    width:10px;
-    height:10px;
-  }
-
-  /* 下拉列表样式由 QListView.setStyleSheet 单独控制，避免与自定义视图冲突 */'''
+# 下拉列表视图样式由 server_config_dialog 中 QListView.setStyleSheet 单独控制
+window = DIALOG_BASE + COMBO_BOX + button_group('#confirmPushButton')

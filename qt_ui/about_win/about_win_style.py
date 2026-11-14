@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-window = '''
-  #Dialog{
-    background-color:rgb(255, 224, 178);
-  }
-'''
+from qt_ui.common_style import DIALOG_BASE
+
+window = DIALOG_BASE
