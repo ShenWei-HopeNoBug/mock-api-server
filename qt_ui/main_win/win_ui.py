@@ -24,7 +24,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(619, 476)
+        MainWindow.resize(619, 496)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.rootLayout = QVBoxLayout(self.centralwidget)
@@ -136,17 +136,26 @@ class Ui_MainWindow(object):
 
         self.serverRow2.addItem(self.serverRow2Spacer)
 
-        self.staticDownloadButton = QPushButton(self.cardServer)
-        self.staticDownloadButton.setObjectName(u"staticDownloadButton")
-        self.staticDownloadButton.setMinimumSize(QSize(0, 32))
-        self.staticDownloadButton.setFont(font)
-        self.staticDownloadButton.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-
-        self.serverRow2.addWidget(self.staticDownloadButton)
-
 
         self.cardServerLayout.addLayout(self.serverRow2)
 
+        self.serverDividerGapTop = QSpacerItem(20, 10, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+
+        self.cardServerLayout.addItem(self.serverDividerGapTop)
+
+        self.serverDivider = QFrame(self.cardServer)
+        self.serverDivider.setObjectName(u"serverDivider")
+        self.serverDivider.setFrameShape(QFrame.HLine)
+        self.serverDivider.setFrameShadow(QFrame.Plain)
+
+        self.cardServerLayout.addWidget(self.serverDivider)
+
+        self.serverDividerGap = QSpacerItem(20, 10, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+
+        self.cardServerLayout.addItem(self.serverDividerGap)
+
+        self.serverRow3 = QHBoxLayout()
+        self.serverRow3.setObjectName(u"serverRow3")
         self.compressCheckBox = QCheckBox(self.cardServer)
         self.compressCheckBox.setObjectName(u"compressCheckBox")
         self.compressCheckBox.setMinimumSize(QSize(0, 32))
@@ -154,7 +163,22 @@ class Ui_MainWindow(object):
         self.compressCheckBox.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.compressCheckBox.setIconSize(QSize(10, 10))
 
-        self.cardServerLayout.addWidget(self.compressCheckBox)
+        self.serverRow3.addWidget(self.compressCheckBox)
+
+        self.serverRow3Spacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.serverRow3.addItem(self.serverRow3Spacer)
+
+        self.staticDownloadButton = QPushButton(self.cardServer)
+        self.staticDownloadButton.setObjectName(u"staticDownloadButton")
+        self.staticDownloadButton.setMinimumSize(QSize(0, 32))
+        self.staticDownloadButton.setFont(font)
+        self.staticDownloadButton.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+
+        self.serverRow3.addWidget(self.staticDownloadButton)
+
+
+        self.cardServerLayout.addLayout(self.serverRow3)
 
 
         self.rootLayout.addWidget(self.cardServer)
@@ -276,8 +300,8 @@ class Ui_MainWindow(object):
         self.label_7.setText(QCoreApplication.translate("MainWindow", u"\u54cd\u5e94\u5ef6\u65f6(ms)\uff1a", None))
         self.serverButton.setText(QCoreApplication.translate("MainWindow", u"\u542f\u52a8\u670d\u52a1", None))
         self.label_8.setText(QCoreApplication.translate("MainWindow", u"\u9759\u6001\u8d44\u6e90\u52a0\u8f7d\u901f\u7387(kb/s)\uff1a", None))
-        self.staticDownloadButton.setText(QCoreApplication.translate("MainWindow", u"\u9759\u6001\u8d44\u6e90\u4e0b\u8f7d", None))
         self.compressCheckBox.setText(QCoreApplication.translate("MainWindow", u"\u4e0b\u8f7d\u9759\u6001\u8d44\u6e90\u81ea\u52a8\u538b\u7f29\u56fe\u7247", None))
+        self.staticDownloadButton.setText(QCoreApplication.translate("MainWindow", u"\u9759\u6001\u8d44\u6e90\u4e0b\u8f7d", None))
         self.label_5.setText(QCoreApplication.translate("MainWindow", u"\u6293\u5305\u914d\u7f6e", None))
         self.label_3.setText(QCoreApplication.translate("MainWindow", u"\u7aef\u53e3\u53f7\uff1a", None))
         self.catchServerButton.setText(QCoreApplication.translate("MainWindow", u"\u542f\u52a8\u6293\u5305\u670d\u52a1", None))

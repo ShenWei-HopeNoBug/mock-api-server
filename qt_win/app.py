@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+import html
 import json
 import os
+import textwrap
 import threading
 import time
 from multiprocessing import Event, Process
@@ -333,10 +335,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # MCP 服务按钮
     self.mcpServerButton.clicked.connect(self.mcp_server_button_click)
 
-    # 选择服务的工作目录
-    self.serverWorkDirLineEdit.setText(self.work_dir)
-    self.serverWorkDirLineEdit.setCursorPosition(0)
-    self.serverWorkDirLineEdit.setToolTip(self.work_dir)
+    # 选择服务的工作目录（过长路径末尾省略号展示，tooltip 保留全路径）
+    # 布局更新走异步 LayoutRequest，此刻读 width() 是激活前的旧值 → singleShot(0) 延迟到结算后测量
+    QTimer.singleShot(0, self._refresh_work_dir_display)
+
+  # 工作目录展示刷新：禁用态 QLineEdit 无原生 elide，用 fontMetrics 末尾省略（web text-overflow: ellipsis 同款）
+  def _refresh_work_dir_display(self) -> None:
+    edit = self.serverWorkDirLineEdit
+    elided = edit.fontMetrics().elidedText(self.work_dir, Qt.ElideRight, max(0, edit.width() - 24))
+    edit.setText(elided)
+    # tooltip 手动 <br> 换行：富文本 tooltip 配合 app 级 QToolTip 样式，长路径不再单行撑出屏
+    edit.setToolTip('<br>'.join(textwrap.wrap(html.escape(self.work_dir), 56)))
 
   # 展示提示弹窗
   def show_message_dialog(self, dialog_type: str = 'critical', title: str = '', message: str = '') -> None:
@@ -358,9 +367,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if directory and self.check_and_create_work_files(directory):
       # 更换工作目录后，检查目录文件
       self.work_dir = directory
-      self.serverWorkDirLineEdit.setText(self.work_dir)
-      self.serverWorkDirLineEdit.setCursorPosition(0)
-      self.serverWorkDirLineEdit.setToolTip(self.work_dir)
+      self._refresh_work_dir_display()
       # 更新工作目录历史记录
       HISTORY_CONFIG_MANAGER.set(key='work_dir', value=self.work_dir)
 
@@ -1092,6 +1099,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
   # 蒙层跟随窗口大小变化
   def resizeEvent(self, event: QResizeEvent) -> None:
     super().resizeEvent(event)
+    # 同 init：resize 期间子控件布局尚未结算，延迟到下一事件周期量宽
+    QTimer.singleShot(0, self._refresh_work_dir_display)
     if self._exit_overlay is not None:
       self._exit_overlay.setGeometry(self.rect())
 

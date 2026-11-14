@@ -24,6 +24,7 @@ from lib.app_lib import (
 from lib.logger_lib import APP_LOGGER, configure_logging
 from lib.splash import StartSplash
 from module.app_server import start_app_server
+from qt_ui.main_win import main_win_style
 from qt_win.app import MainWindow
 
 
@@ -57,6 +58,8 @@ if __name__ == '__main__':
   app: QApplication = QApplication(sys.argv)
   # 固定 windowsvista 样式：避免 Qt6 默认 windows11 样式跟随系统深色模式导致字体/控件观感异常
   app.setStyle('windowsvista')
+  # 全局 tooltip 暖调样式：tooltip 是 Qt 自建顶层窗，窗口级 QSS 覆盖不到，须挂 QApplication
+  app.setStyleSheet(main_win_style.tooltip)
   # 桌宠模式下主面板隐藏后顶层窗口可能全部不可见，禁止 Qt 因"最后窗口关闭"自动 quit
   app.setQuitOnLastWindowClosed(False)
   # 设置应用图标（任务栏/标题栏）

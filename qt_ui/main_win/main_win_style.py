@@ -1,4 +1,16 @@
 # -*- coding: utf-8 -*-
+# 全局 tooltip 样式：tooltip 是 Qt 自建顶层窗，须挂 QApplication 级才生效（main.py setStyleSheet）
+tooltip = '''
+  /* 不加 border-radius：Windows 下 QToolTip 为不透明顶层窗，圆角外会露原生矩形底色 */
+  QToolTip {
+    color:rgb(96, 62, 30);
+    background-color:rgb(255, 248, 225);
+    border:1px solid rgb(195, 148, 95);
+    padding:6px 10px;
+    font-size:12px;
+  }
+'''
+
 window = '''
   #MainWindow{
     background-color:rgb(255, 232, 195);
@@ -61,6 +73,14 @@ window = '''
     background-color:rgba(255, 250, 238, 150);
     border-radius:10px;
     border:1px solid rgba(150, 110, 60, 45);
+  }
+
+  /* 卡内分隔线：1px 暖棕细线，与标题分隔线同色系 */
+  #serverDivider{
+    color:rgb(122, 76, 36);
+    background-color:rgba(122, 76, 36, 50);
+    max-height:1px;
+    border:none;
   }
 
   /* 分区标题：加粗 + 底部细分隔线，建立视觉层级（替代原文本【】括号） */

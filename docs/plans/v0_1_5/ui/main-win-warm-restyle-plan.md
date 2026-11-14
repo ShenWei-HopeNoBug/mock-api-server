@@ -53,6 +53,7 @@
 |---|---|---|---|
 | 2026-11-14 | 档 A 样式美化 | commit `0528c52`：标题层级/暖棕配色/描边/复选框/底色提亮 | 用户两轮调色后定稿 |
 | 2026-11-14 | 档 B 布局重排 | `.ui` 全量重写为 QVBoxLayout+三卡片；根部件类型修正 QMainWindow；按钮 min-width 110px；`win_ui.py` 重新生成 | 首次生成后布局塌缩——QMainWindow setLayout 被拒，修正根部件类型后正常 |
+| 2026-11-14 | 工作目录 elide + tooltip 美化 + 卡内分隔线 | `_refresh_work_dir_display` fontMetrics ElideRight + `singleShot(0)` 延迟测量；`QToolTip` app 级 QSS（直角无圆角）+ 56 字符 `<br>` 换行；服务卡加 `serverDivider` 上下各 10px 间距，下载两项归分隔线下 | elide 初版 `layout().activate()` 方案废弃：窗口未 show 前激活会按默认小尺寸算死；tooltip 圆角会露顶层窗原生矩形底色故去圆角 |
 
 ## 6. 方案修正
 
@@ -60,3 +61,5 @@
 |---|---|---|---|
 | 2026-11-14 | `.ui` 根部件沿用 `QWidget` 直接挂 QVBoxLayout | 根部件改 `QMainWindow` + `centralwidget` 承载布局 | `QMainWindow` 自带内部布局，`setLayout` 静默失败导致控件全部塌缩到原点；原 `.ui` 的 QWidget 声明本身即类型错误，被绝对定位掩盖 |
 | 2026-11-14 | 档 A 中 setText 去【】 | 档 B 中 `.ui` 直接写净文案，setText 删除 | 布局重写后 `.ui` 即为单一事实源，代码无需二次修正 |
+| 2026-11-14 | elide 宽度测量用 `layout().activate()` 同步布局 | 改 `QTimer.singleShot(0, _refresh)` 延迟到事件结算后测量 | 未 show 前 activate 按默认小尺寸算死（输入框仅 19px）→ elidedText 得负宽返回空串；resizeEvent 时机 centralwidget 尺寸亦未同步 |
+| 2026-11-14 | tooltip 加 border-radius 圆角 | 去圆角 | Windows QToolTip 为不透明顶层窗，圆角外四个角会露原生矩形底色，QSS 无透明手段 |
