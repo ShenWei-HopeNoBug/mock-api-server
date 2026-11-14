@@ -103,7 +103,7 @@ def app_build(window=False, timestamp=''):
     f"--name={app_name}",
     "--contents-directory=site-packages",
     "--add-data", "schema;schema/",
-    "--add-data", "assets;assets/",
+    "--add-data", "assets/app.ico;assets/",
     "--collect-all", "live2d",
     "--icon=assets/app.ico",
     "main.py",

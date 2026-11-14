@@ -1,6 +1,6 @@
 # 桌宠模型外置化变更（beta 收敛）
 
-> 状态：待实施
+> 状态：已实施
 > 范围：`config/work_file.py` / `build.py` / `app_env.py` / `qt_win/app.py` / `tests/test_app_env.py` / `tools/live2d_spike.py` / `assets/live2d→pets`（迁移）
 > 前案：[desktop-pet-model-config-plan](desktop-pet-model-config-plan.md)（本文修正其"内嵌兜底"设计，前案正文不动）
 
@@ -31,8 +31,8 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 
 | 位置 | 内容 | 说明 |
 |---|---|---|
-| `<work_dir>/pets/` | 自动创建的空目录 | 用户放模型的位置；dev=`server/pets/`，打包默认=`<exe>/server/pets/`（自定义 work_dir 随用户数据走） |
-| 仓库根 `pets/` | `pets/hiyori/` 测试模型 | 入库、仅 dev 用；`server/` 是 gitignore 运行时数据不可放 |
+| `./pets/` | app 级全局模型目录（与 `./system` 同级） | 首进桌宠时 `ensure_pet_model_config` 自动创建；打包后=exe 同目录 `pets/`；dev=仓库根 `pets/` |
+| 仓库根 `pets/` | `pets/hiyori/` 测试模型 | 入库、即 dev 的全局 pets——模板默认路径 `pets/hiyori/Hiyori.model3.json` 在 dev 下直接命中，零拷贝 |
 | `./system/pet_model.json` | 配置文件 | 位置不变（随 history.json），避免迁移 |
 
 ## 4. 逐项改动
@@ -43,7 +43,7 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 
 ### 4.2 `config/work_file.py`
 
-新增 `PETS_DIR = r'/pets'` 常量 + `WORK_DIR_DICT` 注册 `"PETS_DIR"`——既有 `create_work_files`/`check_work_files` 机制接管自动创建与完整性检查。
+新增 `PETS_DIR = r'./pets'` 常量于 `SYSTEM_DIR` 旁（同属 app 级目录段，不入 `WORK_DIR_DICT`——pets 是全局目录非 work_dir 用户数据）；自动创建由 `app_env.ensure_pet_model_config` 承担（见 4.4）。
 
 ### 4.3 `build.py`
 
@@ -54,30 +54,31 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 
 - 删 `LIVE2D_MODEL_JSON` 常量与三层内嵌兜底，`model_json` 默认 `''`：
   - 配置缺失 → `''` 静默（正常态）；JSON 损坏 → `''`+warning；路径不存在 → `''`+warning（warning 含解析后完整路径，提示用户该放哪）
-- `_resolve_pet_model_path(raw, work_dir)`：删 `assets/` 前缀分支；绝对路径→原样；相对路径→`os.path.join(work_dir, raw)`
-- `load_pet_model_config(work_dir=DEFAULT_WORK_DIR)` 加参
-- `_PET_MODEL_DEFAULT['model_json']` → `'pets/hiyori/Hiyori.model3.json'`（work_dir 相对）
+- `_resolve_pet_model_path(raw)`：删 `assets/` 前缀分支；绝对路径→原样；相对路径→`os.path.abspath(raw)`（app 根/CWD 为基，与 `system/`、`pets/` 的 `./` 锚定一致）
+- `load_pet_model_config()` 保持无参
+- `ensure_pet_model_config()`：`os.makedirs(PETS_DIR)` 连带建全局 pets 目录（挪到"配置已存在即 return"之前——配置在手目录被删也要补建）
+- `_PET_MODEL_DEFAULT['model_json']` → `'pets/hiyori/Hiyori.model3.json'`（app 根相对）
 
 ### 4.5 `app.py`
 
-- `_create_pet()`：`load_pet_model_config(work_dir=self.work_dir)`；`model_json` 为空直接返回 `DesktopPetWindow`（未配置=正常态，跳过 Live2D 尝试，不打 warning）；其余走原"尝试→异常→球"链路
-- `enter_pet_mode()` 的 cfg_key 调用同步传 `self.work_dir`；两级降级、config-diff 免重启重建机制不动
+- `_create_pet()`：`model_json` 为空直接返回 `DesktopPetWindow`（未配置=正常态，跳过 Live2D 尝试，不打 warning）；其余走原"尝试→异常→球"链路
+- 两级降级、config-diff 免重启重建机制不动
 
 ### 4.6 `tests/test_app_env.py`
 
 - 三处兜底断言 `LIVE2D_MODEL_JSON` → `''`
-- `assets/` 前缀解析用例 → work_dir 基相对路径解析用例
-- 无 frozen 用例需求（解析基统一为 work_dir，无环境分叉）
+- `assets/` 前缀解析用例 → app 根（`abspath`）基相对路径解析用例
+- `ensure_` 用例补 pets 目录连带创建断言
 
 ### 4.7 `tools/live2d_spike.py`
 
-主链路同源生效，仅补注释说明模型路径走 `<work_dir>/pets/`。
+主链路同源生效，仅补注释说明模型路径走 `./pets/`（app 根相对）。
 
 ## 5. 使用流程
 
-**打包用户**：启动后 `server/pets/` 已自动创建（空）→ 放模型（如 `server/pets/hiyori/`）→ 首次进桌宠生成 `system/pet_model.json` 模板 → 改 `model_json` 指向 `pets/<目录>/<model3.json>` → 再进桌宠生效（config-diff 重建免重启）。
+**打包用户**：首次进桌宠自动生成 `system/pet_model.json` 模板并建空 `pets/`（exe 同目录）→ 放模型（如 `pets/hiyori/`）→ 改 `model_json` 指向 `pets/<目录>/<model3.json>` → 再进桌宠生效（config-diff 重建免重启）。
 
-**dev**：`server/pets/` 同建但空；一次性 `cp -r pets server/`（复刻打包布局），或 `model_json` 写绝对路径。
+**dev**：仓库根 `pets/hiyori/` 即全局 pets——模板默认路径直接命中，开箱出 Live2D，零拷贝零配置。
 
 ## 6. 影响面
 
@@ -85,9 +86,9 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 |---|---|
 | 文件 | 8：work_file.py / build.py / app_env.py / app.py / test_app_env.py / `assets/live2d→pets` / 本文档+README / spike 注释 |
 | 用户感知 | 未配置/配错→图标球（原=hiyori）；beta 默认关闭、配置即开启 |
-| 升级副作用 | `pets/` 入完整性检查→老用户首跑弹一次既有"是否创建工作目录文件？"确认，确认后自动创建（与任何新增 WORK_DIR_DICT 目录行为一致） |
-| 配置落点 | `pet_model.json` 仍在 `./system/`（不动，零迁移）；模型在 `work_dir/pets/`——用户换 work_dir 时模型随数据走，语义正确 |
-| 迁移兼容 | 旧模板 `assets/...` → 按 work_dir 相对解析 → 不存在 → warning+球（warning 带完整解析路径，自解释） |
+| 升级副作用 | 无启动弹窗扰动——`pets/` 不入 `WORK_DIR_DICT`，完整性检查不受影响；`pets/` 与模板同机懒建于首进桌宠（中间态曾挂 work_dir 的用户会残留 `server/pets/` 空目录，无害） |
+| 配置落点 | `pet_model.json` 在 `./system/`、模型在 `./pets/`——同属 app 级目录（打包后均=exe 同目录），与 work_dir 解耦 |
+| 迁移兼容 | 旧模板 `assets/...` → 按 app 根相对解析 → 不存在 → warning+球（warning 带完整解析路径，自解释） |
 | 打包产物 | -4.8MB；`assets/` 仅 `app.ico`；live2d-py 运行库保留 |
 | 风险 | 低：新逻辑=一个函数签名+一个 join，无环境分叉；降级链两级未动；测试覆盖 |
 | 不可变项 | `win_ui.py` 生成物、`pet_model.json` 落点、两级降级机制 |
@@ -95,14 +96,19 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 ## 7. 验收
 
 - `ruff` 归零、pytest 全量过
-- dev 实跑三态：无配置出球+生成模板 → `cp -r pets server/` → 模板默认路径命中出 Live2D → 改错路径出 warning+球
-- 打包冒烟：`build.py` 后 dist 无 `assets/live2d`；exe 无模型出球、`server/pets/`+配置出 Live2D
-- 自定义 work_dir 场景：模型随 work_dir 解析正确
+- dev 实跑三态：无配置出球+生成模板+pets 目录 → 模板默认路径直接命中仓库 `pets/hiyori` 出 Live2D → 改错路径出 warning+球
+- 打包冒烟：`build.py` 后 dist 无 `assets/live2d`；exe 无模型出球、exe 同目录 `pets/`+配置出 Live2D
 
 ## 8. 实施记录
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
+| 2026-11-14 | 目录迁移 + work_dir 注册 | `git mv assets/live2d pets`（14 文件保留历史）；`work_file.py` 加 `PETS_DIR='/pets'` 并入 `WORK_DIR_DICT`，既有 `create_work_files`/`check_work_files` 自动接管 | 老用户升级首跑会弹一次既有"创建工作目录文件"确认，确认后空目录就位 |
+| 2026-11-14 | `build.py` 收窄打包 | `--add-data` 改 `assets/app.ico;assets/`；`--collect-all live2d` 保留（渲染运行时） | assets/ 仅剩 app.ico，-4.8MB |
+| 2026-11-14 | `app_env.py` 兜底删除 | 删 `LIVE2D_MODEL_JSON`+三层内嵌兜底→`model_json=''`；`_resolve_pet_model_path` 删 `assets/` 前缀、改 `work_dir` 基；`load_pet_model_config(work_dir)` 加参；模板路径 `pets/hiyori/...` | warning 文案统一"降级图标球"并带完整解析路径，提示用户应放位置 |
+| 2026-11-14 | `app.py` + 测试 | `_create_pet` 空 model_json 直接 `DesktopPetWindow`（不打 warning）；两处调用传 `self.work_dir`；`test_app_env.py` 重写 7 例 | 端到端冒烟过：自动建目录→未配置空串→放模型命中 三态全对 |
+| 2026-11-14 | 验证 | ruff 归零、pytest 全量过 | 手码 `assets/live2d`、`LIVE2D_MODEL_JSON` 引用清零 |
+| 2026-11-14 | pets 改 app 级全局目录 | `WORK_DIR_DICT` 摘除，`PETS_DIR='./pets'` 挪 `SYSTEM_DIR` 旁；解析基回 `os.path.abspath`（app 根）；`load_pet_model_config` 回无参；`ensure_` 连带 `makedirs(PETS_DIR)` 且挪到"配置已存在即 return"之前 | 用户拍板：先只支持全局 pets 与 system 同级；顺带收益——dev 下模板默认路径直接命中仓库 `pets/hiyori`，零拷贝 |
 
 ## 9. 方案修正
 
@@ -110,3 +116,4 @@ pet_model.json 存在 且 model_json 解析出存在的文件 → Live2DPetWindo
 |---|---|---|---|
 | 2026-11-14 | 沿用 `assets/` 前缀分支做内嵌资源解析 | 删除该分支，相对路径统一以 work_dir 为基 | `pets/` 挂 WORK_DIR_DICT 后模型归入用户数据语义；work_dir 已由启动机制解析，无需 frozen/CWD 分叉 |
 | 2026-11-14 | 模型目录命名 `live2d/` 放仓库根 | 改 `pets/` | `live2d` 与 live2d-py 包同名存在命名空间目录遮蔽隐患；`pets/` 彻底绕开且语义模型无关 |
+| 2026-11-14 | `pets/` 挂 `WORK_DIR_DICT` 作 work_dir 子目录（`<work_dir>/pets`，相对路径以 work_dir 为基） | 改 app 级 `./pets` 与 `./system` 同级，解析基回 app 根 `abspath`，自动创建并入 `ensure_pet_model_config` | 用户定调"先只支持全局 pets"——模型属 app 级资源非 work_dir 用户数据；同时消掉 work_dir 传参与升级弹窗副作用 |

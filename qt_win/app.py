@@ -1077,15 +1077,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if self._exit_overlay is not None:
       self._exit_overlay.setGeometry(self.rect())
 
-  # 创建桌宠窗口：优先 Live2D 渲染层（模型参数走 system/pet_model.json 配置），任何失败降级占位球
+  # 创建桌宠窗口：模型已配置才走 Live2D 渲染层（参数走 system/pet_model.json）；
+  # 未配置直接图标球（beta 收敛：无内嵌兜底，未配置=正常态），已配置但加载失败同样降级
   def _create_pet(self) -> QWidget:
+    pet_config = app_env.load_pet_model_config()
+    if not pet_config.get('model_json'):
+      return DesktopPetWindow(
+        on_restore=self.exit_pet_mode,
+        on_quit=self.quit_from_pet,
+        on_build_menu=self._build_pet_service_menu,
+      )
     try:
       from qt_win.live2d_pet import Live2DPetWindow
       return Live2DPetWindow(
         on_restore=self.exit_pet_mode,
         on_quit=self.quit_from_pet,
         on_build_menu=self._build_pet_service_menu,
-        **app_env.load_pet_model_config(),
+        **pet_config,
       )
     except Exception as e:
       APP_LOGGER.warning(f'Live2D 初始化失败，降级占位球：{e}')

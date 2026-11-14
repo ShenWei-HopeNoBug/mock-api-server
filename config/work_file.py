@@ -9,6 +9,9 @@ from config.default import (
 # APP系统文件工作目录
 SYSTEM_DIR = r'./system'
 
+# 桌宠模型目录：app 级全局目录（与 system 同级），用户自放 Live2D 模型，beta 功能
+PETS_DIR = r'./pets'
+
 # 历史记录问价路径
 HISTORY_CONFIG_PATH = f'{SYSTEM_DIR}/history.json'
 
