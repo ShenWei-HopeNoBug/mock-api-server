@@ -23,13 +23,13 @@ from PySide6.QtGui import QGuiApplication, QMouseEvent, QSurfaceFormat
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QApplication, QMenu
 
-# 模型路径兼容开发模式与 PyInstaller 打包模式
-if getattr(sys, 'frozen', False):
-  _base = sys._MEIPASS
-else:
-  _base = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-MODEL_JSON = os.path.join(_base, 'assets', 'live2d', 'hiyori', 'Hiyori.model3.json')
-WIN_W, WIN_H = 200, 300
+# 模型路径与主链路同源：走 app_env 的 system/pet_model.json 配置加载
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from app_env import load_pet_model_config  # noqa: E402
+
+_cfg = load_pet_model_config()
+MODEL_JSON = _cfg['model_json']
+WIN_W, WIN_H = _cfg['window_w'], _cfg['window_h']
 FPS = 30
 
 

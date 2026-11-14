@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import os
 import threading
 import time
@@ -159,6 +160,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     self._force_quit: bool = False
     # 桌宠悬浮窗实例（懒创建，hide/show 复用；Live2D 或占位球两种渲染层）
     self._pet: Optional[QWidget] = None
+    # 创建桌宠时的模型配置快照：配置变化时销毁重建（换模型免重启）
+    self._pet_cfg_key: str = ''
     # 系统托盘图标（懒创建，仅桌宠模式显示，提供恢复/退出/强制退出兜底）
     self._tray: Optional[QSystemTrayIcon] = None
 
@@ -1092,15 +1095,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     if self._exit_overlay is not None:
       self._exit_overlay.setGeometry(self.rect())
 
-  # 创建桌宠窗口：优先 Live2D 渲染层，任何失败降级占位球
+  # 创建桌宠窗口：优先 Live2D 渲染层（模型参数走 system/pet_model.json 配置），任何失败降级占位球
   def _create_pet(self) -> QWidget:
     try:
       from qt_win.live2d_pet import Live2DPetWindow
       return Live2DPetWindow(
-        model_json=app_env.LIVE2D_MODEL_JSON,
         on_restore=self.exit_pet_mode,
         on_quit=self.quit_from_pet,
         on_build_menu=self._build_pet_service_menu,
+        **app_env.load_pet_model_config(),
       )
     except Exception as e:
       APP_LOGGER.warning(f'Live2D 初始化失败，降级占位球：{e}')
@@ -1150,13 +1153,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     os._exit(0)
 
   # 进入桌宠模式：隐藏主面板并显示桌宠（服务为独立子进程不受影响）
+  # 模型配置变化时销毁旧桌宠重建：换模型免重启，GL 重载仅发生在配置真变时
   def enter_pet_mode(self) -> None:
     self.hide()
     self._ensure_tray()
     if self._tray is not None:
       self._tray.show()
+    app_env.ensure_pet_model_config()
+    cfg_key = json.dumps(app_env.load_pet_model_config(), sort_keys=True)
+    if self._pet is not None and self._pet_cfg_key != cfg_key:
+      self._pet.hide()
+      self._pet.deleteLater()
+      self._pet = None
     if self._pet is None:
       self._pet = self._create_pet()
+      self._pet_cfg_key = cfg_key
       self._pet.move_to_corner()
     self._pet.show()
     # Live2D 的 GL 初始化在 show() 时才执行，失败则降级占位球

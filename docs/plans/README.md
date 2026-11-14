@@ -99,6 +99,7 @@ Qt Bridge 协议信封与分发层统一：信封 `status_code` 单层收敛（D
 | [desktop-pet-live2d-plan](v0_1_5/desktop-pet/desktop-pet-live2d-plan.md) | `qt_win/pet_shell.py` / `qt_win/live2d_pet.py` 新增 + `app.py`/`app_env.py`/`build.py`/`assets` 改动 | Live2D 渲染层接入：两阶段（spike 四验证 → mixin 交互层 + 双渲染窗口 + 降级球），单 commit | 已实施 |
 | [desktop-pet-service-menu-plan](v0_1_5/desktop-pet/desktop-pet-service-menu-plan.md) | `qt_win/pet_shell.py` / `qt_win/app.py` | 桌宠右键菜单注入三服务启停快捷项：on_build_menu 钩子 + 跨服务禁用矩阵等价复刻 + 状态点图标，单 commit | 已实施 |
 | [desktop-pet-tray-plan](v0_1_5/desktop-pet/desktop-pet-tray-plan.md) | `qt_win/pet_shell.py` / `qt_win/app.py` | 桌宠模式系统托盘：pet 模式显示/隐藏 + 服务菜单复用 + 强制退出兜底 + 幽灵图标防护，单 commit | 已实施 |
+| [desktop-pet-model-config-plan](v0_1_5/desktop-pet/desktop-pet-model-config-plan.md) | `app_env.py` / `qt_win/live2d_pet.py` / `qt_win/app.py` | Live2D 模型外置配置：`system/pet_model.json` 六字段（路径/尺寸/动作组/命中区），打包产物可换模型，单 commit | 已实施 |
 
 ## 历史方案存档
 

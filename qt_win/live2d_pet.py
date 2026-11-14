@@ -42,9 +42,6 @@ def ensure_live2d_init() -> bool:
 
 # Live2D 渲染层桌宠窗口：与 live2d-py 官方示例同构，QOpenGLWidget 直接作为顶层窗
 class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
-  # 立绘窗口尺寸
-  WINDOW_W: int = 200
-  WINDOW_H: int = 300
   # 渲染帧率（桌宠不需要 60fps，省 CPU）
   FPS: int = 30
   # 透明度占用图：固定逻辑网格（与分辨率/DPI 解耦），每格 max-alpha 超阈值记实体
@@ -61,6 +58,11 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
     on_restore: Callable[[], None],
     on_quit: Callable[[], None],
     on_build_menu: Optional[Callable] = None,
+    window_w: int = 200,
+    window_h: int = 300,
+    idle_group: str = 'Idle',
+    tap_group: str = 'TapBody',
+    hit_area: str = 'Body',
   ) -> None:
     super().__init__()
     if not os.path.exists(model_json):
@@ -69,6 +71,10 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
       raise RuntimeError('live2d init failed')
 
     self._model_json: str = model_json
+    # 模型语义参数：由 app_env 配置注入，空值=禁用对应能力（模型无该组时配空防 no-op）
+    self._idle_group: str = idle_group
+    self._tap_group: str = tap_group
+    self._hit_area: str = hit_area
     self.model: Optional[live2d.Model] = None
     # GL 初始化失败标志：initializeGL 在 show() 时才执行，由调用方 show 后检查降级
     self.init_failed: bool = False
@@ -87,7 +93,7 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
     # 关键坑位：QOpenGLWidget 在透明顶层窗中需关闭自动填充背景（live2d-py issue #30）
     self.setAutoFillBackground(False)
     # 固定逻辑尺寸：跨 DPI 屏迁移时拒绝系统缩放建议，否则逻辑尺寸被改写、表观忽大忽小
-    self.setFixedSize(self.WINDOW_W, self.WINDOW_H)
+    self.setFixedSize(window_w, window_h)
 
     fmt = QSurfaceFormat()
     fmt.setAlphaBufferSize(8)
@@ -111,8 +117,9 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
       self.model = live2d.Model()
       self.model.LoadModelJson(self._model_json)
       self.model.Resize(self.width(), self.height())
-      # 待机动作：空闲时随机 Idle 组动作
-      self.model.StartRandomMotion('Idle', priority=1)
+      # 待机动作：空闲时随机 idle_group 动作（空配置=无待机循环）
+      if self._idle_group:
+        self.model.StartRandomMotion(self._idle_group, priority=1)
     except Exception:
       self.init_failed = True
 
@@ -150,8 +157,8 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
     if self._debug_hit:
       self._draw_occupancy_debug()
     # 待机动作播完后自动补下一段，保持模型"活着"
-    if self.model.IsMotionFinished():
-      self.model.StartRandomMotion('Idle', priority=1)
+    if self._idle_group and self.model.IsMotionFinished():
+      self.model.StartRandomMotion(self._idle_group, priority=1)
 
   # 读回 framebuffer alpha 生成占用图：每格稀疏采样 2x2，任一像素超阈值记实体
   # 命中区域由 setMask(QRegion) 实现：HTTRANSPARENT 只对同线程窗口有效，跨进程点穿必须改窗口 region
@@ -255,13 +262,14 @@ class Live2DPetWindow(PetShellMixin, QOpenGLWidget):
           painter.drawRect(QRectF(c * cw, r * ch, cw, ch))
     painter.end()
 
-  # 点按命中模型播 TapBody 动作，未命中播任意动作（坐标需乘 devicePixelRatio，高 DPI 已知坑）
+  # 点按：hit_area 非空才判定命中，命中播 tap_group（空则播任意动作）；坐标需乘 devicePixelRatio
   def _on_pet_tap(self, pos) -> None:
     if not self.model:
       return
     scale = self.devicePixelRatioF()
     x, y = pos.x() * scale, pos.y() * scale
-    if self.model.IsAreaHit('Body', x, y):
-      self.model.StartRandomMotion('TapBody')
+    hit = not self._hit_area or self.model.IsAreaHit(self._hit_area, x, y)
+    if hit and self._tap_group:
+      self.model.StartRandomMotion(self._tap_group)
     else:
       self.model.StartRandomMotion()
