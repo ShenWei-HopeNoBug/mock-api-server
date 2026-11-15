@@ -50,9 +50,12 @@ if __name__ == '__main__':
   configure_logging('parent')
   # 设置 Windows 任务栏 AppUserModelID，使任务栏图标使用自定义图标而非 Python 默认图标
   ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('mock-api-server')
-  # Qt6 WebEngine 在 Windows 上跨进程 GPU 纹理共享存在周期性闪帧问题（上游未修复，QTBUG-142355 同类），
-  # --in-process-gpu 将 GPU 工作并入浏览器进程内规避，需在 QtWebEngine 初始化前设置；setdefault 保留外部覆盖能力
-  os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--in-process-gpu')
+  # Qt6 WebEngine 在 Windows 上跨进程 GPU 纹理共享存在帧同步缺陷（上游未修复，QTBUG-142355 同类）：
+  # --in-process-gpu 将 GPU 工作并入浏览器进程内规避空闲周期性闪帧；
+  # --disable-smooth-scrolling 关闭滚轮平滑滚动动画，规避 webview 内弹层（a-modal 遮罩/固定层）下
+  # 滚动产帧流与 Qt 呈现路径竞争导致的画面闪动，实测滚动观感影响可忽略
+  # 需在 QtWebEngine 初始化前设置；setdefault 保留外部覆盖能力
+  os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--in-process-gpu --disable-smooth-scrolling')
   # Qt6 WebEngine Widgets 要求共享 OpenGL 上下文
   QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
   # 禁止屏幕设置了缩放导致显示不一致
