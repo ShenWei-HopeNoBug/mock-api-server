@@ -57,9 +57,17 @@ if __name__ == '__main__':
   # 需在 QtWebEngine 初始化前设置；setdefault 保留外部覆盖能力
   # 注：激进滚动/hover 高频产帧下仍偶发「单 surface 拼接两帧」混帧——二轮二分
   # （zero-copy / partial-raster / compositor-stages / direct-composition / gpu-rasterization /
-  # 无 in-process-gpu / zoom=1）全部无效，仅 --disable-gpu 软渲可消除（性能不可用），
+  # 无 in-process-gpu / zoom=1）均无法消除，仅 --disable-gpu 软渲可消除（性能不可用），
   # 确诊 viz GPU present→swapchain→Qt 取纹理段上游缺陷；详见 pyside6-migration-plan.md 修正11
-  os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--in-process-gpu --disable-smooth-scrolling')
+  # 最优降频组合（不根治仅降触发率）：前三件保上屏帧完整（全帧栅格无陈旧 tile、
+  # 无图像占位帧、全合成阶段完成才 draw），正对「单 surface 拼两帧」形态；
+  # zero-copy 换 Qt 侧纹理读取路径为 staging buffer（病灶段直接变体）
+  os.environ.setdefault(
+      'QTWEBENGINE_CHROMIUM_FLAGS',
+      '--in-process-gpu --disable-smooth-scrolling --disable-checker-imaging '
+      '--disable-partial-raster --disable-zero-copy '
+      '--run-all-compositor-stages-before-draw --disable-new-content-rendering-timeout',
+  )
   # Qt6 WebEngine Widgets 要求共享 OpenGL 上下文
   QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
   # 禁止屏幕设置了缩放导致显示不一致
