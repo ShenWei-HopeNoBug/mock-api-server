@@ -68,6 +68,7 @@
 | 2026-11-14 | 两样式文件 `$TOKEN` 化 | `common_style.py`/`main_win_style.py` 全量 `rgb()→$TOKEN`；golden master 重构前后 dump 逐字节一致；14 个 `setStyleSheet(*_style.window)` 调用点零改动 | `white`/`transparent` 等 QSS 关键字保留字面不进色板 |
 | 2026-11-14 | 内联 QSS 迁移 + QColor 归拢 | common_style 新增 `CARD_PANEL`/`TIP_LABEL`/`PROGRESS_BAR`/`OVERLAY`/`COMBO_DROP_VIEW` 五片段；app.py 蒙层+splash 卡片同源化消除逐字重复；QColor 字面量 10 处归 `qc()` | splash 卡片顺带获得蒙层同款 `min-width:280px`（SPLASH_WIDTH=360 容纳无影响） |
 | 2026-11-14 | 测试与验证 | 新增 `tests/config/test_theme.py` 8 例（值域/`c()`/`qss()`/未知 token 抛错/片段无 `$` 残留）；全量 pytest 通过；ruff 归零；手码 `rgb(` 字面量仅剩 live2d 调试红框 | golden master 比对为最强保证：渲染结果与改前逐字节一致 |
+| 2026-11-15 | webview loading 暖调化 | `SPINNER`/`SPINNER_TRACK`/`LOADING_BG`/`TEXT_MUTED` 四 token 由中性灰改暖调值（分别对齐 ACCENT/PROGRESS_BG/WINDOW_BG/DISABLED_TEXT）并移出中性灰区（仅留 pet 菜单 GRAY_*）；两 webview 弹窗 `setBackgroundColor(Qt.white)` → `qc('WINDOW_BG')` | loading 灰白与暖调主题不搭；underlay 白底属前端页面暖调化后漏改（注释原意即「底色与页面一致」，页面 :root 已是 `#ffe8c3`） |
 
 ## 6. 方案修正
 

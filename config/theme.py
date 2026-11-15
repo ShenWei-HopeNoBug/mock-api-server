@@ -46,13 +46,15 @@ PALETTE: Dict[str, Tuple[int, ...]] = {
   'PET_BALL': (250, 140, 60),           # 降级桌宠占位球
   'WHITE': (255, 255, 255),             # 图标高亮（QSS 白字用 white 关键字，不走色板）
 
-  # ---- 中性灰（pet 菜单 / webview loading 等非暖调场景）----
+  # ---- webview loading（与暖调页面对齐，loading→页面切栈零色差）----
+  'SPINNER': (205, 140, 65),            # loading 旋转弧（同 ACCENT）
+  'SPINNER_TRACK': (240, 222, 192),     # loading 底环（同 PROGRESS_BG）
+  'LOADING_BG': (255, 232, 195),        # webview 加载占位底（同 WINDOW_BG，与页面 :root 背景一致）
+  'TEXT_MUTED': (165, 140, 115),        # webview 加载提示文字（同 DISABLED_TEXT）
+
+  # ---- 中性灰（pet 菜单等非暖调场景）----
   'GRAY_TEXT': (80, 80, 80),            # pet 菜单项文字
   'GRAY_LINE': (97, 97, 97, 60),        # pet 菜单描边/分隔线
-  'SPINNER': (120, 120, 120),           # loading 旋转弧
-  'SPINNER_TRACK': (225, 225, 225),     # loading 底环
-  'LOADING_BG': (250, 250, 250),        # webview 加载占位底
-  'TEXT_MUTED': (130, 130, 130),        # webview 加载提示文字
 }
 
 

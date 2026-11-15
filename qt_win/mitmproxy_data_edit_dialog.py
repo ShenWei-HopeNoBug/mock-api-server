@@ -33,6 +33,7 @@ from app_types.db_types import (
   OperationResultWithOptionalId,
 )
 from app_types.qt_bridge_types import RequestHandler
+from config.theme import qc
 from lib.app_lib import is_app_server_running
 from lib.bridge_lib import BridgeDispatcher
 from lib.db import MockDB, MockDBCache
@@ -106,8 +107,8 @@ class MitmproxyDataEditDialog(QDialog):
 
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    # 底色与页面一致，避免隐藏→显示切换时 underlay 颜色差异
-    current_page.setBackgroundColor(Qt.white)
+    # 底色与页面 :root 暖调背景一致，避免隐藏→显示切换时 underlay 颜色差异
+    current_page.setBackgroundColor(qc('WINDOW_BG'))
     # Qt6 剪贴板双重门控：ClipboardReadWrite 授权供 navigator.clipboard.writeText，
     # JavascriptCanAccessClipboard 供前端 execCommand('copy') 回退路径
     webview.settings().setAttribute(

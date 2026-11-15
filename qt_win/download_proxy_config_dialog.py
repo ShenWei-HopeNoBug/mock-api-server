@@ -16,6 +16,7 @@ from app_types.download_types import (
   UpdateDownloadProxyParams,
 )
 from app_types.qt_bridge_types import EventHandler, QtBridgeEvent, RequestHandler
+from config.theme import qc
 from config.work_file import DEFAULT_WORK_DIR, DOWNLOAD_CONFIG_PATH, WORK_FILE_DICT
 from lib.app_lib import is_app_server_running
 from lib.bridge_lib import BridgeDispatcher
@@ -101,8 +102,8 @@ class DownloadProxyConfigDialog(QDialog):
 
     current_page.setZoomFactor(zoom)
     current_page.setWebChannel(web_channel)
-    # 底色与页面一致，避免隐藏→显示切换时 underlay 颜色差异
-    current_page.setBackgroundColor(Qt.white)
+    # 底色与页面 :root 暖调背景一致，避免隐藏→显示切换时 underlay 颜色差异
+    current_page.setBackgroundColor(qc('WINDOW_BG'))
     # Qt6 剪贴板双重门控：ClipboardReadWrite 授权供 navigator.clipboard.writeText，
     # JavascriptCanAccessClipboard 供前端 execCommand('copy') 回退路径
     webview.settings().setAttribute(
