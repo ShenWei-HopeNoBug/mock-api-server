@@ -55,6 +55,10 @@ if __name__ == '__main__':
   # --disable-smooth-scrolling 关闭滚轮平滑滚动动画，规避 webview 内弹层（a-modal 遮罩/固定层）下
   # 滚动产帧流与 Qt 呈现路径竞争导致的画面闪动，实测滚动观感影响可忽略
   # 需在 QtWebEngine 初始化前设置；setdefault 保留外部覆盖能力
+  # 注：激进滚动/hover 高频产帧下仍偶发「单 surface 拼接两帧」混帧——二轮二分
+  # （zero-copy / partial-raster / compositor-stages / direct-composition / gpu-rasterization /
+  # 无 in-process-gpu / zoom=1）全部无效，仅 --disable-gpu 软渲可消除（性能不可用），
+  # 确诊 viz GPU present→swapchain→Qt 取纹理段上游缺陷；详见 pyside6-migration-plan.md 修正11
   os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--in-process-gpu --disable-smooth-scrolling')
   # Qt6 WebEngine Widgets 要求共享 OpenGL 上下文
   QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
