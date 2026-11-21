@@ -41,10 +41,6 @@ ParamsInput = Union[Dict[str, Any], str]
 # mock api 轻量匹配映射: {request_key: {response_key: ApiMatchMeta, ...}, ...}
 MockApiMap = Dict[RequestKey, Dict[ResponseKey, ApiMatchMeta]]
 
-# 测试组匹配映射: {group_id: MockApiMap}
-# 组内条目 = api_data.type='TEST_GROUP' AND enabled=1 的行，按 group_id 归拢
-MockApiGroupMap = Dict[str, MockApiMap]
-
 # 已废弃：旧的全量 response 映射表，保留别名避免外部引用报错
 MockApiDict = Dict[RequestKey, Dict[ResponseKey, MockApiEntry]]
 

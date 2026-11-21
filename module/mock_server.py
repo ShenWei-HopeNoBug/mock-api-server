@@ -13,7 +13,6 @@ from app_types.mock_server_types import (
   FlaskRouteResult,
   HttpMethod,
   MockApiEntry,
-  MockApiGroupMap,
   MockApiMap,
   ParamsInput,
   ParamsJson,
@@ -195,28 +194,32 @@ class MockServer:
       MOCK_LOGGER.warning(f'mock 数据匹配映射构建失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
 
   # 创建并保存 mock_api_map / group_api_map
-  def create_api_map(self) -> Tuple[MockApiMap, MockApiGroupMap]:
+  def create_api_map(self) -> Tuple[MockApiMap, Optional[MockApiMap]]:
     """
     构建 mock api 轻量匹配映射（base_map, group_map）
 
     1. base_map：MOCK_API_TYPE_PRIORITY 白名单内启用数据（天然排除 TEST_GROUP）；
-    2. group_map：type='TEST_GROUP' AND enabled=1 的行按 group_id 归拢为 {group_id: MockApiMap}，
-       组内 created_at/id 正序保持「后者覆盖前者」；
+    2. group_map：仅当前启用组的单份快照（Optional[MockApiMap]），组内 created_at/id
+       正序保持「后者覆盖前者」；无启用组 → None；
     3. 两层共用一次变体元数据批量查询；不加载 response 文本，不解析 JSON，不关闭 DB，
        响应体由 MockRequestHandler 按需加载；
-    4. 组数据内容变更需重启服务生效；启用组切换不经本函数，由 MockRequestHandler 每请求读 DB。
+    4. 「启动即冻结」：组数据与启用态在进程生命周期内不可变，任何变更需重启服务生效。
     """
     base_map: MockApiMap = {}
-    group_map: MockApiGroupMap = {}
+    group_map: Optional[MockApiMap] = None
     # 所有的 mock 数据列表（按 MOCK_API_TYPE_PRIORITY 优先级分段，段内 created_at/id 正序，仅启用状态）
     mock_api_data_list: List[ApiData] = get_mock_api_data_list(work_dir=self.work_dir, enabled=True)
 
     mock_db = MockDBCache.get(self.work_dir)
 
-    # 全部启用状态的组数据条目（created_at/id 正序），查询失败降级为空组 map（等价无组语义）
+    # 仅当前启用组的条目（created_at/id 正序）；无启用组或查询失败 → 快照 None（等价无组语义）
     group_rows: List[ApiData] = []
     try:
-      group_rows = mock_db.get_api_list(ApiQuery(api_type='TEST_GROUP', enabled=True))
+      enabled_group_id = mock_db.get_enabled_test_group_id()
+      if enabled_group_id:
+        group_rows = mock_db.get_api_list(
+          ApiQuery(api_type='TEST_GROUP', enabled=True, group_id=enabled_group_id)
+        )
     except Exception as e:
       MOCK_LOGGER.warning(f'测试组数据批量查询失败，按无组数据处理：{e}')
 
@@ -236,21 +239,16 @@ class MockServer:
     for row_data in mock_api_data_list:
       self.__insert_map_entry(base_map, row_data, variant_metas_by_api)
 
-    # 组数据按 group_id 归拢建行；组内行序 = created_at/id 正序，同 key 后者覆盖前者
-    for row_data in group_rows:
-      group_id: str = row_data.get('group_id', '')
-      if not group_id:
-        MOCK_LOGGER.warning(f"测试组数据缺少 group_id，已跳过：{row_data.get('id')}")
-        continue
-      group_inner_map = group_map.setdefault(group_id, {})
-      self.__insert_map_entry(group_inner_map, row_data, variant_metas_by_api)
+    # 组快照：组内行序 = created_at/id 正序，同 key 后者覆盖前者
+    if group_rows:
+      group_inner_map: MockApiMap = {}
+      for row_data in group_rows:
+        self.__insert_map_entry(group_inner_map, row_data, variant_metas_by_api)
+      group_inner_map = {k: v for k, v in group_inner_map.items() if v}
+      group_map = group_inner_map or None
 
-    # 过滤掉所有 mock 数据均处理失败而残留的空字典（含空组 map）
+    # 过滤掉所有 mock 数据均处理失败而残留的空字典
     base_map = {k: v for k, v in base_map.items() if v}
-    for group_id in list(group_map):
-      group_map[group_id] = {k: v for k, v in group_map[group_id].items() if v}
-      if not group_map[group_id]:
-        del group_map[group_id]
     return base_map, group_map
 
   # 启动本地 mock 服务

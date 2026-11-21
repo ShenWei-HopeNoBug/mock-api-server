@@ -8,7 +8,7 @@
 
 「测试组」= 一组 mock 接口数据（含变体）的命名集合，可一键启用/停用，启用期间组数据在同 key 处遮蔽底层数据（`TEST_GROUP(启用组) > USER > MCP > MITMPROXY`）。讨论稿的全部概念决策沿用，本方案负责裁剪与落地细化。
 
-**本期做**：schema v6、组 CRUD + 原子启用、拷入组（双入口）、group_map 启动全量加载 + 遮蔽解析、GUI 管理页签（唯一控制面）、存量查询过滤修正。
+**本期做**：schema v6、组 CRUD + 原子启用、拷入组（双入口）、**启用组单份快照装载（启动即冻结）**+ 遮蔽解析、GUI 管理页签（唯一控制面）、存量查询过滤修正。
 
 **本期缓**：`__mock_did`（cookie/query 传 device_id）、`pinned_variant_id`（pin 语义列）、MCP 工具面、编排期全部（`test_step`/`test_run`/`test_run_step` 表结构与字段、`begin_test_run`/`report_step_result`/`finish_test_run`、步骤编辑 UI、执行协议）。
 
@@ -16,7 +16,7 @@
 
 | 决策点 | 结论 |
 |---|---|
-| group_map 加载 | 启动时全量加载所有 TEST_GROUP 数据；组数据任何变更需重启生效（归热更新立项消解） |
+| group_map 加载 | **启动仅装载当前启用组单份快照**（无启用组 → None）；组数据与启用态进程内一律冻结，启用/停用/顶替/条目增删改全部需重启 mock 服务生效（热更新立项消解）；休眠组零内存占用 |
 | schema | 只建本期必需：`api_data + group_id`（唯一新列）+ `test_group` 极简表；编排期结构随该期设计再迁移 |
 | 遮蔽粒度 | 精确 `(request_key, response_key)`；组内 miss 且 base 有同 request_key → 落回 base；base 无 → 组内末位兜底（base 宽松规则在组 map 内原样复用，仅用于组独有接口）；404 仅在 request_key 整体 miss |
 | 变体机制 | 零新机制：sequence 复用现有 device_id 轮播；「固定返回变体 X」 = 排他启用单变体 + device_id |
@@ -44,7 +44,7 @@ CREATE TABLE test_group (
 CREATE INDEX idx_test_group_enabled ON test_group(enabled);
 ```
 
-索引说明：量级上非必需（组行数十量级，全表扫描亦微秒级），保留理由是约定一致性——`idx_api_type` 同型先例（低基数标志列 + 「按标志查」访问模式），enabled 是每请求热路径的查询键。
+索引说明：量级上非必需（组行数十量级，全表扫描亦微秒级），保留理由是约定一致性——`idx_api_type` 同型先例（低基数标志列 + 「按标志查」访问模式），enabled 是启动时装载与 GUI 列表的查询键。
 
 迁移：`ApiDataMixin._migrate_api` 追加 `from_version < 6` 块（`_column_exists` 守卫）；`TestGroupMixin._migrate_test_group` 建表（幂等，对齐 `_migrate_variant` 建表先例）；`MockDB._migrate_schema` 增调一行。
 
@@ -85,17 +85,15 @@ CREATE INDEX idx_test_group_enabled ON test_group(enabled);
 
 - 抽公共「行 → ApiMatchMeta」建行逻辑（route 处理、request_key/response_key 生成、变体元数据排序）；
 - `base_map`：现白名单逻辑零改动（`MOCK_API_TYPE_PRIORITY` 天然排除 TEST_GROUP）；
-- `group_map: Dict[group_id, MockApiMap]`：`api_type='TEST_GROUP' AND enabled=1` 行按 `group_id` 归拢建行，组内 `created_at` 序保持「后者覆盖前者」。
+- `group_map: Optional[MockApiMap]`：启动时 `get_enabled_test_group_id()` 读一次，有启用组则仅查 `api_type='TEST_GROUP' AND group_id=启用组 AND enabled=1` 行建单组内层 map；无启用组/查询异常 → None。组内 `created_at` 序保持「后者覆盖前者」。
 
 ### 5.2 `lib/server_lib.py` `MockRequestHandler`
 
-注入 `group_api_map`，新增 `_resolve_meta` 替换原 `_get_api_match_meta` 调用点：
+注入 `group_api_map`（启动快照，进程内不变），新增 `_resolve_meta` 替换原 `_get_api_match_meta` 调用点。**组解析路径零 DB 访问**——无启用态读、无热重载：
 
 ```python
 # _resolve_meta(request_key, response_key)
-group_map 为空 → 直接 base 解析（短路，不查 DB）
-gid = mock_db.get_enabled_test_group_id()        # 每请求索引读
-inner = group_map.get(gid)
+inner = self.group_api_map                     # 启动快照；None → 直接 base 解析
 if inner 含 request_key:
     精确 response_key 命中 → 组 meta                    # 遮蔽生效
     未命中 且 base 无此 request_key → 组内末位 fallback    # 组独有接口
@@ -132,7 +130,7 @@ base：既有 精确 → 末位 fallback 不变
 |---|---|
 | `test_test_group.py`（新） | 组 CRUD、原子顶替（启用后全局仅一行 enabled=1）、级联删、`copy_api_to_group` 带/不带变体、enabled 入参 |
 | `test_api_data.py` | v6 迁移幂等、update 不改 `group_id`、`group_id` 过滤 |
-| `test_server_lib.py` | 遮蔽解析序（组精确赢 / base 同 key 时组 miss 落回 / 组独有接口末位兜底 / base fallback 不变）、active 组运行时读、空 group_map 短路不查 DB |
+| `test_server_lib.py` | 遮蔽解析序（组精确赢 / base 同 key 时组 miss 落回 / 组独有接口末位兜底 / base fallback 不变 / 无快照走 base）、组路径零 DB 访问断言、快照冻结（启用态 DB 标志变更不影响解析）、404 语义不变 |
 | `test_app_lib.py` | 白名单兜底回归（无类型条件不回 TEST_GROUP 行） |
 
 ## 9. 实施节奏（逐步确认制）
@@ -154,14 +152,14 @@ base：既有 精确 → 末位 fallback 不变
 | `lib/db/api_data.py` | 列清单/行映射/where 构建/update 排除 |
 | `app_types/db_types.py`、`app_types/app_gui_types.py` | TypedDict 新增/扩展 |
 | `config/enum/SERVER.py`、`config/enum/DATABASE.py` | 默认值补齐 |
-| `module/mock_server.py` | `create_api_map` 双层产出 |
-| `lib/server_lib.py` | `_resolve_meta` 双层遮蔽 |
+| `module/mock_server.py`、`app_types/mock_server_types.py` | `create_api_map` 双层产出（group_map 为启用组单份快照） |
+| `lib/server_lib.py` | `_resolve_meta` 双层遮蔽（组快照直读，组路径零 DB） |
 | `qt_win/mitmproxy_data_edit_dialog.py` | 过滤白名单兜底 + `/test_group/*` handlers |
 | `module/mcp_server.py` | `list_mock_apis` 白名单兜底一处 |
 | `docs/reference/QT_BRIDGE.md` | `/test_group/*` 协议登记 |
 | `tests/` | 镜像结构补用例 |
 
-**零改动**：`app_types/mock_server_types.py`、mitmproxy 抓包链路、`download_lib`（白名单天然排除组数据，组响应不参与资源下载——符合预期）、`static_data`、`app_server`。
+**零改动**：mitmproxy 抓包链路、`download_lib`（白名单天然排除组数据，组响应不参与资源下载——符合预期）、`static_data`、`app_server`。
 
 ## 11. 明确不做 / 遗留
 
@@ -171,7 +169,7 @@ base：既有 精确 → 末位 fallback 不变
 | `pinned_variant_id` | pin 便捷语义（无 device_id 命中变体 + 变体 enabled 态保留）；本期用「排他启用单变体 + device_id」等效 |
 | MCP 工具面 | 组 CRUD/enable/disable/add_api_to_test_group 及 `update_mock_api` 扩展；核心功能验证可靠再开放 |
 | 编排期全部 | test_step/test_run/test_run_step 结构与 test_group 扩展列，随该期设计一并迁移 |
-| 组数据热更新 | 新建/编辑组数据需重启 mock 服务生效 |
+| 组热更新/热切换 | 「启动即冻结」：启用/停用/顶替与组数据增删改均需重启 mock 服务生效；热切换/热更新后续统一立项设计 |
 | 纯净模式 | 组级 flag（启用期间仅组内数据响应） |
 | 多组启用 | `priority` 消解与 UI 提示 |
 | 遮蔽表达 404 | 等自定义状态码能力根治，变通用错误响应变体 |
@@ -186,8 +184,8 @@ uv run pytest          # 全绿
 | 项 | 方式 |
 |---|---|
 | 遮蔽语义 | `test_server_lib` 用例 + 手测：启用组后同 key 命中组数据、非同 key 正常 base |
-| 切组零重启 | 服务运行中 enable/disable 切换，命中行为即时变化（不重启进程） |
-| 组数据欠账可感知 | 新建组/改组数据未重启时行为符合「map 无此数据」预期，UI 有重启提示 |
+| 启动即冻结 | 服务运行中 enable/disable/顶替/组数据增删改，命中行为均不变化；重启后按当时启用态装载 |
+| 内存收紧 | 休眠组零装载，`test_server_lib` 组路径零 DB 断言 + 手测多组存在时内存仅 base + 单组 |
 
 ## 13. 实施记录
 
@@ -195,12 +193,14 @@ uv run pytest          # 全绿
 |---|---|---|---|
 | 2026-04 | ① schema v6 + TestGroupMixin + api_data.group_id + 过滤修正 + 测试 | ruff 0 错误；pytest 163 passed / 1 skipped | commit a804e46 |
 | 2026-04 | ② 匹配层：双层 map + _resolve_meta 遮蔽解析 + 测试 | ruff 0 错误；pytest 172 passed / 1 skipped | commit a3346d3 |
-| 2026-04 | ③ Qt bridge /test_group/* 8 端点（含参数类型 + QT_BRIDGE.md 登记） | ruff 0 错误；pytest 172 passed / 1 skipped | 未提交，待确认 |
+| 2026-04 | ③ Qt bridge /test_group/* 8 端点（含参数类型 + QT_BRIDGE.md 登记） | ruff 0 错误；pytest 172 passed / 1 skipped | commit 3de1ab3 |
+| 2026-04 | ②' 匹配层返工「启动即冻结」：单组快照 + 组路径零 DB + 测试改写 | —— 待验收 | 未提交 |
 
 ## 14. 方案修正
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
 | 2026-04 | `api_data.group_id` 落地为 `TEXT NOT NULL DEFAULT ''`（非裸 TEXT） | 对齐全表既有列约定；`''` 空哨兵避免 NULL 分支（`IS NULL`/`= ''` 两套口径），查询与行映射零特判 |
+| 2026-04 | group_map 从「全组装载 + 每请求动态启用」返工为「启用组单份快照，启动即冻结」 | 全组装载内存随组总量线性膨胀（组条目为大 response 副本）；每请求动态读启用态使请求间行为不可预测；冻结版内存 = base + 单组、请求路径组侧零 DB、可预测性最强 |
 | 2026-04 | `test_group` 表补 `operator` 列（§3 极简表未列） | §4.1 `insert_test_group(record)` 本就约定写入 operator；与 api_data/static_data/api_response_variants 三表 operator 列惯例一致 |
 | 2026-04 | `get_test_group` 的 items 经 `_fetch_group_items` hook 注入 | 复用 `_fetch_variants` 既有解耦先例，避免 TestGroupMixin 对 ApiDataMixin 的隐式依赖 |

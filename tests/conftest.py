@@ -47,7 +47,7 @@ def make_handler(tmp_work_dir):
   def _make(mock_api_map=None, group_api_map=None, response_delay: int = 0) -> MockRequestHandler:
     return MockRequestHandler(
       mock_api_map=mock_api_map or {},
-      group_api_map=group_api_map or {},
+      group_api_map=group_api_map,
       work_dir=tmp_work_dir,
       response_cache=ThreadSafeLRUCache(limit=16),
       response_delay=response_delay,

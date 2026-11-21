@@ -18,7 +18,6 @@ from app_types.mock_server_types import (
   FlaskRouteResult,
   HttpMethod,
   MockApiEntry,
-  MockApiGroupMap,
   MockApiMap,
   ParamsJson,
   ParamsJsonStringFunc,
@@ -220,11 +219,12 @@ class MockRequestHandler:
       get_request_key: RequestKeyFunc,
       get_response_key: ResponseKeyFunc,
       replace_assets: Optional[AssetsReplaceFunc] = None,
-      group_api_map: Optional[MockApiGroupMap] = None,
+      group_api_map: Optional[MockApiMap] = None,
   ) -> None:
     self.mock_api_map: MockApiMap = mock_api_map
-    # 测试组匹配映射：{group_id: MockApiMap}，启动时全量加载；启用组按请求时 DB 状态动态选取
-    self.group_api_map: MockApiGroupMap = group_api_map or {}
+    # 测试组匹配映射：当前启用组的启动快照（Optional[MockApiMap]）
+    # 「启动即冻结」：快照与启用态在进程生命周期内不可变，请求路径对组侧零 DB 访问
+    self.group_api_map: Optional[MockApiMap] = group_api_map
     self.work_dir: str = work_dir
     self.response_cache: 'ThreadSafeLRUCache[MockApiEntry]' = response_cache
     self.response_delay: int = response_delay
@@ -373,21 +373,6 @@ class MockRequestHandler:
     """根据 request_key / response_key 在 base map 命中 ApiMatchMeta，未命中时 fallback 默认"""
     return self._match_map(self.mock_api_map, request_key, response_key)
 
-  def _get_active_group_map(self) -> Optional[MockApiMap]:
-    """取当前启用组的 inner map；无组数据/无启用组/查询异常均返回 None（等价纯 base 语义）"""
-    # 启动时没有任何组数据，短路不查 DB
-    if not self.group_api_map:
-      return None
-    try:
-      # 启用组状态每请求读 DB，切组无需重启 mock 进程
-      group_id = MockDBCache.get(self.work_dir).get_enabled_test_group_id()
-    except Exception as e:
-      MOCK_LOGGER.warning(f'测试组启用态查询失败，本次请求按 base 解析：{e}')
-      return None
-    if not group_id:
-      return None
-    return self.group_api_map.get(group_id)
-
   def _resolve_meta(
       self,
       request_key: RequestKey,
@@ -399,9 +384,9 @@ class MockRequestHandler:
     - 组内精确命中 → 组 meta（遮蔽生效）
     - 组内 response_key miss 且 base 无同 request_key → 组内末位 fallback（组独有接口，同 base 宽松规则）
     - 组内 response_key miss 且 base 有同 request_key → 落回 base 正常解析（精确遮蔽原则）
-    - 其余情况（含无启用组）→ base 既有 精确 → 末位 fallback 不变
+    - 其余情况（含无启用组快照）→ base 既有 精确 → 末位 fallback 不变
     """
-    group_inner_map: Optional[MockApiMap] = self._get_active_group_map()
+    group_inner_map: Optional[MockApiMap] = self.group_api_map
     if group_inner_map is not None and request_key in group_inner_map:
       if response_key in group_inner_map[request_key]:
         return group_inner_map[request_key][response_key]
