@@ -4,7 +4,7 @@ GUI 相关的类型定义
 """
 from typing import List, Literal, Optional, TypedDict
 
-from app_types.db_types import ApiData
+from app_types.db_types import ApiData, TestGroupSummary
 from app_types.request_types import RequestContentType
 
 
@@ -168,6 +168,71 @@ class SetVariantExclusiveEnabledParams(TypedDict):
   传入目标变体 id，handler 将该变体设为启用，同时禁用同一 api_data_id 下的所有其他变体。
   """
   id: str  # 目标变体 ID
+
+
+class TestGroupListResult(TypedDict):
+  """
+  /test_group/list 返回数据
+
+  list 为测试组摘要行（含组内条目计数 item_count），按创建时间正序。
+  """
+  list: List[TestGroupSummary]
+
+
+class GetTestGroupDetailParams(TypedDict):
+  """
+  /test_group/detail 请求参数
+  """
+  id: str  # 目标测试组的 ID
+
+
+class CreateTestGroupParams(TypedDict, total=False):
+  """
+  /test_group/create 请求参数
+
+  id 由 MockDB.insert_test_group 内部生成，enabled 初始为 False（单组启用模型下新建不抢占）。
+  """
+  name: str  # 组名称，允许重名
+
+
+class UpdateTestGroupParams(TypedDict, total=False):
+  """
+  /test_group/update 请求参数
+
+  字段级合并，id 为必需。enabled 不可经此修改（由 /test_group/enable、/test_group/disable 原子管理）。
+  """
+  id: str  # 目标测试组的 ID
+  name: str  # 组名称
+
+
+class DeleteTestGroupParams(TypedDict):
+  """
+  /test_group/delete 请求参数
+
+  删除组并级联删除组内全部接口条目与其响应变体。
+  """
+  id: str  # 待删除测试组的 ID
+
+
+class EnableTestGroupParams(TypedDict):
+  """
+  /test_group/enable 请求参数
+
+  单组启用模型：启用目标组的同时原子禁用其余所有组。
+  """
+  id: str  # 待启用测试组的 ID
+
+
+class CopyIntoTestGroupParams(TypedDict, total=False):
+  """
+  /test_group/copy_into 请求参数
+
+  将一条 base 接口数据复制为指定测试组内的 TEST_GROUP 副本。
+  """
+  api_id: str  # 源 api_data 记录 ID（base 数据）
+  group_id: str  # 目标测试组 ID
+  copy_variants: bool  # 是否连带复制响应变体（保留源启用态与绑定顺序），缺省 True
+  enabled: bool  # 拷入条目的启用态，缺省 True；调用方按入口语义传值（推入 False / 拉取 True）
 
 
 class AppServerRunningData(TypedDict):

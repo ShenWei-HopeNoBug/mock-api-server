@@ -13,15 +13,22 @@ from app_types.app_gui_types import (
   AddVariantParams,
   AppServerRunningData,
   BatchDeleteMockDataParams,
+  CopyIntoTestGroupParams,
   CopyMockDataParams,
   CopyVariantParams,
+  CreateTestGroupParams,
   DeleteMockDataParams,
+  DeleteTestGroupParams,
   DeleteVariantParams,
+  EnableTestGroupParams,
   GetMockDataDetailParams,
   GetMockDataPageParams,
+  GetTestGroupDetailParams,
   MockDataPageResult,
   ReorderVariantParams,
   SetVariantExclusiveEnabledParams,
+  TestGroupListResult,
+  UpdateTestGroupParams,
   UpdateVariantParams,
 )
 from app_types.db_types import (
@@ -31,6 +38,7 @@ from app_types.db_types import (
   BatchOperationResult,
   OperationResult,
   OperationResultWithOptionalId,
+  TestGroupDetail,
 )
 from app_types.qt_bridge_types import RequestHandler
 from config.enum import SERVER
@@ -280,6 +288,44 @@ class MitmproxyDataEditDialog(QDialog):
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.set_variant_exclusive_enabled(params['id'])
 
+  def _handle_get_test_group_list(self, params: Dict) -> TestGroupListResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return {'list': mock_db.get_test_group_list()}
+
+  def _handle_get_test_group_detail(self, params: GetTestGroupDetailParams) -> Optional[TestGroupDetail]:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.get_test_group(params['id'])
+
+  def _handle_create_test_group(self, params: CreateTestGroupParams) -> OperationResultWithOptionalId:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.insert_test_group({'name': params.get('name', ''), 'operator': 'USER'})
+
+  def _handle_update_test_group(self, params: UpdateTestGroupParams) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.update_test_group({'operator': 'USER', **params})
+
+  def _handle_delete_test_group(self, params: DeleteTestGroupParams) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.delete_test_group(params['id'])
+
+  def _handle_enable_test_group(self, params: EnableTestGroupParams) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.enable_test_group(params['id'])
+
+  def _handle_disable_test_group(self, params: Dict) -> OperationResult:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.disable_test_group()
+
+  def _handle_copy_into_test_group(self, params: CopyIntoTestGroupParams) -> OperationResultWithOptionalId:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.copy_api_to_group(
+      api_id=params.get('api_id', ''),
+      group_id=params.get('group_id', ''),
+      copy_variants=params.get('copy_variants', True),
+      enabled=params.get('enabled', True),
+      operator='USER',
+    )
+
   # 请求名称 → handler 映射（/mock_data 命名空间，动作作为路径末级）
   _REQUEST_HANDLERS: ClassVar[Dict[str, RequestHandler['MitmproxyDataEditDialog']]] = {
     '/mock_data/list': _handle_get_mock_data_page,
@@ -295,6 +341,14 @@ class MitmproxyDataEditDialog(QDialog):
     '/variant/reorder': _handle_reorder_variants,
     '/variant/copy': _handle_copy_variant,
     '/variant/set_exclusive_enabled': _handle_set_variant_exclusive_enabled,
+    '/test_group/list': _handle_get_test_group_list,
+    '/test_group/detail': _handle_get_test_group_detail,
+    '/test_group/create': _handle_create_test_group,
+    '/test_group/update': _handle_update_test_group,
+    '/test_group/delete': _handle_delete_test_group,
+    '/test_group/enable': _handle_enable_test_group,
+    '/test_group/disable': _handle_disable_test_group,
+    '/test_group/copy_into': _handle_copy_into_test_group,
   }
 
   def showEvent(self, event: QEvent) -> None:

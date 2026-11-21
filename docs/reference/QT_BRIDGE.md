@@ -270,6 +270,14 @@ dispatch → type === 'event' → _handle_event(incoming)
 | `/variant/reorder` | `api_data_id`、`variant_ids` | `null` | 变体排序 |
 | `/variant/copy` | `id`、`api_data_id` | `{ id }`（新变体） | 复制变体 |
 | `/variant/set_exclusive_enabled` | `id` | `null` | 设为唯一启用变体 |
+| `/test_group/list` | — | `{ list: TestGroupSummary[] }` | 测试组列表（含 item_count） |
+| `/test_group/detail` | `id` | `TestGroupDetail \| null` | 组详情（组字段 + items） |
+| `/test_group/create` | `name` | `{ id }` | 新建测试组 |
+| `/test_group/update` | `id`、`name` | `null` | 更新组字段（不改 enabled） |
+| `/test_group/delete` | `id` | `null` | 删除组（级联组内条目与变体） |
+| `/test_group/enable` | `id` | `null` | 启用组（原子顶替其余组） |
+| `/test_group/disable` | — | `null` | 停用全部组 |
+| `/test_group/copy_into` | `api_id`、`group_id`、`copy_variants`、`enabled` | `{ id }`（新条目） | 拷入 base 接口到组 |
 
 > 注意：`data` 为纯业务载荷，成败只看信封 `status_code`（见「状态语义」）；DB 层 `OperationResult` 的 `status_code`/`status_msg` 已由 `_unpack_result` 上提，不再透传到载荷内。
 

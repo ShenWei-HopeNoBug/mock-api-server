@@ -194,7 +194,8 @@ uv run pytest          # 全绿
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
 | 2026-04 | ① schema v6 + TestGroupMixin + api_data.group_id + 过滤修正 + 测试 | ruff 0 错误；pytest 163 passed / 1 skipped | commit a804e46 |
-| 2026-04 | ② 匹配层：双层 map + _resolve_meta 遮蔽解析 + 测试 | ruff 0 错误；pytest 172 passed / 1 skipped | 未提交，待确认 |
+| 2026-04 | ② 匹配层：双层 map + _resolve_meta 遮蔽解析 + 测试 | ruff 0 错误；pytest 172 passed / 1 skipped | commit a3346d3 |
+| 2026-04 | ③ Qt bridge /test_group/* 8 端点（含参数类型 + QT_BRIDGE.md 登记） | ruff 0 错误；pytest 172 passed / 1 skipped | 未提交，待确认 |
 
 ## 14. 方案修正
 
