@@ -34,3 +34,13 @@ def test_mock_api_data_list_enabled_filter(mock_db, tmp_work_dir):
 
   urls_enabled = {r['url'] for r in get_mock_api_data_list(work_dir=tmp_work_dir, enabled=True)}
   assert urls_enabled == {'/on'}
+
+
+def test_mock_api_data_list_never_leaks_test_group(mock_db, tmp_work_dir):
+  # 白名单兜底回归：无论 enabled 态如何，TEST_GROUP 行都不参与 mock 数据加载
+  mock_db.insert_api(_api(url='/t1', type='TEST_GROUP', enabled=True))
+  mock_db.insert_api(_api(url='/t2', type='TEST_GROUP', enabled=False))
+  mock_db.insert_api(_api(url='/u1', type='USER'))
+
+  rows = get_mock_api_data_list(work_dir=tmp_work_dir)
+  assert {r['url'] for r in rows} == {'/u1'}

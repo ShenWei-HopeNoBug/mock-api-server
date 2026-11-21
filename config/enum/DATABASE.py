@@ -15,6 +15,7 @@ API_INSERT_DEFAULTS = {
   'timeout': 0,
   'request_content_type': 'NONE',
   'operator': '',
+  'group_id': '',
 }
 
 # ---------------------------------------------------

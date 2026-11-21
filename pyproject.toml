@@ -1,6 +1,6 @@
 [project]
 name = "mock-api-server"
-version = "0.1.5"
+version = "0.1.6"
 description = "本地 mock 服务桌面工具（PySide6 + Flask + mitmproxy + MCP）"
 readme = "README.md"
 license = {text = "MIT"}

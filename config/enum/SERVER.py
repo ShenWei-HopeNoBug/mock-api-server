@@ -14,6 +14,7 @@ MOCK_API_DATA_DEFAULTS = {
   'enabled': True,
   'timeout': 0,
   'request_content_type': 'NONE',
+  'group_id': '',
 }
 
 # mock api 数据加载的类型优先级（后者覆盖前者）

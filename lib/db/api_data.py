@@ -86,6 +86,11 @@ class ApiDataMixin:
       if not self._column_exists('api_data', 'operator'):
         self._conn.execute("ALTER TABLE api_data ADD COLUMN operator TEXT NOT NULL DEFAULT ''")
       DB_LOGGER.info('ApiDataMixin schema 迁移: v3 → v4, api_data 新增 operator 字段')
+    if from_version < 6 <= to_version:
+      # v5 → v6: api_data 新增 group_id 字段（测试组归属，仅 type='TEST_GROUP' 行有值，创建后不可变）
+      if not self._column_exists('api_data', 'group_id'):
+        self._conn.execute("ALTER TABLE api_data ADD COLUMN group_id TEXT NOT NULL DEFAULT ''")
+      DB_LOGGER.info('ApiDataMixin schema 迁移: v5 → v6, api_data 新增 group_id 字段')
 
   # 新增插入（纯 INSERT，不去重），返回是否成功
   @_ensure_open(default=_fail(BIZ_UNKNOWN_ERROR, "插入失败", id=None))
@@ -111,10 +116,10 @@ class ApiDataMixin:
     try:
       with self._transaction() as conn:
         conn.execute(
-          'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           (api_id, data['type'], data['url'], data['method'], data['params'], data['response'],
            data['response_variant_ids'], data['enabled'], data.get('timeout', 0),
-           data.get('request_content_type', 'NONE'), data.get('operator', '')),
+           data.get('request_content_type', 'NONE'), data.get('operator', ''), data.get('group_id', '')),
         )
       return _ok(id=api_id)
     except Exception as e:
@@ -134,7 +139,7 @@ class ApiDataMixin:
     if not records:
       return _fail(BIZ_DATA_EMPTY, "数据为空", affected_count=0)
 
-    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    insert_sql = 'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     insert_data = []
     for r in records:
       api_id = generate_uuid()
@@ -154,7 +159,7 @@ class ApiDataMixin:
       insert_data.append(
         (api_id, data['type'], data['url'], data['method'], data['params'], data['response'],
          data['response_variant_ids'], data['enabled'], data.get('timeout', 0),
-         data.get('request_content_type', 'NONE'), data.get('operator', '')))
+         data.get('request_content_type', 'NONE'), data.get('operator', ''), data.get('group_id', '')))
 
     try:
       with self._transaction() as conn:
@@ -183,7 +188,7 @@ class ApiDataMixin:
     order = 'DESC, id DESC' if reverse else 'ASC, id ASC'
     where_sql, sql_params = self._build_api_where(query)
     order_sql = 'ORDER BY created_at {}'.format(order)
-    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, created_at, updated_at FROM api_data{} {}'.format(
+    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, group_id, created_at, updated_at FROM api_data{} {}'.format(
       where_sql, order_sql)
 
     with self._lock:
@@ -203,8 +208,9 @@ class ApiDataMixin:
         'timeout': row[8],
         'request_content_type': row[9],
         'operator': row[10],
-        'created_at': row[11],
-        'updated_at': row[12],
+        'group_id': row[11],
+        'created_at': row[12],
+        'updated_at': row[13],
       })
     return result
 
@@ -223,6 +229,7 @@ class ApiDataMixin:
     create_start_time = query.get('create_start_time')
     create_end_time = query.get('create_end_time')
     operator = query.get('operator')
+    group_id = query.get('group_id')
     if api_type is not None:
       where_clauses.append('type = ?')
       sql_params.append(api_type)
@@ -257,6 +264,9 @@ class ApiDataMixin:
     if operator:
       where_clauses.append('operator = ?')
       sql_params.append(operator)
+    if group_id:
+      where_clauses.append('group_id = ?')
+      sql_params.append(group_id)
     where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
     return where_sql, sql_params
 
@@ -275,7 +285,7 @@ class ApiDataMixin:
 
     where_sql, sql_params = self._build_api_where(query)
     order_sql = 'ORDER BY created_at {}'.format(order)
-    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
+    sql = 'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, group_id, created_at, updated_at FROM api_data{} {} LIMIT ? OFFSET ?'.format(
       where_sql, order_sql)
     sql_params.extend([page_size, offset])
 
@@ -296,8 +306,9 @@ class ApiDataMixin:
         'timeout': row[8],
         'request_content_type': row[9],
         'operator': row[10],
-        'created_at': row[11],
-        'updated_at': row[12],
+        'group_id': row[11],
+        'created_at': row[12],
+        'updated_at': row[13],
       })
     return result
 
@@ -318,7 +329,7 @@ class ApiDataMixin:
       return None
     with self._lock:
       row = self._conn.execute(
-        'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, created_at, updated_at FROM api_data WHERE id=?',
+        'SELECT id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, group_id, created_at, updated_at FROM api_data WHERE id=?',
         (api_id,),
       ).fetchone()
     if row is None:
@@ -340,8 +351,9 @@ class ApiDataMixin:
       'timeout': row[8],
       'request_content_type': row[9],
       'operator': row[10],
-      'created_at': row[11],
-      'updated_at': row[12],
+      'group_id': row[11],
+      'created_at': row[12],
+      'updated_at': row[13],
     }
 
     return result
@@ -371,7 +383,7 @@ class ApiDataMixin:
     try:
       with self._transaction() as conn:
         # 2. 字段级合并：record 中非空字段覆盖旧值，id 仅作 WHERE 条件不参与合并
-        #    type 为创建来源类型，创建后不可变更，同样排除不参与合并
+        #    type 为创建来源类型、group_id 为测试组归属，均创建后不可变更，同样排除不参与合并
         old = {
           'type': row[0],
           'url': row[1],
@@ -384,7 +396,7 @@ class ApiDataMixin:
           'request_content_type': row[8],
           'operator': row[9],
         }
-        merged = {**old, **{k: v for k, v in record.items() if k not in ('id', 'type') and v is not None}}
+        merged = {**old, **{k: v for k, v in record.items() if k not in ('id', 'type', 'group_id') and v is not None}}
         merged['params'] = JsonFormat.format_json_string(merged['params'])
         merged['response_variant_ids'] = _normalize_response_variant_ids(merged.get('response_variant_ids'))
         merged['enabled'] = _normalize_enabled(merged.get('enabled'))
@@ -549,10 +561,10 @@ class ApiDataMixin:
     try:
       with self._transaction() as conn:
         conn.execute(
-          'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO api_data (id, type, url, method, params, response, response_variant_ids, enabled, timeout, request_content_type, operator, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           (new_api_id, api_type, url, method,
            JsonFormat.format_json_string(params), response, '[]',
-           False, timeout, request_content_type, operator),
+           False, timeout, request_content_type, operator, ''),
         )
       return _ok(id=new_api_id)
     except Exception as e:

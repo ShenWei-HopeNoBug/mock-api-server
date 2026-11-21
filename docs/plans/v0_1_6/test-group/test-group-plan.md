@@ -193,10 +193,12 @@ uv run pytest          # 全绿
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| - | - | - | - |
+| 2026-04 | ① schema v6 + TestGroupMixin + api_data.group_id + 过滤修正 + 测试 | ruff 0 错误；pytest 173 passed / 1 skipped | 未提交，待确认 |
 
 ## 14. 方案修正
 
 | 日期 | 修正内容 | 原因 |
 |---|---|---|
-| - | - | - |
+| 2026-04 | `api_data.group_id` 落地为 `TEXT NOT NULL DEFAULT ''`（非裸 TEXT） | 对齐全表既有列约定；`''` 空哨兵避免 NULL 分支（`IS NULL`/`= ''` 两套口径），查询与行映射零特判 |
+| 2026-04 | `test_group` 表补 `operator` 列（§3 极简表未列） | §4.1 `insert_test_group(record)` 本就约定写入 operator；与 api_data/static_data/api_response_variants 三表 operator 列惯例一致 |
+| 2026-04 | `get_test_group` 的 items 经 `_fetch_group_items` hook 注入 | 复用 `_fetch_variants` 既有解耦先例，避免 TestGroupMixin 对 ApiDataMixin 的隐式依赖 |

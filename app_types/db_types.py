@@ -23,6 +23,7 @@ class ApiRecord(TypedDict, total=False):
   timeout: int  # 超时时间（毫秒），0 表示不限制
   request_content_type: str  # 请求 content-type 枚举值，可选值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'；GET 请求固定为 'NONE'
   operator: str  # 最后更新者，如 'USER' / 'MCP'，每次 update 会变更为当前操作者，缺省为空字符串
+  group_id: str  # 所属测试组 id，仅 type='TEST_GROUP' 行有意义；仅创建时生效，update 时忽略（创建后不可变），缺省为空字符串
 
 
 class ApiData(TypedDict):
@@ -42,6 +43,7 @@ class ApiData(TypedDict):
   timeout: int  # 超时时间（毫秒），0 表示不限制
   request_content_type: str  # 请求 content-type 枚举值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'
   operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
+  group_id: str  # 所属测试组 id，仅 type='TEST_GROUP' 行有值，base 类型行为空字符串
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
 
@@ -96,6 +98,7 @@ class ApiQuery(TypedDict, total=False):
   create_start_time: Optional[str]  # 创建时间区间起点，格式 'YYYY-MM-DD HH:MM:SS.sss'
   create_end_time: Optional[str]  # 创建时间区间终点，格式 'YYYY-MM-DD HH:MM:SS.sss'
   operator: Optional[str]  # 操作来源精确匹配，如 'USER' / 'MCP'
+  group_id: Optional[str]  # 所属测试组 id 精确匹配，空字符串/None 不筛选
 
 
 class ApiResponseVariantInsertRecord(TypedDict, total=False):
@@ -223,8 +226,57 @@ class ApiDataDetail(TypedDict):
   timeout: int  # 超时时间（毫秒），0 表示不限制
   request_content_type: str  # 请求 content-type 枚举值: 'NONE' / 'APPLICATION_JSON' / 'MULTIPART_FORM_DATA' / 'APPLICATION_X_WWW_FORM_URLENCODED'
   operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
+  group_id: str  # 所属测试组 id，仅 type='TEST_GROUP' 行有值，base 类型行为空字符串
   created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
   updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+
+
+class TestGroupRecord(TypedDict, total=False):
+  """
+  测试组写入参数
+
+  用于 insert_test_group / update_test_group 的入参。
+  total=False 表示所有字段可选，调用方按需传入。
+  enabled 不在此类型中：启用态由 enable_test_group / disable_test_group
+  原子管理，不经 update 修改。
+  """
+  id: str  # 记录唯一标识（update 时必填，insert 时由服务端生成）
+  name: str  # 测试组名称，允许重名，缺省为空字符串
+  operator: str  # 最后更新者，如 'USER' / 'MCP'，每次 update 会变更为当前操作者，缺省为空字符串
+
+
+class TestGroup(TypedDict):
+  """
+  测试组完整记录
+
+  用于 get_test_group / get_test_group_list 的组行字段。
+  enabled 全局至多一个组为 True。
+  """
+  id: str  # 记录唯一标识
+  name: str  # 测试组名称
+  enabled: bool  # 是否启用（True 启用，False 停用）
+  operator: str  # 操作来源，如 'USER' / 'MCP'，空字符串表示历史数据
+  created_at: str  # 创建时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+  updated_at: str  # 更新时间，格式 'YYYY-MM-DD HH:MM:SS.sss'
+
+
+class TestGroupSummary(TestGroup):
+  """
+  测试组列表行（含组内接口条目计数）
+
+  用于 get_test_group_list 的返回值。
+  """
+  item_count: int  # 组内 api_data 行数（type='TEST_GROUP' 且 group_id 指向本组的行）
+
+
+class TestGroupDetail(TestGroup):
+  """
+  测试组详情（组行字段 + 组内接口条目列表）
+
+  用于 get_test_group 的返回值；items 元素即 api_data 完整行
+  （与 get_api_list 返回的 ApiData 同构），按 created_at/id 正序。
+  """
+  items: List[ApiData]  # 组内接口条目列表（api_data 完整行）
 
 
 class StaticData(TypedDict):

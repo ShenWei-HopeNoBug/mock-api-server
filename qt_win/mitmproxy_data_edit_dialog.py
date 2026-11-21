@@ -33,6 +33,7 @@ from app_types.db_types import (
   OperationResultWithOptionalId,
 )
 from app_types.qt_bridge_types import RequestHandler
+from config.enum import SERVER
 from config.theme import qc
 from lib.app_lib import is_app_server_running
 from lib.bridge_lib import BridgeDispatcher
@@ -178,10 +179,12 @@ class MitmproxyDataEditDialog(QDialog):
     mock_data_type = params.get('type')
     page_num = params.get('page_num', 1)
     page_size = params.get('page_size', 20)
-    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY', 'MCP') else None
+    api_type = mock_data_type if mock_data_type in SERVER.MOCK_API_TYPE_PRIORITY else None
     enabled = params.get('enabled')
     query: ApiQuery = {
       'api_type': api_type,
+      # type 未指定/非法时兜 base 类型白名单，避免 TEST_GROUP 组数据漏进常规列表
+      'api_types': None if api_type else list(SERVER.MOCK_API_TYPE_PRIORITY),
       'url_like': params.get('url') or None,
       'params_like': params.get('params') or None,
       'response_like': params.get('response') or None,
@@ -223,10 +226,12 @@ class MitmproxyDataEditDialog(QDialog):
   def _handle_batch_delete_mock_data(self, params: BatchDeleteMockDataParams) -> BatchOperationResult:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     mock_data_type = params.get('type')
-    api_type = mock_data_type if mock_data_type in ('USER', 'MITMPROXY', 'MCP') else None
+    api_type = mock_data_type if mock_data_type in SERVER.MOCK_API_TYPE_PRIORITY else None
     enabled = params.get('enabled')
     query: ApiQuery = {
       'api_type': api_type,
+      # type 未指定/非法时兜 base 类型白名单，避免批删误伤 TEST_GROUP 组数据
+      'api_types': None if api_type else list(SERVER.MOCK_API_TYPE_PRIORITY),
       'url_like': params.get('url') or None,
       'params_like': params.get('params') or None,
       'response_like': params.get('response') or None,

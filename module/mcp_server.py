@@ -25,6 +25,7 @@ from app_types.db_types import (
 )
 from app_types.mcp_server_types import McpServerRunConfig
 from app_types.mcp_types import McpOperationResult, McpOperationResultWithOptionalId
+from config.enum import SERVER
 from config.enum.BIZ_CODE import BIZ_SUCCESS
 from lib.db import MockDBCache
 from lib.logger_lib import MCP_LOGGER, configure_logging, get_log_queue
@@ -165,6 +166,10 @@ class McpServer:
         query['method'] = method
       if api_type is not None:
         query['api_type'] = api_type
+      else:
+        # 未显式指定类型时兜 base 类型白名单，避免 TEST_GROUP 组数据漏进常规列表
+        # （显式传 api_type='TEST_GROUP' 仍可查询组数据，供测试组工具面使用）
+        query['api_types'] = list(SERVER.MOCK_API_TYPE_PRIORITY)
       if enabled is not None:
         query['enabled'] = enabled
       if response_like is not None:
