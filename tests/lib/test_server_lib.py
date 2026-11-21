@@ -105,6 +105,117 @@ def test_meta_empty_inner_none(make_handler):
   assert handler._get_api_match_meta('rk', 'rk2') is None
 
 
+# ---------- _resolve_meta / 测试组遮蔽 ----------
+
+
+def _enable_group(mock_db, name='g'):
+  """建组并启用，返回 group_id"""
+  group_id = mock_db.insert_test_group({'name': name, 'operator': 'USER'})['id']
+  mock_db.enable_test_group(group_id)
+  return group_id
+
+
+def test_group_exact_hit_masks_base(make_handler, mock_db):
+  """同 (request_key, response_key)：启用组精确命中 → 遮蔽 base"""
+  group_id = _enable_group(mock_db)
+  handler = make_handler()
+  rk = handler.get_request_key('/api/x', 'GET', 'NONE')
+  resk = handler.get_response_key('GET', 'NONE', '{}')
+  base_meta, group_meta = _meta(api_data_id='base1'), _meta(api_data_id='g_api')
+  handler.mock_api_map = {rk: {resk: base_meta}}
+  handler.group_api_map = {group_id: {rk: {resk: group_meta}}}
+  assert handler._resolve_meta(rk, resk) is group_meta
+
+
+def test_group_miss_falls_back_to_base(make_handler, mock_db):
+  """组有 request_key 但 response_key miss 且 base 有同 request_key → 落回 base 正常解析"""
+  group_id = _enable_group(mock_db)
+  handler = make_handler()
+  rk = handler.get_request_key('/api/x', 'GET', 'NONE')
+  resk = handler.get_response_key('GET', 'NONE', '{}')
+  base_meta, group_meta = _meta(api_data_id='base1'), _meta(api_data_id='g_api')
+  handler.mock_api_map = {rk: {resk: base_meta}}
+  handler.group_api_map = {group_id: {rk: {'other_key': group_meta}}}
+  assert handler._resolve_meta(rk, resk) is base_meta
+
+
+def test_group_only_api_last_entry_fallback(make_handler, mock_db):
+  """组独有接口（base 无同 request_key）且 response_key miss → 组内末位 fallback"""
+  group_id = _enable_group(mock_db)
+  handler = make_handler()
+  rk = handler.get_request_key('/api/only', 'GET', 'NONE')
+  m1, m2 = _meta(api_data_id='g1'), _meta(api_data_id='g2')
+  handler.group_api_map = {group_id: {rk: {'r1': m1, 'r2': m2}}}
+  assert handler._resolve_meta(rk, 'nope') is m2
+
+
+def test_base_fallback_unchanged_when_group_lacks_key(make_handler, mock_db):
+  """启用组不含该 request_key → base 既有「精确 → 末位」规则不变"""
+  _enable_group(mock_db)
+  handler = make_handler()
+  rk = handler.get_request_key('/api/x', 'GET', 'NONE')
+  m1, m2 = _meta(api_data_id='b1'), _meta(api_data_id='b2')
+  handler.mock_api_map = {rk: {'r1': m1, 'r2': m2}}
+  # 其他（未启用）组的数据不参与解析
+  handler.group_api_map = {'other_group': {rk: {'r1': _meta(api_data_id='unused')}}}
+  assert handler._resolve_meta(rk, 'nope') is m2
+
+
+def test_no_active_group_uses_base(make_handler, mock_db):
+  """有组数据但无启用组 → 纯 base 解析"""
+  group_id = mock_db.insert_test_group({'name': 'g', 'operator': 'USER'})['id']
+  handler = make_handler()
+  rk = handler.get_request_key('/api/x', 'GET', 'NONE')
+  resk = handler.get_response_key('GET', 'NONE', '{}')
+  base_meta, group_meta = _meta(api_data_id='base1'), _meta(api_data_id='g_api')
+  handler.mock_api_map = {rk: {resk: base_meta}}
+  handler.group_api_map = {group_id: {rk: {resk: group_meta}}}
+  assert handler._resolve_meta(rk, resk) is base_meta
+
+
+def test_empty_group_map_short_circuits_db(make_handler, monkeypatch):
+  """group_api_map 为空 → 不读 DB 直接 base 解析"""
+  from lib.db import MockDBCache
+
+  def _boom(cls, work_dir='.'):
+    raise AssertionError('不应发生 DB 查询')
+
+  monkeypatch.setattr(MockDBCache, 'get', classmethod(_boom))
+  handler = make_handler()
+  meta = _meta()
+  handler.mock_api_map = {'rk': {'resk': meta}}
+  assert handler._resolve_meta('rk', 'resk') is meta
+
+
+def test_active_group_runtime_switch(make_handler, mock_db):
+  """启用组状态每请求读 DB：同一张 map，切组零重启即时生效"""
+  g1 = mock_db.insert_test_group({'name': 'g1', 'operator': 'USER'})['id']
+  g2 = mock_db.insert_test_group({'name': 'g2', 'operator': 'USER'})['id']
+  handler = make_handler()
+  rk = handler.get_request_key('/api/x', 'GET', 'NONE')
+  resk = handler.get_response_key('GET', 'NONE', '{}')
+  m1, m2 = _meta(api_data_id='g1_api'), _meta(api_data_id='g2_api')
+  handler.group_api_map = {g1: {rk: {resk: m1}}, g2: {rk: {resk: m2}}}
+
+  mock_db.enable_test_group(g1)
+  assert handler._resolve_meta(rk, resk) is m1
+  mock_db.enable_test_group(g2)
+  assert handler._resolve_meta(rk, resk) is m2
+  mock_db.disable_test_group()
+  # 停用后落回 base：base map 无此 request_key → None
+  assert handler._resolve_meta(rk, resk) is None
+
+
+def test_group_masked_404_via_handle(make_handler, flask_app, mock_db):
+  """组启用与否不改变「request_key 全缺失 → 404」语义"""
+  _enable_group(mock_db)
+  handler = make_handler()
+  with flask_app.test_request_context():
+    resp, status = handler.handle('GET', '/nope', 'NONE', '{}')
+    assert status == 404
+    assert resp.get_json() == {'error': 'No valid mock data'}
+
+
 # ---------- ClientStateManager ----------
 
 

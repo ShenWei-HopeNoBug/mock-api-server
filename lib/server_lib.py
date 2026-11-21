@@ -18,6 +18,7 @@ from app_types.mock_server_types import (
   FlaskRouteResult,
   HttpMethod,
   MockApiEntry,
+  MockApiGroupMap,
   MockApiMap,
   ParamsJson,
   ParamsJsonStringFunc,
@@ -219,8 +220,11 @@ class MockRequestHandler:
       get_request_key: RequestKeyFunc,
       get_response_key: ResponseKeyFunc,
       replace_assets: Optional[AssetsReplaceFunc] = None,
+      group_api_map: Optional[MockApiGroupMap] = None,
   ) -> None:
     self.mock_api_map: MockApiMap = mock_api_map
+    # 测试组匹配映射：{group_id: MockApiMap}，启动时全量加载；启用组按请求时 DB 状态动态选取
+    self.group_api_map: MockApiGroupMap = group_api_map or {}
     self.work_dir: str = work_dir
     self.response_cache: 'ThreadSafeLRUCache[MockApiEntry]' = response_cache
     self.response_delay: int = response_delay
@@ -334,16 +338,17 @@ class MockRequestHandler:
     self.response_cache.set(cache_key, entry)
     return entry
 
-  def _get_api_match_meta(
+  def _match_map(
       self,
+      mock_api_map: MockApiMap,
       request_key: RequestKey,
       response_key: ResponseKey,
   ) -> Optional[ApiMatchMeta]:
-    """根据 request_key / response_key 命中 ApiMatchMeta，未命中时 fallback 默认"""
-    if request_key not in self.mock_api_map:
+    """在给定 map 内按既有规则命中 ApiMatchMeta：精确 → 同桶末位 fallback，request_key 缺失返回 None"""
+    if request_key not in mock_api_map:
       return None
 
-    inner: Dict[ResponseKey, ApiMatchMeta] = self.mock_api_map[request_key]
+    inner: Dict[ResponseKey, ApiMatchMeta] = mock_api_map[request_key]
 
     if response_key in inner:
       return inner[response_key]
@@ -360,6 +365,50 @@ class MockRequestHandler:
 
     return inner[default_key]
 
+  def _get_api_match_meta(
+      self,
+      request_key: RequestKey,
+      response_key: ResponseKey,
+  ) -> Optional[ApiMatchMeta]:
+    """根据 request_key / response_key 在 base map 命中 ApiMatchMeta，未命中时 fallback 默认"""
+    return self._match_map(self.mock_api_map, request_key, response_key)
+
+  def _get_active_group_map(self) -> Optional[MockApiMap]:
+    """取当前启用组的 inner map；无组数据/无启用组/查询异常均返回 None（等价纯 base 语义）"""
+    # 启动时没有任何组数据，短路不查 DB
+    if not self.group_api_map:
+      return None
+    try:
+      # 启用组状态每请求读 DB，切组无需重启 mock 进程
+      group_id = MockDBCache.get(self.work_dir).get_enabled_test_group_id()
+    except Exception as e:
+      MOCK_LOGGER.warning(f'测试组启用态查询失败，本次请求按 base 解析：{e}')
+      return None
+    if not group_id:
+      return None
+    return self.group_api_map.get(group_id)
+
+  def _resolve_meta(
+      self,
+      request_key: RequestKey,
+      response_key: ResponseKey,
+  ) -> Optional[ApiMatchMeta]:
+    """
+    双层匹配解析：启用测试组在同 (request_key, response_key) 处遮蔽 base
+
+    - 组内精确命中 → 组 meta（遮蔽生效）
+    - 组内 response_key miss 且 base 无同 request_key → 组内末位 fallback（组独有接口，同 base 宽松规则）
+    - 组内 response_key miss 且 base 有同 request_key → 落回 base 正常解析（精确遮蔽原则）
+    - 其余情况（含无启用组）→ base 既有 精确 → 末位 fallback 不变
+    """
+    group_inner_map: Optional[MockApiMap] = self._get_active_group_map()
+    if group_inner_map is not None and request_key in group_inner_map:
+      if response_key in group_inner_map[request_key]:
+        return group_inner_map[request_key][response_key]
+      if request_key not in self.mock_api_map:
+        return self._match_map(group_inner_map, request_key, response_key)
+    return self._match_map(self.mock_api_map, request_key, response_key)
+
   def handle(
       self,
       method: HttpMethod,
@@ -371,7 +420,7 @@ class MockRequestHandler:
     """匹配 mock 数据并返回响应"""
     request_key: RequestKey = self.get_request_key(route, method, request_content_type)
     response_key: ResponseKey = self.get_response_key(method, request_content_type, params)
-    meta: Optional[ApiMatchMeta] = self._get_api_match_meta(request_key, response_key)
+    meta: Optional[ApiMatchMeta] = self._resolve_meta(request_key, response_key)
 
     if meta is None:
       MOCK_LOGGER.info(f'mock 数据命中失败：\n - {method} {route} {params}')

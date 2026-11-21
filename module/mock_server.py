@@ -2,17 +2,18 @@
 import json
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
 
-from app_types.db_types import ApiData, ApiResponseVariantMeta
+from app_types.db_types import ApiData, ApiQuery, ApiResponseVariantMeta
 from app_types.mock_server_types import (
   ClientStateResult,
   FlaskRouteResult,
   HttpMethod,
   MockApiEntry,
+  MockApiGroupMap,
   MockApiMap,
   ParamsInput,
   ParamsJson,
@@ -136,88 +137,127 @@ class MockServer:
       throttle_strategy: str = mock_server_config.get('throttle_strategy', DEFAULT_THROTTLE_STRATEGY)
       self.throttle_strategy = throttle_strategy
 
-  # 创建并保存 mock_api_map
-  def create_api_map(self) -> MockApiMap:
+  # 把一条 api_data 行折算为 ApiMatchMeta 写入指定 map
+  def __insert_map_entry(
+      self,
+      mock_api_map: MockApiMap,
+      row_data: ApiData,
+      variant_metas_by_api: Dict[str, Dict[str, ApiResponseVariantMeta]],
+  ) -> None:
     """
-    构建 mock api 轻量匹配映射
+    单条 mock 数据 → 匹配映射建行（base_map/group_map 公共逻辑）
 
-    1. 从 DB 加载全部启用状态的 mock 数据；
-    2. 逐条遍历，按 api_data 启用的变体列表构建元数据；
-    3. 生成 request_key -> response_key -> ApiMatchMeta 的匹配映射；
-    4. 不加载 response 文本，不解析 JSON，不关闭 DB，响应体由 MockRequestHandler 按需加载。
+    同 request_key/response_key 后者覆盖前者：调用方按期望优先级控制插入顺序。
     """
-    mock_api_map: MockApiMap = {}
+    data = {**SERVER.MOCK_API_DATA_DEFAULTS, **row_data}
+    api_data_id: str = data['id']
+    method: str = data['method']
+    params: str = data['params']
+    request_content_type: str = data.get('request_content_type', 'NONE')
+    url: str = data['url']
+    # 去掉域名
+    route: str = remove_url_domain(url)
+    # GET 请求去掉 query 参数
+    if method == 'GET':
+      route = remove_url_query(route)
+
+    # 请求查询键名
+    request_key: str = self.__get_request_dict_key(route, method, request_content_type)
+
+    # 创建 api 匹配映射
+    if request_key not in mock_api_map:
+      mock_api_map[request_key] = {}
+
+    try:
+      # 响应数据查询键名
+      response_key: str = self.__get_response_dict_key(
+        method,
+        request_content_type,
+        self.__get_params_json_string(params),
+      )
+
+      # 启用的变体元数据列表（按 response_variant_ids 顺序，未在列表中的排最后）
+      order_map = {v: i for i, v in enumerate(data['response_variant_ids'])}
+      variant_metas: List[VariantMeta] = [
+        {'id': m['id'], 'timeout': m['timeout']}
+        for m in sorted(
+          variant_metas_by_api.get(api_data_id, {}).values(),
+          key=lambda m: order_map.get(m['id'], len(order_map)),
+        )
+      ]
+
+      mock_api_map[request_key][response_key] = {
+        'api_data_id': api_data_id,
+        'timeout': data['timeout'],
+        'variants': variant_metas,
+      }
+    except Exception as e:
+      MOCK_LOGGER.warning(f'mock 数据匹配映射构建失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
+
+  # 创建并保存 mock_api_map / group_api_map
+  def create_api_map(self) -> Tuple[MockApiMap, MockApiGroupMap]:
+    """
+    构建 mock api 轻量匹配映射（base_map, group_map）
+
+    1. base_map：MOCK_API_TYPE_PRIORITY 白名单内启用数据（天然排除 TEST_GROUP）；
+    2. group_map：type='TEST_GROUP' AND enabled=1 的行按 group_id 归拢为 {group_id: MockApiMap}，
+       组内 created_at/id 正序保持「后者覆盖前者」；
+    3. 两层共用一次变体元数据批量查询；不加载 response 文本，不解析 JSON，不关闭 DB，
+       响应体由 MockRequestHandler 按需加载；
+    4. 组数据内容变更需重启服务生效；启用组切换不经本函数，由 MockRequestHandler 每请求读 DB。
+    """
+    base_map: MockApiMap = {}
+    group_map: MockApiGroupMap = {}
     # 所有的 mock 数据列表（按 MOCK_API_TYPE_PRIORITY 优先级分段，段内 created_at/id 正序，仅启用状态）
     mock_api_data_list: List[ApiData] = get_mock_api_data_list(work_dir=self.work_dir, enabled=True)
 
     mock_db = MockDBCache.get(self.work_dir)
+
+    # 全部启用状态的组数据条目（created_at/id 正序），查询失败降级为空组 map（等价无组语义）
+    group_rows: List[ApiData] = []
+    try:
+      group_rows = mock_db.get_api_list(ApiQuery(api_type='TEST_GROUP', enabled=True))
+    except Exception as e:
+      MOCK_LOGGER.warning(f'测试组数据批量查询失败，按无组数据处理：{e}')
 
     # 一次批量查询全部启用变体的轻量元数据并按 api_data_id 分组（id 键保持查询序），
     # 替代逐行 get_variants_by_api_id 的 N+1 查询与 response 大文本加载；
     # 查询失败时降级为空映射，所有接口走主响应兜底而非整个 map 构建失败
     variant_metas_by_api: Dict[str, Dict[str, ApiResponseVariantMeta]] = {}
     try:
-      api_data_ids: List[str] = [row['id'] for row in mock_api_data_list]
+      api_data_ids: List[str] = (
+        [row['id'] for row in mock_api_data_list] + [row['id'] for row in group_rows]
+      )
       for m in mock_db.get_variant_metas_by_api_ids(api_data_ids, enabled=True):
         variant_metas_by_api.setdefault(m['api_data_id'], {})[m['id']] = m
     except Exception as e:
       MOCK_LOGGER.warning(f'变体元数据批量查询失败，全部接口降级为主响应：{e}')
 
     for row_data in mock_api_data_list:
-      data = {**SERVER.MOCK_API_DATA_DEFAULTS, **row_data}
-      api_data_id: str = data['id']
-      method: str = data['method']
-      params: str = data['params']
-      request_content_type: str = data.get('request_content_type', 'NONE')
-      url: str = data['url']
-      # 去掉域名
-      route: str = remove_url_domain(url)
-      # GET 请求去掉 query 参数
-      if method == 'GET':
-        route = remove_url_query(route)
+      self.__insert_map_entry(base_map, row_data, variant_metas_by_api)
 
-      # 请求查询键名
-      request_key: str = self.__get_request_dict_key(route, method, request_content_type)
+    # 组数据按 group_id 归拢建行；组内行序 = created_at/id 正序，同 key 后者覆盖前者
+    for row_data in group_rows:
+      group_id: str = row_data.get('group_id', '')
+      if not group_id:
+        MOCK_LOGGER.warning(f"测试组数据缺少 group_id，已跳过：{row_data.get('id')}")
+        continue
+      group_inner_map = group_map.setdefault(group_id, {})
+      self.__insert_map_entry(group_inner_map, row_data, variant_metas_by_api)
 
-      # 创建 api 匹配映射
-      if request_key not in mock_api_map:
-        mock_api_map[request_key] = {}
-
-      try:
-        # 响应数据查询键名
-        response_key: str = self.__get_response_dict_key(
-          method,
-          request_content_type,
-          self.__get_params_json_string(params),
-        )
-
-        # 启用的变体元数据列表（按 response_variant_ids 顺序，未在列表中的排最后）
-        order_map = {v: i for i, v in enumerate(data['response_variant_ids'])}
-        variant_metas: List[VariantMeta] = [
-          {'id': m['id'], 'timeout': m['timeout']}
-          for m in sorted(
-            variant_metas_by_api.get(api_data_id, {}).values(),
-            key=lambda m: order_map.get(m['id'], len(order_map)),
-          )
-        ]
-
-        mock_api_map[request_key][response_key] = {
-          'api_data_id': api_data_id,
-          'timeout': data['timeout'],
-          'variants': variant_metas,
-        }
-      except Exception as e:
-        MOCK_LOGGER.warning(f'mock 数据匹配映射构建失败，已跳过：\n - {method} {route} {params}\n - 错误：{e}')
-
-    # 过滤掉所有 mock 数据均处理失败而残留的空字典
-    mock_api_map = {k: v for k, v in mock_api_map.items() if v}
-    return mock_api_map
+    # 过滤掉所有 mock 数据均处理失败而残留的空字典（含空组 map）
+    base_map = {k: v for k, v in base_map.items() if v}
+    for group_id in list(group_map):
+      group_map[group_id] = {k: v for k, v in group_map[group_id].items() if v}
+      if not group_map[group_id]:
+        del group_map[group_id]
+    return base_map, group_map
 
   # 启动本地 mock 服务
   @create_thread
   def start_server(self) -> None:
     MOCK_LOGGER.info('>' * 10 + ' 本地 mock 服务启动...')
-    mock_api_map: MockApiMap = self.create_api_map()
+    mock_api_map, group_api_map = self.create_api_map()
 
     root_path: str = os.path.abspath(self.work_dir)
     static_folder: str = self.static_url_path.lstrip('/')
@@ -262,6 +302,7 @@ class MockServer:
 
     mock_handler: MockRequestHandler = MockRequestHandler(
       mock_api_map=mock_api_map,
+      group_api_map=group_api_map,
       work_dir=self.work_dir,
       response_cache=response_cache,
       response_delay=self.response_delay,
