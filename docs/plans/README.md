@@ -5,6 +5,18 @@
 > 约定：每篇为唯一权威方案，偏离修正以增量章节追加、不改正文；
 > 跨方案的后续变更单开增量文档（`*-changes.md`）。
 >
+## v0_1_6/
+
+新版本迭代目录，按功能域分设子目录。
+
+### test-group/
+
+测试组（测试任务）：第 4 优先级层 mock 数据分组 + 一键启用/停用遮蔽。本仓为总体方案与 Qt 侧实施；web 侧见 `mock-api-server-web-v3` 仓对应目录。
+
+| 文档 | 范围 | 说明 | 状态 |
+|---|---|---|---|
+| [test-group-plan](v0_1_6/test-group/test-group-plan.md) | `schema/v6.sql` / `lib/db/*` / `module/mock_server.py` / `lib/server_lib.py` / `qt_win` / `app_types` | 组 CRUD + 原子启用 + 拷入组 + 双层遮蔽匹配 + 过滤修正，三步确认制 | 待实施 |
+
 ## v0_1_5/
 
 当前版本工作目录，按功能域分设子目录。
