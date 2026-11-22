@@ -16,6 +16,7 @@
 | 文档 | 范围 | 说明 | 状态 |
 |---|---|---|---|
 | [test-group-plan](v0_1_6/test-group/test-group-plan.md) | `schema/v6.sql` / `lib/db/*` / `module/mock_server.py` / `lib/server_lib.py` / `qt_win` / `app_types` | 组 CRUD + 原子启用 + 拷入组 + 双层遮蔽匹配 + 过滤修正，三步确认制 | 待实施 |
+| [test-group-page-query-plan](v0_1_6/test-group/test-group-page-query-plan.md) | `lib/db/test_group.py` / `app_types` / `qt_win` / `QT_BRIDGE.md` / `tests` | `/test_group/page` 分页筛选 + `/test_group/enabled` 启用组摘要，纯增量桥方法 | 待实施 |
 
 ## v0_1_5/
 
