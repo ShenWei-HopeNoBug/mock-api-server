@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from app_types.db_types import ApiRecord
+from app_types.db_types import TestGroupQuery as GroupQuery  # 别名避开 pytest 按 Test* 收集
 from app_types.db_types import TestGroupRecord as GroupRecord  # 别名避开 pytest 按 Test* 收集
 from config.enum.BIZ_CODE import BIZ_SUCCESS
 
@@ -105,6 +106,57 @@ def test_disable_clears_all(mock_db):
 
 def test_get_enabled_test_group_id_empty(mock_db):
   assert mock_db.get_enabled_test_group_id() is None
+
+
+def test_group_page_name_filter(mock_db):
+  mock_db.insert_test_group(_group(name='订单组'))
+  mock_db.insert_test_group(_group(name='用户组'))
+  rows = mock_db.get_test_group_list_page(GroupQuery(name_like='订单'))
+  assert [r['name'] for r in rows] == ['订单组']
+  assert mock_db.get_test_group_count(GroupQuery(name_like='订单')) == 1
+  assert mock_db.get_test_group_count(GroupQuery(name_like='不存在')) == 0
+
+
+def test_group_page_enabled_filter(mock_db):
+  g1 = mock_db.insert_test_group(_group(name='g1'))['id']
+  mock_db.insert_test_group(_group(name='g2'))
+  mock_db.enable_test_group(g1)
+  enabled_rows = mock_db.get_test_group_list_page(GroupQuery(enabled=True))
+  assert [r['id'] for r in enabled_rows] == [g1]
+  disabled_rows = mock_db.get_test_group_list_page(GroupQuery(enabled=False))
+  assert all(r['enabled'] is False for r in disabled_rows)
+  assert g1 not in [r['id'] for r in disabled_rows]
+
+
+def test_group_page_bounds(mock_db):
+  for i in range(3):
+    mock_db.insert_test_group(_group(name=f'g{i}'))
+  query = GroupQuery()
+  assert mock_db.get_test_group_count(query) == 3
+  assert len(mock_db.get_test_group_list_page(query, page_num=2, page_size=2)) == 1
+  # page 越界：list 空，total 不变
+  assert mock_db.get_test_group_list_page(query, page_num=5, page_size=2) == []
+  assert mock_db.get_test_group_count(query) == 3
+
+
+def test_group_page_empty_query_all(mock_db):
+  mock_db.insert_test_group(_group(name='g1'))
+  mock_db.insert_test_group(_group(name='g2'))
+  page_ids = {r['id'] for r in mock_db.get_test_group_list_page(GroupQuery())}
+  list_ids = {r['id'] for r in mock_db.get_test_group_list()}
+  assert page_ids == list_ids
+
+
+def test_enabled_group_summary(mock_db):
+  assert mock_db.get_enabled_test_group_summary() is None
+  group_id, _, _ = _make_group_with_item(mock_db)
+  mock_db.enable_test_group(group_id)
+  summary = mock_db.get_enabled_test_group_summary()
+  assert summary['id'] == group_id
+  assert summary['enabled'] is True
+  assert summary['item_count'] == 1
+  mock_db.disable_test_group()
+  assert mock_db.get_enabled_test_group_summary() is None
 
 
 def test_copy_api_to_group_with_variants(mock_db):

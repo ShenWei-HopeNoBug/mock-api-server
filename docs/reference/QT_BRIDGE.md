@@ -271,6 +271,8 @@ dispatch → type === 'event' → _handle_event(incoming)
 | `/variant/copy` | `id`、`api_data_id` | `{ id }`（新变体） | 复制变体 |
 | `/variant/set_exclusive_enabled` | `id` | `null` | 设为唯一启用变体 |
 | `/test_group/list` | — | `{ list: TestGroupSummary[] }` | 测试组列表（含 item_count） |
+| `/test_group/page` | `name`、`enabled`、`page_num`、`page_size` 筛选分页 | `{ list: TestGroupSummary[], total, page_num, page_size }` | 测试组分页查询（name 模糊 / enabled 精确） |
+| `/test_group/enabled` | — | `TestGroupSummary \| null` | 当前启用组摘要（含 item_count），无启用组返回 `null` |
 | `/test_group/detail` | `id` | `TestGroupDetail \| null` | 组详情（组字段 + items） |
 | `/test_group/create` | `name` | `{ id }` | 新建测试组 |
 | `/test_group/update` | `id`、`name` | `null` | 更新组字段（不改 enabled） |

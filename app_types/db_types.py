@@ -279,6 +279,18 @@ class TestGroupDetail(TestGroup):
   items: List[ApiData]  # 组内接口条目列表（api_data 完整行）
 
 
+class TestGroupQuery(TypedDict, total=False):
+  """
+  测试组查询过滤参数
+
+  用于 get_test_group_list_page / get_test_group_count 的入参。
+  total=False 表示所有字段可选，调用方按需传入。
+  后续筛选字段（operator、创建时间区间等）按需在此扩展。
+  """
+  name_like: Optional[str]  # 组名称模糊查询，空字符串/None 不筛选
+  enabled: Optional[bool]  # 是否启用，True 启用，False 停用，None 不筛选
+
+
 class StaticData(TypedDict):
   """
   静态资源数据记录

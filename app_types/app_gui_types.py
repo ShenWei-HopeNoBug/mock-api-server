@@ -179,6 +179,31 @@ class TestGroupListResult(TypedDict):
   list: List[TestGroupSummary]
 
 
+class GetTestGroupPageParams(TypedDict, total=False):
+  """
+  /test_group/page 请求参数
+
+  name 为组名称模糊查询关键词，不传表示不过滤。
+  enabled 为启用状态精确查询，仅 bool 生效，None 或不传表示全部。
+  """
+  page_num: int  # 1-based 页码，缺省 1
+  page_size: int  # 每页条数，缺省 20
+  name: Optional[str]  # 组名称模糊查询关键词
+  enabled: Optional[bool]  # 启用状态精确查询，True 启用，False 停用
+
+
+class TestGroupPageResult(TypedDict):
+  """
+  /test_group/page 返回数据
+
+  list 为当前页的测试组摘要行（含 item_count），total 为符合条件的总记录数。
+  """
+  list: List[TestGroupSummary]  # 当前页数据
+  total: int  # 符合条件的总记录数
+  page_num: int  # 当前页码（1-based）
+  page_size: int  # 每页条数
+
+
 class GetTestGroupDetailParams(TypedDict):
   """
   /test_group/detail 请求参数

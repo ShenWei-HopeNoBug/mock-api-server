@@ -103,7 +103,7 @@ uv run pytest          # 全绿
 
 | 日期 | 步骤 | 结果 | 备注 |
 |---|---|---|---|
-| — | — | — | — |
+| 2026-11-22 | TestGroupQuery + 分页/计数/启用组摘要三方法 + 两 handler + QT_BRIDGE.md 登记 + 5 用例 | ruff 改动文件 0 错误；pytest 177 passed / 1 skipped | 未提交，待确认 |
 
 ## 13. 方案修正
 

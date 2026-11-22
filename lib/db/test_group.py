@@ -7,6 +7,7 @@ from app_types.db_types import (
   OperationResult,
   OperationResultWithOptionalId,
   TestGroupDetail,
+  TestGroupQuery,
   TestGroupRecord,
   TestGroupSummary,
 )
@@ -202,6 +203,98 @@ class TestGroupMixin:
         'item_count': row[6],
       })
     return result
+
+  def _build_test_group_where(self, query: TestGroupQuery) -> tuple:
+    """构建 test_group 查询的 WHERE 子句和参数，返回 (where_sql, sql_params)
+
+    enabled 只做 True/False 过滤，多行 enabled=1 的不变量由 enable/disable 原子写保证。
+    """
+    where_clauses = []
+    sql_params: list = []
+    name_like = query.get('name_like')
+    enabled = query.get('enabled')
+    if name_like:
+      where_clauses.append('g.name LIKE ?')
+      sql_params.append(f'%{name_like}%')
+    if enabled is True:
+      where_clauses.append('g.enabled = 1')
+    elif enabled is False:
+      where_clauses.append('g.enabled = 0')
+    where_sql = (' WHERE ' + ' AND '.join(where_clauses)) if where_clauses else ''
+    return where_sql, sql_params
+
+  # 按筛选条件查询测试组总数（count 不经 LEFT JOIN，where 字段均在 g 表）
+  @_ensure_open(default=0)
+  def get_test_group_count(self, query: TestGroupQuery) -> int:
+    """查询符合条件的测试组总数，与 get_test_group_list_page 配套"""
+    where_sql, sql_params = self._build_test_group_where(query)
+    sql = f'SELECT COUNT(*) FROM test_group g{where_sql}'
+    with self._lock:
+      return self._conn.execute(sql, tuple(sql_params)).fetchone()[0]
+
+  # 分页查询测试组列表（含组内 item 数），按创建时间倒序
+  @_ensure_open(default=[])
+  def get_test_group_list_page(
+      self,
+      query: TestGroupQuery,
+      page_num: int = 1,
+      page_size: int = 20,
+  ) -> List[TestGroupSummary]:
+    """分页查询测试组列表，支持 name 模糊查询、enabled 精确过滤"""
+    offset = (page_num - 1) * page_size
+    where_sql, sql_params = self._build_test_group_where(query)
+    sql = '''
+      SELECT g.id, g.name, g.enabled, g.operator, g.created_at, g.updated_at,
+             COUNT(a.id) AS item_count
+      FROM test_group g
+      LEFT JOIN api_data a ON a.group_id = g.id
+      {}
+      GROUP BY g.id
+      ORDER BY g.created_at DESC, g.id DESC
+      LIMIT ? OFFSET ?
+    '''.format(where_sql)
+    sql_params.extend([page_size, offset])
+    with self._lock:
+      rows = self._conn.execute(sql, tuple(sql_params)).fetchall()
+    result: List[TestGroupSummary] = []
+    for row in rows:
+      result.append({
+        'id': row[0],
+        'name': row[1],
+        'enabled': _parse_enabled(row[2]),
+        'operator': row[3],
+        'created_at': row[4],
+        'updated_at': row[5],
+        'item_count': row[6],
+      })
+    return result
+
+  # 查询当前启用的测试组摘要（含 item_count），无启用组返回 None
+  @_ensure_open(default=None)
+  def get_enabled_test_group_summary(self) -> Optional[TestGroupSummary]:
+    """当前启用组单条摘要（全局至多一行 enabled=1），供页头指示"""
+    sql = '''
+      SELECT g.id, g.name, g.enabled, g.operator, g.created_at, g.updated_at,
+             COUNT(a.id) AS item_count
+      FROM test_group g
+      LEFT JOIN api_data a ON a.group_id = g.id
+      WHERE g.enabled = 1
+      GROUP BY g.id
+      LIMIT 1
+    '''
+    with self._lock:
+      row = self._conn.execute(sql).fetchone()
+    if row is None:
+      return None
+    return {
+      'id': row[0],
+      'name': row[1],
+      'enabled': _parse_enabled(row[2]),
+      'operator': row[3],
+      'created_at': row[4],
+      'updated_at': row[5],
+      'item_count': row[6],
+    }
 
   # 查询当前启用的测试组 id（全局至多一个），mock 子进程每请求调用
   @_ensure_open(default=None)

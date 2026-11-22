@@ -24,10 +24,12 @@ from app_types.app_gui_types import (
   GetMockDataDetailParams,
   GetMockDataPageParams,
   GetTestGroupDetailParams,
+  GetTestGroupPageParams,
   MockDataPageResult,
   ReorderVariantParams,
   SetVariantExclusiveEnabledParams,
   TestGroupListResult,
+  TestGroupPageResult,
   UpdateTestGroupParams,
   UpdateVariantParams,
 )
@@ -39,6 +41,8 @@ from app_types.db_types import (
   OperationResult,
   OperationResultWithOptionalId,
   TestGroupDetail,
+  TestGroupQuery,
+  TestGroupSummary,
 )
 from app_types.qt_bridge_types import RequestHandler
 from config.enum import SERVER
@@ -292,6 +296,33 @@ class MitmproxyDataEditDialog(QDialog):
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return {'list': mock_db.get_test_group_list()}
 
+  def _handle_get_test_group_page(self, params: GetTestGroupPageParams) -> TestGroupPageResult:
+    page_num = params.get('page_num', 1)
+    page_size = params.get('page_size', 20)
+    enabled = params.get('enabled')
+    query: TestGroupQuery = {
+      'name_like': params.get('name') or None,
+      'enabled': enabled if isinstance(enabled, bool) else None,
+    }
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+
+    total = mock_db.get_test_group_count(query)
+    page_list = mock_db.get_test_group_list_page(
+      query,
+      page_num=page_num,
+      page_size=page_size,
+    )
+    return {
+      "list": page_list,
+      "total": total,
+      "page_num": page_num,
+      "page_size": page_size,
+    }
+
+  def _handle_get_enabled_test_group(self, params: Dict) -> Optional[TestGroupSummary]:
+    mock_db: MockDB = MockDBCache.get(self.work_dir)
+    return mock_db.get_enabled_test_group_summary()
+
   def _handle_get_test_group_detail(self, params: GetTestGroupDetailParams) -> Optional[TestGroupDetail]:
     mock_db: MockDB = MockDBCache.get(self.work_dir)
     return mock_db.get_test_group(params['id'])
@@ -342,6 +373,8 @@ class MitmproxyDataEditDialog(QDialog):
     '/variant/copy': _handle_copy_variant,
     '/variant/set_exclusive_enabled': _handle_set_variant_exclusive_enabled,
     '/test_group/list': _handle_get_test_group_list,
+    '/test_group/page': _handle_get_test_group_page,
+    '/test_group/enabled': _handle_get_enabled_test_group,
     '/test_group/detail': _handle_get_test_group_detail,
     '/test_group/create': _handle_create_test_group,
     '/test_group/update': _handle_update_test_group,
